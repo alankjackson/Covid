@@ -1,6 +1,6 @@
 #   Read state Health Dept site for Covid update
 
-
+print(paste("Starting run ---------------------", lubridate::now()))
 library(tidyverse)
 library(rvest)
 library(httr)
@@ -30,3 +30,5 @@ saveRDS(CovidData,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::to
 saveRDS(CovidData,"/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
 # Also save to mirror site
 saveRDS(CovidData,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Covid.rds")
+
+print(paste("Ending run ---------------------", lubridate::now()))
