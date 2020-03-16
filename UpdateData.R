@@ -14,7 +14,7 @@ url <- "https://www.dshs.state.tx.us/news/updates.shtm#coronavirus"
 page <- RCurl::getURL("https://www.dshs.state.tx.us/news/updates.shtm#coronavirus", ssl.verifyhost = 0L, ssl.verifypeer = 0L)
 
 mytable <- read_html(page) %>% 
-  html_nodes(xpath='//*[@id="ctl00_ContentPlaceHolder1_uxContent"]/div[2]/table') %>% 
+  html_nodes(xpath='/html/body/form/div[4]/div/div[3]/div[2]/div/div/div[2]/div/table') %>% 
   html_table()
 
 mytable <- mytable[[1]]
