@@ -32,6 +32,16 @@ init_zoom <- 10
 
 CovidData$County <- str_replace(CovidData$County, "\\d", "")
 
+# Calc days since March 11
+
+CovidData <- CovidData %>% 
+    mutate(Days=as.integer(Date-ymd("2020-03-11")))
+
+# Add dummy Estimate field
+
+CovidData <- CovidData %>% 
+    mutate(Estimate=Cases)
+
 # Load population of counties into tibble
 Counties <- tribble(
     ~County, ~Population,
@@ -129,7 +139,14 @@ Regions <- tribble(
             "San Antonio", 2426204, "San Antonio Metro Region",
             "Austin", 2058351, "Austin Metro Region")
 
-
+DefineRegions <- tribble(
+    ~Region, ~List,
+    "Texas", c("Total"),
+    "Houston-Galv", c("Harris", "Fort Bend", "Galveston", "Waller", "Montgomery", "Liberty", "Brazoria", "Chambers", "Austin"),
+    "Dallas-Fort Worth", c("Collin", "Dallas", "Denton", "Ellis", "Hood", "Hunt", "Johnson", "Kaufman", "Parker", "Rockwall", "Somervell", "Tarrant", "Wise"),
+    "San Antonio", c("Atascosa", "Bandera", "Bexar", "Comal", "Guadalupe", "Kendall", "Medina", "Wilson"), 
+    "Austin", c("Bastrop", "Caldwell", "Hays", "Travis", "Williamson")
+)
 
 ##################################################
 # Define UI for displaying data for Texas
@@ -217,17 +234,98 @@ ui <- basicPage(
 # Define server logic 
 server <- function(input, output) {
     
+  #---------------------------------------------------    
   #------------------- Prep Data ---------------------
-  prep_data <- function(){ # return population and label for graph title 
+  #---------------------------------------------------    
+  prep_data <- function(){ # return population, label for graph title and tibble subset
     if (input$dataset=="Region") { # work with regions
+        print(paste("--1--", DefineRegions$List[DefineRegions$Region==input$region]))
       foo <- Regions %>% filter(Region==input$region)
-      return(c(foo$Population, foo$Label))
+      target <- unlist(DefineRegions$List[DefineRegions$Region==input$region])
+      subdata <- CovidData %>% 
+          filter(County %in% target) %>% 
+          group_by(Date) %>% 
+          summarise(Cases=sum(Cases), Days=mean(Days), Estimate=sum(Estimate))
+      return(c(foo$Population, foo$Label, subdata))
     } else {
       foo <- Counties %>% filter(County==input$county)
-      return(c(foo$Population, paste(foo[1],"County")))
+      subdata <- CovidData %>% filter(County==input$county)
+      return(c(foo$Population, paste(foo[1],"County"), subdata))
     }
   } # end prep_data
     
+  #---------------------------------------------------    
+  #------------------- Build Model -------------------
+  #---------------------------------------------------    
+  build_model <- function(){ 
+      # Linear fits to log(cases)
+    ##########   Base case with actual data  
+    if (input$dataset=="Region") { # work with regions
+      foo <- prep_data()
+      df <- foo[3]
+      LogFits <- df %>% 
+        split(.$County) %>% 
+        map(~lm(log10(Cases)~Days, data=.x)) %>% 
+        map_df(tidy, .id="County" ) %>% 
+        filter(Region==!!input$region)
+    } else { # work with counties
+      LogFits <- CovidData %>% 
+        split(.$County) %>% 
+        map(~lm(log10(Cases)~Days, data=.x)) %>% 
+        map_df(tidy, .id="County" ) %>% 
+        filter(County==!!input$county)
+    }
+    b <- LogFits[1,3][[1]]
+    m <- LogFits[2,3][[1]]
+    return(c(m,b))
+  }
+      
+  build_est_model <- function(){ 
+      # Linear fits to log(cases)
+    ##########   Case with estimates of undercount
+     CovidData <- CovidData %>% 
+       mutate(Estimate=Cases*input$missed_pos)
+     if (input$dataset=="Region") { # work with regions
+       LogFits <- CovidData %>% 
+         split(.$Region) %>% 
+         map(~lm(log10(Estimate)~Days, data=.x)) %>% 
+         map_df(tidy, .id="Region" ) %>% 
+         filter(Region==!!input$region)
+     } else { # work with counties
+       LogFits <- CovidData %>% 
+         split(.$County) %>% 
+         map(~lm(log10(Estimate)~Days, data=.x)) %>% 
+         map_df(tidy, .id="County" ) %>% 
+         filter(County==!!input$county)
+     }
+    b <- LogFits[1,3][[1]]
+    m <- LogFits[2,3][[1]]
+    return(c(m,b))
+  }
+    
+  #---------------------------------------------------    
+  #------------------- Build Basic Plot --------------
+  #---------------------------------------------------    
+  
+  build_basic_plot <- function(){
+      p <- CovidData %>% filter(County==!!County) %>% 
+          ggplot(aes(x=Date, y=Cases)) +
+          geom_col(alpha = 2/3)+
+          expand_limits(x = today()+10) +
+          geom_line(data=ExpLine,
+                    aes(x=Date, y=Cases,
+                        color="blue"),
+                    size=1,
+                    linetype="dashed") +
+          geom_line(data=ExpLine[1:(nrow(ExpLine)-10),],
+                    aes(x=Date, y=Cases,
+                        color="blue"),
+                    size=1,
+                    linetype="solid") +
+          annotation_custom(grob) +
+          annotation_custom(grob2) +
+          labs(title=paste0("CORVID-19 Cases in ",CountyLabel))
+  }
   
   #------------------- Reactive bits ---------------------
 
