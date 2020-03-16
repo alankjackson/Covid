@@ -2,6 +2,7 @@
 
 print(paste("Starting run ---------------------", lubridate::now()))
 library(tidyverse)
+library(stringr)
 library(rvest)
 library(httr)
 library(xml2)
@@ -19,6 +20,9 @@ mytable <- read_html(page) %>%
 mytable <- mytable[[1]]
 names(mytable) <- c("County", "Cases")
 mytable <- mytable %>% mutate(Date=lubridate::today())
+
+# Get rid of footnotes
+mytable$County <- str_replace(mytable$County, "\\d", "")
 
 # Read in the old data
 CovidData <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
