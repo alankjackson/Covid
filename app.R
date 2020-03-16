@@ -122,12 +122,12 @@ Counties <- tribble(
 )
 
 Regions <- tribble(
-            ~Region, ~Population,
-            "Texas", 27864555,
-            "Houston-Galv", 6779104,
-            "Dallas-Fort Worth", 4938225,
-            "San Antonio", 2426204,
-            "Austin", 2058351)
+            ~Region, ~Population, ~Label,
+            "Texas", 27864555, "Texas",
+            "Houston-Galv", 6779104, "Houston/Galveston Metro Region",
+            "Dallas-Fort Worth", 4938225, "Dallas/Fort Worth Metro Region",
+            "San Antonio", 2426204, "San Antonio Metro Region",
+            "Austin", 2058351, "Austin Metro Region")
 
 
 
@@ -137,41 +137,72 @@ Regions <- tribble(
 ui <- basicPage(
         #    Graph, Map, Documentation
         tabsetPanel(id="tabs",
+    ##########   Graph Tab
           tabPanel("Graph", fluid=TRUE,value="GraphTab",
-            sidebarLayout(
-              sidebarPanel(
-                #    Select Data
-                radioButtons("dataset", label = strong("Which Data?"),
-                             choices = list("Region" = "Region", 
-                                           "County" = "County"), 
-                             selected = "Region",
-                             width='90%',
-                             inline=TRUE),
-                  conditionalPanel(
-                    #    Select Region
-                    condition = "input.dataset == 'Region'",
-                    selectInput("region", "Choose a Region:",
-                                Regions$Region,
-                                selected="Texas" )
-                  ), # end conditional panel
-                  conditionalPanel( 
-                    #    Select County
-                    condition = "input.dataset == 'County'",
-                    selectInput("County", label="Choose a County:",
-                                 Counties$County,
-                                 selected="Harris")
-                  ), # end conditional panel
-              ), # end sidebar panel
-              mainPanel(
+            fluidPage(
+        #-------------------- Plot
+              column(9, # Plot
                    plotOutput("plot_global"),
-              )
+              ), # end of column Plot
+        #-------------------- Controls
+              column(3, # Controls
+            #-------------------- Select Data
+                wellPanel( # Select data to plot
+                  h3("Choose the data to analyze"),
+                  radioButtons("dataset", label = strong("Which Data?"),
+                               choices = list("Region" = "Region", 
+                                             "County" = "County"), 
+                               selected = "Region",
+                               width='90%',
+                               inline=TRUE),
+                    conditionalPanel(
+                      #    Select Region
+                      condition = "input.dataset == 'Region'",
+                      selectInput("region", "Choose a Region:",
+                                  Regions$Region,
+                                  selected="Texas" )
+                    ), # end conditional panel
+                    conditionalPanel( 
+                      #    Select County
+                      condition = "input.dataset == 'County'",
+                      selectInput("county", label="Choose a County:",
+                                   Counties$County,
+                                   selected="Harris")
+                  ), # end conditional panel
+                ), # end wellPanel select data to plot
+            #-------------------- Plot controls
+                wellPanel( # Control plot options
+                  h3("Control plotting options"),
+                  checkboxInput(inputId = "avoid",
+                    label = strong("Crowd sizes to avoid"),
+                                  value = FALSE),
+                ), # end wellPanel Control plot options
+            #-------------------- Modeling parameters
+                wellPanel( # Modeling parameters
+                  h3("Adjust modeling parameters"),
+                  radioButtons("radio", label = h5("Exponential Fit Controls"),
+                               choices = list("Fit data" = "do fit", 
+                                              "Worldwide (1.15)" = "standard", 
+                                              "User entry" = "user"), 
+                               selected = "Do fit"),
+                  numericInput("fit", label = h4("User entry value"), value = 1.15),
+                  HTML("<hr>"),
+                  checkboxInput(inputId = "Missed",
+                    label = strong("Add model for missed positive tests"),
+                                  value = FALSE),
+                  numericInput("missed_pos", label = h4("Factor"), value = 2),
+                ), # end wellPanel Modeling parameters
+                
+              ) # end column Controls
             ) 
 
           ), # end tabPanel Graph
+    ##########   Map Tab
                            tabPanel("Map", fluid=TRUE, value="MapTab",
                                     HTML("<hr>"),
 
           ), # end tabPanel Map
+    ##########   Documentation Tab
                            tabPanel("Documentation", fluid=TRUE, value="DocumentationTab",
 #Counties %>% filter(County=="Harris"|County=="Fort Bend"|County=="Galveston"|County=="Waller"|County=="Montgomery"|County=="Liberty"|County=="Brazoria"|County=="Chambers"|County=="Austin") %>% summarise_at("Population",sum)
 #Collin, Dallas, Denton, Ellis, Hood, Hunt, Johnson, Kaufman, Parker, Rockwall, Somervell, Tarrant and Wise
@@ -183,10 +214,29 @@ ui <- basicPage(
         )  # end tabset 
     ) # end basic page
 
-# Define server logic required to draw a histogram
+# Define server logic 
 server <- function(input, output) {
+    
+  #------------------- Prep Data ---------------------
+  prep_data <- function(){ # return population and label for graph title 
+    if (input$dataset=="Region") { # work with regions
+      foo <- Regions %>% filter(Region==input$region)
+      return(c(foo$Population, foo$Label))
+    } else {
+      foo <- Counties %>% filter(County==input$county)
+      return(c(foo$Population, paste(foo[1],"County")))
+    }
+  } # end prep_data
+    
+  
+  #------------------- Reactive bits ---------------------
 
-
+  observeEvent(input$tabs, { # do stuff when tab changes
+    print(paste("tab:", input$tabs))  
+    if (input$tabs=="GraphTab") { ##  Graph Tab ##
+      print(paste("Population and title:",prep_data()))
+    }
+  })
 }
 
 # Run the application 
