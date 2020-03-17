@@ -30,16 +30,25 @@ init_zoom <- 10
 
 # Clean up footnotes
 
-CovidData$County <- str_replace(CovidData$County, "\\d", "")
+DF$County <- str_replace(DF$County, "\\d", "")
 
+# Add Statewide Totals per day
+
+DF <- DF %>% bind_rows(
+                  DF %>%
+                  group_by(Date) %>% 
+                  summarise(Cases = sum(Cases)) %>% 
+                  mutate(County="Total")
+                 ) %>% 
+    arrange(Date)
 # Calc days since March 11
 
-CovidData <- CovidData %>% 
+DF <- DF %>% 
     mutate(Days=as.integer(Date-ymd("2020-03-11")))
 
 # Add dummy Estimate field
 
-CovidData <- CovidData %>% 
+DF <- DF %>% 
     mutate(Estimate=Cases)
 
 # Load population of counties into tibble
@@ -148,6 +157,8 @@ DefineRegions <- tribble(
     "Austin", c("Bastrop", "Caldwell", "Hays", "Travis", "Williamson")
 )
 
+
+
 ##################################################
 # Define UI for displaying data for Texas
 ##################################################
@@ -159,13 +170,14 @@ ui <- basicPage(
             fluidPage(
         #-------------------- Plot
               column(9, # Plot
-                   plotOutput("plot_global"),
+                   plotOutput("plot_graph",
+                              height="800px"),
               ), # end of column Plot
         #-------------------- Controls
               column(3, # Controls
             #-------------------- Select Data
                 wellPanel( # Select data to plot
-                  h3("Choose the data to analyze"),
+                  h4("Choose the data to analyze"),
                   radioButtons("dataset", label = strong("Which Data?"),
                                choices = list("Region" = "Region", 
                                              "County" = "County"), 
@@ -189,25 +201,28 @@ ui <- basicPage(
                 ), # end wellPanel select data to plot
             #-------------------- Plot controls
                 wellPanel( # Control plot options
-                  h3("Control plotting options"),
+                  h4("Control plotting options"),
                   checkboxInput(inputId = "avoid",
                     label = strong("Crowd sizes to avoid"),
                                   value = FALSE),
                 ), # end wellPanel Control plot options
             #-------------------- Modeling parameters
                 wellPanel( # Modeling parameters
-                  h3("Adjust modeling parameters"),
-                  radioButtons("radio", label = h5("Exponential Fit Controls"),
+                  h4("Adjust modeling parameters"),
+                  radioButtons("modeling", label = h5("Exponential Fit Controls"),
                                choices = list("Fit data" = "do fit", 
-                                              "Worldwide (1.15)" = "standard", 
+                                              "Worldwide (0.061)" = "standard", 
                                               "User entry" = "user"), 
-                               selected = "Do fit"),
-                  numericInput("fit", label = h4("User entry value"), value = 1.15),
+                               selected = "do fit"),
+                  numericInput("fit", 
+                               label = h5("User entry value"),
+                               step = 0.005,
+                               value = 0.061),
                   HTML("<hr>"),
-                  checkboxInput(inputId = "Missed",
+                  checkboxInput(inputId = "missed",
                     label = strong("Add model for missed positive tests"),
                                   value = FALSE),
-                  numericInput("missed_pos", label = h4("Factor"), value = 2),
+                  numericInput("missed_pos", label = h5("Factor"), value = 2),
                 ), # end wellPanel Modeling parameters
                 
               ) # end column Controls
@@ -234,23 +249,33 @@ ui <- basicPage(
 # Define server logic 
 server <- function(input, output) {
     
+#   Global variables are
+#    PopLabel = list(Region, Population, Label)
+#    subdata = tibble of data subsetted 
+#    fit parameters m, b, m_est, b_est
+#    plots: p=basic, avoid=avoid, missed=missed cases model
+       
   #---------------------------------------------------    
   #------------------- Prep Data ---------------------
   #---------------------------------------------------    
   prep_data <- function(){ # return population, label for graph title and tibble subset
     if (input$dataset=="Region") { # work with regions
-        print(paste("--1--", DefineRegions$List[DefineRegions$Region==input$region]))
-      foo <- Regions %>% filter(Region==input$region)
+        print(paste("--1--", DefineRegions$List[DefineRegions$Region==input$region]))######################### print
+      PopLabel <<- Regions %>% filter(Region==input$region)
       target <- unlist(DefineRegions$List[DefineRegions$Region==input$region])
-      subdata <- CovidData %>% 
+      subdata <<- DF %>% 
           filter(County %in% target) %>% 
           group_by(Date) %>% 
           summarise(Cases=sum(Cases), Days=mean(Days), Estimate=sum(Estimate))
-      return(c(foo$Population, foo$Label, subdata))
+      #return(c(foo$Population, foo$Label, subdata))
+      print(paste("---1.5---", subdata, input$region))######################### print
+      return()
     } else {
-      foo <- Counties %>% filter(County==input$county)
-      subdata <- CovidData %>% filter(County==input$county)
-      return(c(foo$Population, paste(foo[1],"County"), subdata))
+        print(paste("--2--", input$county))######################### print
+      PopLabel <<- Counties %>% filter(County==input$county)
+      subdata <<- DF %>% filter(County==input$county)
+      #return(c(foo$Population, paste(foo[1],"County"), subdata))
+      return()
     }
   } # end prep_data
     
@@ -260,55 +285,64 @@ server <- function(input, output) {
   build_model <- function(){ 
       # Linear fits to log(cases)
     ##########   Base case with actual data  
-    if (input$dataset=="Region") { # work with regions
-      foo <- prep_data()
-      df <- foo[3]
-      LogFits <- df %>% 
-        split(.$County) %>% 
-        map(~lm(log10(Cases)~Days, data=.x)) %>% 
-        map_df(tidy, .id="County" ) %>% 
-        filter(Region==!!input$region)
-    } else { # work with counties
-      LogFits <- CovidData %>% 
-        split(.$County) %>% 
-        map(~lm(log10(Cases)~Days, data=.x)) %>% 
-        map_df(tidy, .id="County" ) %>% 
-        filter(County==!!input$county)
-    }
-    b <- LogFits[1,3][[1]]
-    m <- LogFits[2,3][[1]]
-    return(c(m,b))
+      LogFits <- subdata %>% 
+        lm(log10(Cases)~Days, data=.)
+    m <<- LogFits[["coefficients"]][["Days"]]
+    b <<- LogFits[["coefficients"]][["(Intercept)"]]
+    print(paste("--3--", m, b))  ######################### print
+    return()
   }
       
   build_est_model <- function(){ 
       # Linear fits to log(cases)
     ##########   Case with estimates of undercount
-     CovidData <- CovidData %>% 
-       mutate(Estimate=Cases*input$missed_pos)
-     if (input$dataset=="Region") { # work with regions
-       LogFits <- CovidData %>% 
-         split(.$Region) %>% 
-         map(~lm(log10(Estimate)~Days, data=.x)) %>% 
-         map_df(tidy, .id="Region" ) %>% 
-         filter(Region==!!input$region)
-     } else { # work with counties
-       LogFits <- CovidData %>% 
-         split(.$County) %>% 
-         map(~lm(log10(Estimate)~Days, data=.x)) %>% 
-         map_df(tidy, .id="County" ) %>% 
-         filter(County==!!input$county)
-     }
-    b <- LogFits[1,3][[1]]
-    m <- LogFits[2,3][[1]]
-    return(c(m,b))
+    subdata <- subdata %>% # update missed cases in case needed
+                 mutate(Estimate=Cases*input$missed_pos)
+    LogFits <- subdata %>% 
+                 lm(log10(Estimate)~Days, data=.)
+    m_est <<- LogFits[["coefficients"]][["Days"]]
+    b_est <<- LogFits[["coefficients"]][["(Intercept)"]]
+    print(paste("--3.9--", m_est, b_est))  ######################### print
+
+    return()
   }
     
+  #---------------------------------------------------    
+  #------------------- Build exponential curve -------
+  #---------------------------------------------------    
+    build_expline <- function(m, b){
+      #   Go 10 days into future
+      dayseq <- 0:(as.integer(today() - ymd("2020-03-11")) + 10)
+      dateseq <- as_date(ymd("2020-03-11"):(today()+10))
+      if (input$modeling=="do fit") {
+        Cases <- 10**(m*dayseq+b)
+      } else if (input$modeling=="user") {
+        m <<- input$fit
+        b <<- log10(subdata$Cases[1])
+        Cases <- 10**(m*dayseq+b)
+      } else {
+        m <<- 0.061
+        b <<- log10(subdata$Cases[1])
+        Cases <- 10**(m*dayseq+b)
+      }
+      ExpLine <- tibble( Days=dayseq, Date=dateseq, Cases=Cases )
+      print(paste("--4.5--", m*dayseq+b))######################### print
+      print(paste("--5--", ExpLine))######################### print
+      return(ExpLine)
+    }  
+  
   #---------------------------------------------------    
   #------------------- Build Basic Plot --------------
   #---------------------------------------------------    
   
   build_basic_plot <- function(){
-      p <- CovidData %>% filter(County==!!County) %>% 
+      # Build exponential line for plot
+    print(paste("--4--", m, b))######################### print
+    EqText <- paste0("Fit is log(Cases) = ",signif(m,3),"*Days + ",signif(b,3))
+    ExpLine <- build_expline(m, b)
+    grob <- grid::grid.text(EqText, x=0.7,  y=0.1, gp=grid::gpar(col="black", fontsize=10))
+    print(paste("--6--"))######################### print
+      p <- subdata %>% 
           ggplot(aes(x=Date, y=Cases)) +
           geom_col(alpha = 2/3)+
           expand_limits(x = today()+10) +
@@ -322,18 +356,84 @@ server <- function(input, output) {
                         color="blue"),
                     size=1,
                     linetype="solid") +
+          ylim(0, 6*max(subdata$Cases)) + # limit height of modeled fit
           annotation_custom(grob) +
-          annotation_custom(grob2) +
-          labs(title=paste0("CORVID-19 Cases in ",CountyLabel))
+          labs(title=paste0("CORVID-19 Cases in ",PopLabel$Label))
+    print(paste("--6.9--"))######################### print
+          #annotation_custom(grob2) +
+    return(p)
+  }
+  
+  #---------------------------------------------------    
+  #------------------- Add Missed Plot ---------------
+  #---------------------------------------------------    
+  add_missed <- function(p) {
+    build_est_model()
+    ExpLine_est <- build_expline(m_est, b_est)
+    Est_layer <-   geom_line(data=ExpLine_est,
+                             aes(x=Date, y=Cases,
+                                 color="purple"),
+                             size=1,
+                             linetype="dotted")
+    Est_legend <- theme(legend.position="right")
+      
+    Legend_layer <- scale_color_discrete(name = "Models", 
+                                         labels = c("Data", "Estimate"))
+    p <- p +
+         Est_layer +
+         Est_legend +
+         Legend_layer
+    
+    return(p)
   }
   
   #------------------- Reactive bits ---------------------
 
-  observeEvent(input$tabs, { # do stuff when tab changes
-    print(paste("tab:", input$tabs))  
-    if (input$tabs=="GraphTab") { ##  Graph Tab ##
-      print(paste("Population and title:",prep_data()))
-    }
+  #observeEvent(input$tabs, { # do stuff when tab changes
+  #  print(paste("tab:", input$tabs))  
+  #  if (input$tabs=="GraphTab") { ##  Graph Tab ##
+  #    print(paste("Population and title:",prep_data()))
+  #  }
+  #})
+    
+  #---------------------------------------------------    
+  #------------------- Select Data -------------------
+  #---------------------------------------------------    
+  observeEvent({input$dataset
+                input$region
+                input$county
+                1}, { # Change data selection
+      prep_data()
+      build_model()
+      p <- build_basic_plot()
+      if (input$missed) {
+          p <- add_missed(p)
+      } else {
+          p <- p + theme(legend.position = "none")
+      }
+      output$plot_graph <- renderPlot({
+          print(p)
+          })
+  })
+    
+  #---------------------------------------------------    
+  #------------------- Fiddle with Model -------------
+  #---------------------------------------------------    
+  observeEvent({input$modeling
+                input$fit
+                input$missed
+                input$missed_pos
+                1} , { # 
+      build_model()
+      p <- build_basic_plot()
+      if (input$missed) {
+          p <- add_missed(p)
+      } else {
+          p <- p + theme(legend.position = "none")
+      }
+      output$plot_graph <- renderPlot({
+          print(p)
+          })
   })
 }
 
