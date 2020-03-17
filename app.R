@@ -312,8 +312,8 @@ server <- function(input, output) {
   #---------------------------------------------------    
     build_expline <- function(m, b){
       #   Go 10 days into future
-      dayseq <- 0:(as.integer(today() - ymd("2020-03-11")) + 10)
-      dateseq <- as_date(ymd("2020-03-11"):(today()+10))
+      dayseq <- 0:(as.integer(today(tzone="America/Chicago") - ymd("2020-03-11")) + 10)
+      dateseq <- as_date(ymd("2020-03-11"):(today(tzone="America/Chicago")+10))
       if (input$modeling=="do fit") {
         Cases <- 10**(m*dayseq+b)
       } else if (input$modeling=="user") {
@@ -345,7 +345,7 @@ server <- function(input, output) {
       p <- subdata %>% 
           ggplot(aes(x=Date, y=Cases)) +
           geom_col(alpha = 2/3)+
-          expand_limits(x = today()+10) +
+          expand_limits(x = today(tzone="America/Chicago")+10) +
           geom_line(data=ExpLine,
                     aes(x=Date, y=Cases,
                         color="blue"),
