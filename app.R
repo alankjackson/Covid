@@ -27,6 +27,7 @@ DataLocation <- "https://www.ajackson.org/Covid/"
 DF <- readRDS(gzcon(url(paste0(DataLocation, "Covid.rds"))))
 
 init_zoom <- 10
+MapCenter <- c(-99.9018, 31.9686) # center of state
 
 # Clean up footnotes
 
@@ -50,6 +51,16 @@ DF <- DF %>%
 
 DF <- DF %>% 
     mutate(Estimate=Cases)
+
+#   Last date in dataset formatted for plotting
+
+sf <- stamp_date("Sunday, Jan 17, 1999")
+lastdate <- sf(DF$Date[nrow(DF)])
+
+#   Crowdsize text
+
+CrowdText <- "Sizes of groups to avoid to keep\nchance of meeting a contagious\nperson below 1%"
+grob2 <- grid::grid.text(CrowdText, x=0.3,  y=0.8, gp=grid::gpar(col="black", fontsize=16))
 
 # Load population of counties into tibble
 Counties <- tribble(
@@ -163,77 +174,142 @@ DefineRegions <- tribble(
 # Define UI for displaying data for Texas
 ##################################################
 ui <- basicPage(
-        #    Graph, Map, Documentation
-        tabsetPanel(id="tabs",
-    ##########   Graph Tab
-          tabPanel("Graph", fluid=TRUE,value="GraphTab",
-            fluidPage(
-        #-------------------- Plot
-              column(9, # Plot
-                   plotOutput("plot_graph",
-                              height="800px"),
-              ), # end of column Plot
-        #-------------------- Controls
-              column(3, # Controls
-            #-------------------- Select Data
-                wellPanel( # Select data to plot
-                  h4("Choose the data to analyze"),
-                  radioButtons("dataset", label = strong("Which Data?"),
-                               choices = list("Region" = "Region", 
-                                             "County" = "County"), 
-                               selected = "Region",
-                               width='90%',
-                               inline=TRUE),
-                    conditionalPanel(
-                      #    Select Region
-                      condition = "input.dataset == 'Region'",
-                      selectInput("region", "Choose a Region:",
-                                  Regions$Region,
-                                  selected="Texas" )
-                    ), # end conditional panel
-                    conditionalPanel( 
-                      #    Select County
-                      condition = "input.dataset == 'County'",
-                      selectInput("county", label="Choose a County:",
-                                   Counties$County,
-                                   selected="Harris")
-                  ), # end conditional panel
-                ), # end wellPanel select data to plot
-            #-------------------- Plot controls
-                wellPanel( # Control plot options
-                  h4("Control plotting options"),
-                  checkboxInput(inputId = "avoid",
-                    label = strong("Crowd sizes to avoid"),
-                                  value = FALSE),
-                ), # end wellPanel Control plot options
-            #-------------------- Modeling parameters
-                wellPanel( # Modeling parameters
-                  h4("Adjust modeling parameters"),
-                  radioButtons("modeling", label = h5("Exponential Fit Controls"),
-                               choices = list("Fit data" = "do fit", 
-                                              "Worldwide (0.061)" = "standard", 
-                                              "User entry" = "user"), 
-                               selected = "do fit"),
-                  numericInput("fit", 
-                               label = h5("User entry value"),
-                               step = 0.005,
-                               value = 0.061),
-                  HTML("<hr>"),
-                  checkboxInput(inputId = "missed",
-                    label = strong("Add model for missed positive tests"),
-                                  value = FALSE),
-                  numericInput("missed_pos", label = h5("Factor"), value = 2),
-                ), # end wellPanel Modeling parameters
-                
-              ) # end column Controls
-            ) 
-
-          ), # end tabPanel Graph
+    #    Graph, Map, Documentation
+    tabsetPanel(id = "tabs",
+                ##########   Graph Tab
+                tabPanel(
+                    "Graph",
+                    fluid = TRUE,
+                    value = "GraphTab",
+                    fluidPage(
+                        #-------------------- Plot
+                        column(
+                            9,
+                            # Plot
+                            plotOutput("plot_graph",
+                                       height = "800px"),
+                            h4("Details on displayed data"),
+                            htmlOutput("data_details"),
+                            #verbatimTextOutput("data_details", placeholder = TRUE)
+                        ),
+                        # end of column Plot
+                        #-------------------- Controls
+                        column(
+                            3,
+                            # Controls
+                            #-------------------- Select Data
+                            wellPanel(
+                                # Select data to plot
+                                h4("Choose the data to analyze"),
+                                radioButtons(
+                                    "dataset",
+                                    label = strong("Which Data?"),
+                                    choices = list("Region" = "Region",
+                                                   "County" = "County"),
+                                    selected = "Region",
+                                    width = '90%',
+                                    inline = TRUE
+                                ),
+                                conditionalPanel(
+                                    #    Select Region
+                                    condition = "input.dataset == 'Region'",
+                                    selectInput("region", "Choose a Region:",
+                                                Regions$Region,
+                                                selected = "Texas")
+                                ),
+                                # end conditional panel
+                                conditionalPanel(
+                                    #    Select County
+                                    condition = "input.dataset == 'County'",
+                                    selectInput(
+                                        "county",
+                                        label = "Choose a County:",
+                                        Counties$County,
+                                        selected = "Harris"
+                                    )
+                                ),
+                                # end conditional panel
+                            ),
+                            # end wellPanel select data to plot
+                            #-------------------- Plot controls
+                            wellPanel(
+                                # Control plot options
+                                h4("Control plotting options"),
+                                checkboxInput(
+                                    inputId = "avoid",
+                                    label = strong("Crowd sizes to avoid"),
+                                    value = FALSE
+                                ),
+                                checkboxInput(
+                                    inputId = "zoom",
+                                    label = strong("Expand scale"),
+                                    value = FALSE
+                                ),
+                                
+                            ),
+                            # end wellPanel Control plot options
+                            #-------------------- Modeling parameters
+                            wellPanel(
+                                # Modeling parameters
+                                h4("Adjust modeling parameters"),
+                                radioButtons(
+                                    "modeling",
+                                    label = h5("Exponential Fit Controls"),
+                                    choices = list(
+                                        "Fit data" = "do fit",
+                                        "Worldwide (0.061)" = "standard",
+                                        "User entry" = "user"
+                                    ),
+                                    selected = "do fit"
+                                ),
+                                numericInput(
+                                    "fit",
+                                    label = h5("Slope"),
+                                    step = 0.005,
+                                    value = 0.061
+                                ),
+                                numericInput(
+                                    "intercept",
+                                    label = h5("Intercept"),
+                                    step = 0.10,
+                                    value = 1.00
+                                ),
+                                HTML("<hr>"),
+                                checkboxInput(
+                                    inputId = "missed",
+                                    label = strong("Add model for missed positive tests"),
+                                    value = FALSE
+                                ),
+                                numericInput("missed_pos", label = h5("Factor"), value = 2),
+                            ),
+                            # end wellPanel Modeling parameters
+                            
+                        ) # end column Controls
+                    )
+                    
+                ),
+                # end tabPanel Graph
     ##########   Map Tab
-                           tabPanel("Map", fluid=TRUE, value="MapTab",
-                                    HTML("<hr>"),
-
-          ), # end tabPanel Map
+    tabPanel( "Map", fluid = TRUE, value = "MapTab",
+        HTML("<hr>"),
+        fluidPage(#-------------------- Map
+            column( 9, # Map
+                    leafletOutput("TexasMap"),
+                    HTML("<hr>"),
+            ), # end of column Plot
+            #-------------------- Controls
+            column(3, # Controls
+                   #    Select quantity to color counties with
+                   radioButtons("county_color", label = strong("Display which variable?"),
+                                choices = list("Cases per 100,000 population" = "percapita", 
+                                               "Total Cases" = "casetotal"), 
+                                selected = "casetotal",
+                                width='90%',
+                                inline=FALSE),
+                   ) # end column control
+         ) # end fluid page
+                   
+     ), # end tabPanel Map
     ##########   Documentation Tab
                            tabPanel("Documentation", fluid=TRUE, value="DocumentationTab",
 #Counties %>% filter(County=="Harris"|County=="Fort Bend"|County=="Galveston"|County=="Waller"|County=="Montgomery"|County=="Liberty"|County=="Brazoria"|County=="Chambers"|County=="Austin") %>% summarise_at("Population",sum)
@@ -272,7 +348,8 @@ server <- function(input, output) {
       return()
     } else {
         print(paste("--2--", input$county))######################### print
-      PopLabel <<- Counties %>% filter(County==input$county)
+      PopLabel <<- Counties %>% filter(County==input$county) %>% 
+                     mutate(Label=paste(input$county, "County"))
       subdata <<- DF %>% filter(County==input$county)
       #return(c(foo$Population, paste(foo[1],"County"), subdata))
       return()
@@ -285,10 +362,11 @@ server <- function(input, output) {
   build_model <- function(){ 
       # Linear fits to log(cases)
     ##########   Base case with actual data  
-      LogFits <- subdata %>% 
-        lm(log10(Cases)~Days, data=.)
+      LogFits <- lm(log10(Cases)~Days, data=subdata)
     m <<- LogFits[["coefficients"]][["Days"]]
     b <<- LogFits[["coefficients"]][["(Intercept)"]]
+    Rsqr <<- summary(LogFits)$adj.r.squared
+    std_dev <<- sigma(LogFits)
     print(paste("--3--", m, b))  ######################### print
     return()
   }
@@ -296,12 +374,12 @@ server <- function(input, output) {
   build_est_model <- function(){ 
       # Linear fits to log(cases)
     ##########   Case with estimates of undercount
-    subdata <- subdata %>% # update missed cases in case needed
+    subdata <<- subdata %>% # update missed cases in case needed
                  mutate(Estimate=Cases*input$missed_pos)
-    LogFits <- subdata %>% 
-                 lm(log10(Estimate)~Days, data=.)
+    LogFits <- lm(log10(Estimate)~Days, data=subdata)
     m_est <<- LogFits[["coefficients"]][["Days"]]
     b_est <<- LogFits[["coefficients"]][["(Intercept)"]]
+    Rsqr_est <<- summary(LogFits)$adj.r.squared
     print(paste("--3.9--", m_est, b_est))  ######################### print
 
     return()
@@ -310,22 +388,40 @@ server <- function(input, output) {
   #---------------------------------------------------    
   #------------------- Build exponential curve -------
   #---------------------------------------------------    
-    build_expline <- function(m, b){
+    build_expline <- function(m, b, crv=c('real', 'est')){
       #   Go 10 days into future
       dayseq <- 0:(as.integer(today(tzone="America/Chicago") - ymd("2020-03-11")) + 10)
       dateseq <- as_date(ymd("2020-03-11"):(today(tzone="America/Chicago")+10))
+      build_model()
+      build_est_model()
+      print(paste("----build_expline----",m,b))
       if (input$modeling=="do fit") {
-        Cases <- 10**(m*dayseq+b)
+        Cases <- case_when(
+          crv=="real" ~  10**(m*dayseq+b),
+          crv=="est"  ~  10**(m_est*dayseq+b_est)
+        )
       } else if (input$modeling=="user") {
-        m <<- input$fit
-        b <<- log10(subdata$Cases[1])
+        m <- input$fit
+        b <- input$intercept
+        #b <- case_when(
+        #  crv=="real" ~  log10(subdata$Cases[1]),
+        #  crv=="est"  ~  log10(subdata$Estimate[1])
+        #)
+        #b <<- log10(subdata$Cases[1])
         Cases <- 10**(m*dayseq+b)
       } else {
-        m <<- 0.061
-        b <<- log10(subdata$Cases[1])
+        m <- 0.061
+        b <- case_when(
+          crv=="real" ~  log10(subdata$Cases[1]),
+          crv=="est"  ~  log10(subdata$Estimate[1])
+        )
+        #b <<- log10(subdata$Cases[1])
         Cases <- 10**(m*dayseq+b)
       }
-      ExpLine <- tibble( Days=dayseq, Date=dateseq, Cases=Cases )
+      SD_upper <- Cases+Cases*std_dev
+      SD_lower <- Cases-Cases*std_dev
+      ExpLine <- tibble( Days=dayseq, Date=dateseq, Cases=Cases,
+                         SD_upper=SD_upper, SD_lower=SD_lower)
       print(paste("--4.5--", m*dayseq+b))######################### print
       print(paste("--5--", ExpLine))######################### print
       return(ExpLine)
@@ -339,12 +435,13 @@ server <- function(input, output) {
       # Build exponential line for plot
     print(paste("--4--", m, b))######################### print
     EqText <- paste0("Fit is log(Cases) = ",signif(m,3),"*Days + ",signif(b,3))
-    ExpLine <- build_expline(m, b)
-    grob <- grid::grid.text(EqText, x=0.7,  y=0.1, gp=grid::gpar(col="black", fontsize=10))
+    ExpLine <- build_expline(m, b, "real")
+    grob <- grid::grid.text(EqText, x=0.7,  y=0.1, gp=grid::gpar(col="black", fontsize=15))
     print(paste("--6--"))######################### print
       p <- subdata %>% 
           ggplot(aes(x=Date, y=Cases)) +
           geom_col(alpha = 2/3)+
+          geom_label(aes(label=Cases), stat='identity', size = 3) +
           expand_limits(x = today(tzone="America/Chicago")+10) +
           geom_line(data=ExpLine,
                     aes(x=Date, y=Cases,
@@ -356,9 +453,17 @@ server <- function(input, output) {
                         color="blue"),
                     size=1,
                     linetype="solid") +
-          ylim(0, 6*max(subdata$Cases)) + # limit height of modeled fit
+          geom_errorbar(data=ExpLine[(nrow(ExpLine)-10):nrow(ExpLine)+1,],
+                        aes(x=Date, y=Cases, ymin=SD_lower, ymax=SD_upper)) +
+          geom_point(data=ExpLine[(nrow(ExpLine)-10):nrow(ExpLine)+1,],
+                        aes(x=Date, y=Cases)) +
           annotation_custom(grob) +
-          labs(title=paste0("CORVID-19 Cases in ",PopLabel$Label))
+          theme(text = element_text(size=20)) +
+          labs(title=paste0("COVID-19 Cases in ",PopLabel$Label), 
+               subtitle=paste0(" as of ", lastdate))
+      if (!input$zoom) {
+          p <- p + ylim(0, 6*max(subdata$Cases))  # limit height of modeled fit
+      }
     print(paste("--6.9--"))######################### print
           #annotation_custom(grob2) +
     return(p)
@@ -368,8 +473,8 @@ server <- function(input, output) {
   #------------------- Add Missed Plot ---------------
   #---------------------------------------------------    
   add_missed <- function(p) {
-    build_est_model()
-    ExpLine_est <- build_expline(m_est, b_est)
+    print(paste("--7--"))######################### print
+    ExpLine_est <- build_expline(m_est, b_est, "est")
     Est_layer <-   geom_line(data=ExpLine_est,
                              aes(x=Date, y=Cases,
                                  color="purple"),
@@ -387,6 +492,124 @@ server <- function(input, output) {
     return(p)
   }
   
+  #---------------------------------------------------    
+  #------------------- Add crowd size ----------------
+  #---------------------------------------------------    
+  # When is probability of 1% contact reached?
+  add_crowdsize <- function(p) {
+      Population <- PopLabel[2][[1]]
+
+      ExpLine <- build_expline(m, b, "real") 
+      ExpLine_est <- build_expline(m_est, b_est, "est") 
+      #Days, Date, Cases, SD_upper, SD_lower
+      
+      TestDays <- as.integer(today(tzone="America/Chicago") 
+                             - ymd("2020-03-11")) + c(0,5,10) + 1
+      TestDates <- today(tzone="America/Chicago") + c(0,5,10)
+      Crowdsize <- signif((0.01*Population)/(10**(TestDays*m+b)), 2)
+      Crowdsize_est <- signif((0.01*Population)/(10**(TestDays*m_est+b_est)), 2)
+      
+      dayseq <- 0:(as.integer(today(tzone="America/Chicago") - ymd("2020-03-11")) + 10)
+      dateseq <- as_date(ymd("2020-03-11"):(today(tzone="America/Chicago")+10))
+      #Cases <- 10**(m*dayseq+b)
+      #Cases_est <- 10**(m_est*dayseq+b_est)
+      Cases <- ExpLine$Cases
+      Cases_est <- ExpLine_est$Cases
+      #  Scale cases so similar scaling to days
+      CaseScale <- length(dateseq)/max(Cases)
+      Delta <- (Cases[TestDays] - Cases[TestDays-1])*CaseScale
+      r <-  2 # radius distance
+      x_nudge <- -r*cos((pi/2 -atan(Delta)))- 0.5
+      y_nudge <- r*sin((pi/2 -atan(Delta)))/CaseScale
+      y_extra <- max(ExpLine$Cases)/30
+      
+      # Build label tibble
+      CrowdLabels <- tibble(Date=TestDates,
+                            Crowd=Crowdsize,
+                            Cases=Cases[TestDays],
+                            Delta=Delta,
+                            x_nudge=x_nudge,
+                            y_nudge=y_nudge)
+      
+      CrowdLabels_est <- tibble(Date=TestDates,
+                                Crowd=Crowdsize_est,
+                                Cases=Cases_est[TestDays],
+                                Delta=Delta,
+                                x_nudge=x_nudge,
+                                y_nudge=y_nudge)
+      
+      print(paste("===Crowds:", CrowdLabels))
+      CrowdLayer1 <-  geom_point(data=CrowdLabels,
+                                 aes(x=Date, y=Cases)) 
+      CrowdLayer2 <- geom_label(data=CrowdLabels,
+                                aes(x=Date, y=Cases, label=Crowd),
+                                nudge_x=x_nudge,
+                                nudge_y=y_nudge) 
+      CrowdLayer3 <- geom_segment(data=CrowdLabels, 
+                                  aes(x = Date+x_nudge+.5, 
+                                      xend = Date,
+                                      y = Cases + y_nudge - y_extra,
+                                      yend = Cases), 
+                                  colour = "black", 
+                                  size=0.5) 
+      
+      CrowdLayerest1 <-  geom_point(data=CrowdLabels_est,
+                                    aes(x=Date, y=Cases)) 
+      CrowdLayerest2 <- geom_label(data=CrowdLabels_est,
+                                   aes(x=Date, y=Cases, label=Crowd),
+                                   nudge_x=x_nudge,
+                                   nudge_y=y_nudge) 
+      CrowdLayerest3 <- geom_segment(data=CrowdLabels_est, 
+                                     aes(x = Date+x_nudge+.5, 
+                                         xend = Date,
+                                         y = Cases + y_nudge - y_extra,
+                                         yend = Cases), 
+                                     colour = "black", 
+                                     size=0.5)
+      
+      p <- p + CrowdLayer1 + 
+               CrowdLayer2 + 
+               CrowdLayer3 +
+               annotation_custom(grob2)
+      
+      if (input$missed) { # Add for fit and estimate 
+          return(p + CrowdLayerest1 + CrowdLayerest2 + CrowdLayerest3)
+      } else { # Add for fit only
+          return(p)
+      }
+  }
+  
+  #---------------------------------------------------    
+  #------------------- Displayed Data text -----------
+  #---------------------------------------------------    
+  displayed_data <- function(){
+      output$data_details <- renderUI({
+          str1 <- paste("Most recent value, on",subdata$Date[nrow(subdata)],
+                        "was<b>", subdata$Cases[nrow(subdata)],"</b>Cases")
+          str3 <- paste("           Doubling Time =", signif(log10(2)/m,2), "days")
+          if (Rsqr>.8) {
+            str2 <- paste("R<sup>2</sup> value for fit =", signif(Rsqr,4))
+          } else {
+            str2 <- paste("<font color=\"red\">R<sup>2</sup> value for fit =", signif(Rsqr,4),
+                          "<b>which is poor</b></font>")
+          }
+          HTML(paste(str1, str3, str2, sep = '<br/>'))
+      })
+  }
+  
+  ######################  Map ########################
+  #---------------------------------------------------    
+  #------------------- Build Model -------------------
+  #---------------------------------------------------    
+  
+  draw_map <- function() {
+    output$TexasMap <- renderLeaflet({
+      #   Basemap
+      leaflet(DF) %>% 
+        setView(lng = MapCenter[1] , lat = MapCenter[2], zoom = init_zoom ) %>%   
+        addTiles()
+    }) 
+  }
   #------------------- Reactive bits ---------------------
 
   #observeEvent(input$tabs, { # do stuff when tab changes
@@ -414,6 +637,7 @@ server <- function(input, output) {
       output$plot_graph <- renderPlot({
           print(p)
           })
+      displayed_data()
   })
     
   #---------------------------------------------------    
@@ -421,8 +645,11 @@ server <- function(input, output) {
   #---------------------------------------------------    
   observeEvent({input$modeling
                 input$fit
+                input$intercept
                 input$missed
                 input$missed_pos
+                input$zoom
+                input$avoid
                 1} , { # 
       build_model()
       p <- build_basic_plot()
@@ -431,9 +658,13 @@ server <- function(input, output) {
       } else {
           p <- p + theme(legend.position = "none")
       }
+      if (input$avoid) {
+          p <- add_crowdsize(p)
+      }
       output$plot_graph <- renderPlot({
           print(p)
           })
+      displayed_data()
   })
 }
 
