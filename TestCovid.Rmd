@@ -359,10 +359,11 @@ CovidData %>% filter(County==!!County) %>%
 #DF <- readRDS(gzcon(url(paste0(DataLocation, "Covid.rds"))))
 
 #   Get county outlines
-USA <- raster::getData("GADM", country = "usa", level = 2)
+#USA <- raster::getData("GADM", country = "usa", level = 2)
+#Counties <- Counties %>% mutate(state="Texas")
+#Texas <- USA[USA@data$NAME_1 == "Texas", ]
 
-Counties <- Counties %>% mutate(state="Texas")
-Texas <- USA[USA@data$NAME_1 == "Texas", ]
+Texas <- readRDS("/home/ajackson/Dropbox/Rprojects/Datasets/Archive/Texas_County_Outlines.rds")
 
 init_zoom <- 6
 MapCenter <- c(-99.9018, 31.9686) # center of state
@@ -374,46 +375,72 @@ TodayData <- CovidData %>% filter(Date==LastDate) %>%
   mutate(percapita=Cases/Population*100000)
 
 temp <-  merge(Texas, TodayData,
-              by.x = c("NAME_2"), by.y = c("County"),
+              by.x = c("County"), by.y = c("County"),
               all.x = TRUE) 
 
-temp$GID_2[71] <- "USA.44.71_1"
-temp$GID_2[70] <- "USA.44.70_1"
+#   Reduce the resolution in favor of speed
+
+temp <- rmapshaper::ms_simplify(temp)
+
 #    Per Capita
 # Create a continuous palette function
 palcap <- colorNumeric(
   na.color = "transparent",
-  palette = rev(heat.colors(8)),
+  palette = heat.colors(8),
+  reverse=TRUE,
   domain = temp$percapita)
 
 palcase <- colorNumeric(
   na.color = "transparent",
-  palette = rev(heat.colors(8)),
+  palette = heat.colors(8),
+  reverse=TRUE,
   domain = temp$Cases)
 
 #mypal <- colorNumeric(palette = "viridis", domain = temp$percapita, na.color = "transparent")
 
+temp <- temp %>%
+  mutate(percapita=signif(percapita,3)) %>% 
+  mutate(Label=paste0(County, " county<br>",
+                              Cases, " total cases<br>",
+                              percapita, " cases per 100,000")) %>%      
+  mutate(Label=htmltools::HTML(temp$Label))
+  
 leaflet(TodayData) %>% 
   setView(lng = MapCenter[1] , lat = MapCenter[2], zoom = init_zoom ) %>%   
   addTiles() %>%
-  addPolygons(data = Texas, 
+  addPolygons(data = temp, 
+              group="cases",
               stroke = TRUE,
               weight = 1,
               smoothFactor = 0.2, 
-              fillOpacity = 0.5,
-              label = ~NAME_2,
-              fillColor = ~palcase(temp$Cases))
+              fillOpacity = 0.7,
+              label = ~Label,
+              fillColor = ~palcase(temp$Cases)) %>% 
+  addLegend("bottomleft", pal = palcase, values = ~Cases, 
+    title = "Total Cases",
+    opacity = 1)
 
-  addPolygons(data=temp, weight=1,
-              fillColor = ~pal(percapita),
-              fillOpacity = 0.5,
-              label = ~County) #%>% 
-  addLegend("bottomleft", pal = pal, values = ~percapita, 
-    title = "Per capita</br>x1000",
+leaflet(TodayData) %>% 
+  setView(lng = MapCenter[1] , lat = MapCenter[2], zoom = init_zoom ) %>%   
+  addTiles() %>%
+  addPolygons(data=temp,
+              group="percapita",
+              stroke = TRUE,
+              weight=1,
+              fillColor = ~palcap(percapita),
+              fillOpacity = 0.7,
+              label = ~County) %>% 
+  addLegend("bottomleft", pal = palcap, values = ~percapita, 
+    title = "Cases per</br>x100,000",
     opacity = 1
   )
 
-
+ ggplot(data = temp) +
+    geom_sf() +
+    geom_sf(data = temp, aes(fill = Cases)) +
+    scale_fill_viridis_c(trans = "sqrt", alpha = .4) 
+  
+  
 ```
 
 ## reprex
