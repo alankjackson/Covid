@@ -364,6 +364,9 @@ CovidData %>% filter(County==!!County) %>%
 #Texas <- USA[USA@data$NAME_1 == "Texas", ]
 
 Texas <- readRDS("/home/ajackson/Dropbox/Rprojects/Datasets/Archive/Texas_County_Outlines.rds")
+smallTexas <- rmapshaper::ms_simplify(Texas, keep=0.01)
+
+saveRDS(smallTexas, "/home/ajackson/mirrors/ajackson/SharedData/Texas_County_Outlines_lowres.rds")
 
 init_zoom <- 6
 MapCenter <- c(-99.9018, 31.9686) # center of state
@@ -402,8 +405,14 @@ temp <- temp %>%
   mutate(percapita=signif(percapita,3)) %>% 
   mutate(Label=paste0(County, " county<br>",
                               Cases, " total cases<br>",
-                              percapita, " cases per 100,000")) %>%      
-  mutate(Label=htmltools::HTML(temp$Label))
+                              percapita, " cases per 100,000"))       
+  temp$Label=htmltools::HTML(temp$Label)
+
+labs <- lapply(seq(nrow(temp)), function(i) {
+  paste0( temp[i, "County"], '<br>', 
+          temp[i, "Cases"],'<br>', 
+          temp[i, "percapita"]) 
+})
   
 leaflet(TodayData) %>% 
   setView(lng = MapCenter[1] , lat = MapCenter[2], zoom = init_zoom ) %>%   
