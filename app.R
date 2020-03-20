@@ -28,11 +28,11 @@ DataArchive <- "https://www.ajackson.org/SharedData/"
 #   Case data
 DF <- readRDS(gzcon(url(paste0(DataLocation, "Covid.rds"))))
 #   Testing data
-TestingData <- readRDS(gzcon(url(paste0(DataLocation, "Testing.rds"))))
+#TestingData <- readRDS(gzcon(url(paste0(DataLocation, "Testing.rds"))))
 #   County polygons
-Texas <- readRDS(gzcon(url(paste0(DataArchive, "Texas_County_Outlines.rds"))))
+Texas <- readRDS(gzcon(url(paste0(DataArchive, "Texas_County_Outlines_lowres.rds"))))
 
-init_zoom <- 10
+init_zoom <- 6
 MapCenter <- c(-99.9018, 31.9686) # center of state
 
 # Clean up footnotes
@@ -62,6 +62,7 @@ DF <- DF %>%
 
 sf <- stamp_date("Sunday, Jan 17, 1999")
 lastdate <- sf(DF$Date[nrow(DF)])
+LastDate <- DF[nrow(DF),]$Date
 
 #   Crowdsize text
 
@@ -174,6 +175,54 @@ DefineRegions <- tribble(
     "Austin", c("Bastrop", "Caldwell", "Hays", "Travis", "Williamson")
 )
 
+# prep mapping polygons
+
+TodayData <- DF %>% filter(Date==LastDate) %>% 
+  filter(County!="Pending County Assignment") %>% 
+  left_join(., Counties, by="County") %>% 
+  mutate(percapita=Cases/Population*100000)
+
+MappingData <-  merge(Texas, TodayData,
+                      by.x = c("County"), by.y = c("County"),
+                      all.x = TRUE) 
+
+# Build labels for map
+
+MappingData <- MappingData %>%
+  mutate(percapita=signif(percapita,3))  
+
+MapLabels <- lapply(seq(nrow(MappingData)), function(i) {
+  htmltools::HTML(
+    str_replace_all(
+      paste0( MappingData[i,]$County, ' County<br>', 
+              MappingData[i,]$Cases,' Cases Total<br>', 
+              MappingData[i,]$percapita, " per 100,000"),
+      "NA", "Zero"))
+})
+
+addTitle = function(object,
+                    text,
+                    color = "black",
+                    fontSize = "20px",
+                    fontFamily = "Sans",
+                    leftPosition = 50,
+                    topPosition = 2){
+  
+  htmlwidgets::onRender(object, paste0("
+                                       function(el,x){
+                                       h1 = document.createElement('h1');
+                                       h1.innerHTML = '", text ,"';
+                                       h1.id='titleh1';
+                                       h1.style.color = '", color ,"';
+                                       h1.style.fontSize = '",fontSize,"';
+                                       h1.style.fontFamily='",fontFamily,"';
+                                       h1.style.position = 'fixed';
+                                       h1.style['-webkit-transform']='translateX(-50%)';
+                                       h1.style.left='",leftPosition ,"%';
+                                       h1.style.top='",topPosition,"%';
+                                       document.body.appendChild(h1);
+                                       }"))
+}
 
 
 ##################################################
@@ -196,7 +245,6 @@ ui <- basicPage(
                                        height = "800px"),
                             h4("Details on displayed data"),
                             htmlOutput("data_details"),
-                            #verbatimTextOutput("data_details", placeholder = TRUE)
                         ),
                         # end of column Plot
                         #-------------------- Controls
@@ -206,7 +254,7 @@ ui <- basicPage(
                             #-------------------- Select Data
                             wellPanel(
                                 # Select data to plot
-                                h4("Choose the data to analyze"),
+                                h4("Choose the data"),
                                 radioButtons(
                                     "dataset",
                                     label = strong("Which Data?"),
@@ -240,7 +288,7 @@ ui <- basicPage(
                             #-------------------- Plot controls
                             wellPanel(
                                 # Control plot options
-                                h4("Control plotting options"),
+                                h4("Plotting options"),
                                 checkboxInput(
                                     inputId = "avoid",
                                     label = strong("Crowd sizes to avoid"),
@@ -251,13 +299,18 @@ ui <- basicPage(
                                     label = strong("Expand scale"),
                                     value = FALSE
                                 ),
+                                checkboxInput(
+                                    inputId = "estmiss",
+                                    label = strong("Est missed cases"),
+                                    value = FALSE
+                                ),
                                 
                             ),
                             # end wellPanel Control plot options
                             #-------------------- Modeling parameters
                             wellPanel(
                                 # Modeling parameters
-                                h4("Adjust modeling parameters"),
+                                h4("Adjust parameters"),
                                 radioButtons(
                                     "modeling",
                                     label = h5("Exponential Fit Controls"),
@@ -268,25 +321,27 @@ ui <- basicPage(
                                     ),
                                     selected = "do fit"
                                 ),
-                                numericInput(
-                                    "fit",
-                                    label = h5("Slope"),
-                                    step = 0.005,
-                                    value = 0.061
-                                ),
-                                numericInput(
-                                    "intercept",
-                                    label = h5("Intercept"),
-                                    step = 0.10,
-                                    value = 1.00
+                                splitLayout(
+                                  numericInput(
+                                      "fit",
+                                      label = h5("Slope"),
+                                      step = 0.005,
+                                      value = 0.061
+                                  ),
+                                  numericInput(
+                                      "intercept",
+                                      label = h5("Intercept"),
+                                      step = 0.10,
+                                      value = 1.00
+                                  )
                                 ),
                                 HTML("<hr>"),
                                 checkboxInput(
-                                    inputId = "missed",
-                                    label = strong("Add model for missed positive tests"),
+                                    inputId = "mult",
+                                    label = strong("Multiply Cases"),
                                     value = FALSE
                                 ),
-                                numericInput("missed_pos", label = h5("Factor"), value = 2),
+                                numericInput("mult_pos", label = h5("Factor"), value = 2),
                             ),
                             # end wellPanel Modeling parameters
                             
@@ -300,15 +355,16 @@ ui <- basicPage(
         HTML("<hr>"),
         fluidPage(#-------------------- Map
             column( 9, # Map
-                    leafletOutput("TexasMap"),
+                    leafletOutput("TexasMap",
+                                  height = "800px"),
                     HTML("<hr>"),
             ), # end of column Plot
             #-------------------- Controls
             column(3, # Controls
                    #    Select quantity to color counties with
                    radioButtons("county_color", label = strong("Display which variable?"),
-                                choices = list("Cases per 100,000 population" = "percapita", 
-                                               "Total Cases" = "casetotal"), 
+                                choices = list( "Total Cases" = "casetotal", 
+                                               "Cases per 100,000 population" = "percapita"), 
                                 selected = "casetotal",
                                 width='90%',
                                 inline=FALSE),
@@ -335,7 +391,7 @@ server <- function(input, output) {
 #    PopLabel = list(Region, Population, Label)
 #    subdata = tibble of data subsetted 
 #    fit parameters m, b, m_est, b_est
-#    plots: p=basic, avoid=avoid, missed=missed cases model
+#    plots: p=basic, avoid=avoid, mult=mult cases model
        
   #---------------------------------------------------    
   #------------------- Prep Data ---------------------
@@ -380,8 +436,8 @@ server <- function(input, output) {
   build_est_model <- function(){ 
       # Linear fits to log(cases)
     ##########   Case with estimates of undercount
-    subdata <<- subdata %>% # update missed cases in case needed
-                 mutate(Estimate=Cases*input$missed_pos)
+    subdata <<- subdata %>% # update mult cases in case needed
+                 mutate(Estimate=Cases*input$mult_pos)
     LogFits <- lm(log10(Estimate)~Days, data=subdata)
     m_est <<- LogFits[["coefficients"]][["Days"]]
     b_est <<- LogFits[["coefficients"]][["(Intercept)"]]
@@ -396,8 +452,10 @@ server <- function(input, output) {
   #---------------------------------------------------    
     build_expline <- function(m, b, crv=c('real', 'est')){
       #   Go 10 days into future
-      dayseq <- 0:(as.integer(today(tzone="America/Chicago") - ymd("2020-03-11")) + 10)
-      dateseq <- as_date(ymd("2020-03-11"):(today(tzone="America/Chicago")+10))
+      #dayseq <- 0:(as.integer(today(tzone="America/Chicago") - ymd("2020-03-11")) + 10)
+      lastday <- as.integer(LastDate - ymd("2020-03-11")) + 1 # last day of real data
+      dayseq <- 0:(lastday + 9)
+      dateseq <- as_date(ymd("2020-03-11"):(LastDate+10))
       build_model()
       build_est_model()
       print(paste("----build_expline----",m,b))
@@ -418,8 +476,8 @@ server <- function(input, output) {
       } else {
         m <- 0.061
         b <- case_when(
-          crv=="real" ~  log10(subdata$Cases[1]),
-          crv=="est"  ~  log10(subdata$Estimate[1])
+          crv=="real" ~  log10(subdata$Cases[lastday]) - m*lastday,
+          crv=="est"  ~  log10(subdata$Estimate[lastday]) - m*lastday
         )
         #b <<- log10(subdata$Cases[1])
         Cases <- 10**(m*dayseq+b)
@@ -448,15 +506,15 @@ server <- function(input, output) {
           ggplot(aes(x=Date, y=Cases)) +
           geom_col(alpha = 2/3)+
           geom_label(aes(label=Cases), stat='identity', size = 3) +
-          expand_limits(x = today(tzone="America/Chicago")+10) +
+          expand_limits(x = LastDate+10) +
           geom_line(data=ExpLine,
                     aes(x=Date, y=Cases,
-                        color="blue"),
+                        color="fit"),
                     size=1,
                     linetype="dashed") +
           geom_line(data=ExpLine[1:(nrow(ExpLine)-10),],
                     aes(x=Date, y=Cases,
-                        color="blue"),
+                        color="fit" ),
                     size=1,
                     linetype="solid") +
           geom_errorbar(data=ExpLine[(nrow(ExpLine)-10):nrow(ExpLine)+1,],
@@ -476,24 +534,82 @@ server <- function(input, output) {
   }
   
   #---------------------------------------------------    
-  #------------------- Add Missed Plot ---------------
+  #------------------- Add mult Plot ---------------
   #---------------------------------------------------    
-  add_missed <- function(p) {
+  add_mult <- function(p) {
     print(paste("--7--"))######################### print
     ExpLine_est <- build_expline(m_est, b_est, "est")
     Est_layer <-   geom_line(data=ExpLine_est,
                              aes(x=Date, y=Cases,
-                                 color="purple"),
+                                 color="mult"),
                              size=1,
                              linetype="dotted")
+    p <- p + Est_layer 
+    
+    return(p)
+  }
+  
+  #---------------------------------------------------    
+  #------------------- Add Estimate of missed cases --
+  #---------------------------------------------------    
+  # use worldwide slope, derive b from last number of cases
+  add_estmiss <- function(p) {
+    print(paste("--9--"))######################### print
+      lastday <- as.integer(LastDate - ymd("2020-03-11")) + 1  # last day of real data
+      dayseq <- 0:(lastday - 1)
+      dateseq <- as_date(ymd("2020-03-11"):(LastDate))
+      m <- 0.061
+      b <- log10(subdata$Cases[lastday]) - m*lastday
+      temp <- tibble( Days=dayseq, 
+                      Date=dateseq, 
+                      Cases=10**(m*dayseq + b)
+                        )
+      
+      
+    Est_layer <-   geom_point(data=temp,
+                             aes(x=Date, y=Cases,
+                                 color="est_miss")
+                             )
+    p <- p + Est_layer 
+    
+    return(p)
+  }
+  
+  #---------------------------------------------------    
+  #------------------- Build Legend ------------------
+  #---------------------------------------------------    
+  
+  build_legend <- function(p){
+    
+    Labels <- c("Data")
+    Values <- c("fit"="blue")
+    Breaks <- c("fit")
+    
+    if (input$mult) {
+      Labels <- c(Labels, "Multiplied")
+      Values <- c(Values, "mult"="red")
+      Breaks <- c(Breaks, "mult")
+    }
+    if (input$estmiss) {
+      Labels <- c(Labels, "Missed\nCases")
+      Values <- c(Values, "est_miss"="green")
+      Breaks <- c(Breaks, "est_miss")
+    }
+    
     Est_legend <- theme(legend.position="right")
       
-    Legend_layer <- scale_color_discrete(name = "Models", 
-                                         labels = c("Data", "Estimate"))
-    p <- p +
-         Est_layer +
-         Est_legend +
-         Legend_layer
+    Legend_layer <- scale_color_manual(name = "Models", 
+                                         values = Values,
+                                         labels = Labels,
+                                         breaks = Breaks)
+    print(paste("Values:", Values))
+    print(paste("Labels:", Labels))
+    p <- p + Est_legend + Legend_layer
+    
+    if (!input$mult & !input$estmiss) { # no legend needed
+      p <- p + theme(legend.position = "none")
+      return(p)
+    }
     
     return(p)
   }
@@ -509,16 +625,14 @@ server <- function(input, output) {
       ExpLine_est <- build_expline(m_est, b_est, "est") 
       #Days, Date, Cases, SD_upper, SD_lower
       
-      TestDays <- as.integer(today(tzone="America/Chicago") 
+      TestDays <- as.integer(LastDate 
                              - ymd("2020-03-11")) + c(0,5,10) + 1
-      TestDates <- today(tzone="America/Chicago") + c(0,5,10)
+      TestDates <- LastDate + c(0,5,10)
       Crowdsize <- signif((0.01*Population)/(10**(TestDays*m+b)), 2)
       Crowdsize_est <- signif((0.01*Population)/(10**(TestDays*m_est+b_est)), 2)
       
-      dayseq <- 0:(as.integer(today(tzone="America/Chicago") - ymd("2020-03-11")) + 10)
-      dateseq <- as_date(ymd("2020-03-11"):(today(tzone="America/Chicago")+10))
-      #Cases <- 10**(m*dayseq+b)
-      #Cases_est <- 10**(m_est*dayseq+b_est)
+      dayseq <- 0:(as.integer(LastDate - ymd("2020-03-11")) + 10)
+      dateseq <- as_date(ymd("2020-03-11"):(LastDate + 10))
       Cases <- ExpLine$Cases
       Cases_est <- ExpLine_est$Cases
       #  Scale cases so similar scaling to days
@@ -578,7 +692,7 @@ server <- function(input, output) {
                CrowdLayer3 +
                annotation_custom(grob2)
       
-      if (input$missed) { # Add for fit and estimate 
+      if (input$mult) { # Add for fit and estimate 
           return(p + CrowdLayerest1 + CrowdLayerest2 + CrowdLayerest3)
       } else { # Add for fit only
           return(p)
@@ -609,21 +723,70 @@ server <- function(input, output) {
   #---------------------------------------------------    
   
   draw_map <- function() {
-    output$TexasMap <- renderLeaflet({
-      #   Basemap
-      leaflet(DF) %>% 
-        setView(lng = MapCenter[1] , lat = MapCenter[2], zoom = init_zoom ) %>%   
-        addTiles()
-    }) 
+    # Create a continuous palette function
+    palcap <- colorNumeric(
+      na.color = "transparent",
+      palette = heat.colors(8),
+      reverse=TRUE,
+      domain = MappingData$percapita)
+    
+    palcase <- colorNumeric(
+      na.color = "transparent",
+      palette = heat.colors(8),
+      reverse=TRUE,
+      domain = MappingData$Cases)
+      
+    if (input$county_color=="casetotal") {
+      output$TexasMap <- renderLeaflet({
+        #   Basemap
+        leaflet(MappingData) %>% 
+          setView(lng = MapCenter[1] , lat = MapCenter[2], zoom = init_zoom ) %>%   
+          addTiles() %>%
+          addPolygons(data = MappingData, 
+                      group="cases",
+                      stroke = TRUE,
+                      weight = 1,
+                      smoothFactor = 0.2, 
+                      fillOpacity = 0.7,
+                      label = MapLabels,
+                      fillColor = ~palcase(MappingData$Cases)) %>% 
+          #addTitle(text=paste0("Texas COVID-19 Cases as of ", lastdate),
+          #         leftPosition=35) %>% 
+          addLegend("bottomleft", pal = palcase, values = ~Cases, 
+                    title = "Total Cases",
+                    opacity = 1)
+      }) 
+    } else {
+      output$TexasMap <- renderLeaflet({
+        #   Basemap
+        leaflet(MappingData) %>% 
+          setView(lng = MapCenter[1] , lat = MapCenter[2], zoom = init_zoom ) %>%   
+          addTiles() %>%
+          addPolygons(data = MappingData, 
+                      group="percapita",
+                      stroke = TRUE,
+                      weight = 1,
+                      smoothFactor = 0.2, 
+                      fillOpacity = 0.7,
+                      label = MapLabels,
+                      fillColor = ~palcap(MappingData$percapita)) %>% 
+          #addTitle(text=paste0("Texas COVID-19 Cases as of ", lastdate),
+          #        leftPosition=35) %>% 
+          addLegend("bottomleft", pal = palcap, values = ~percapita, 
+                    title = "Cases per 100,000",
+                    opacity = 1)
+      }) 
+    }
   }
+   
   #------------------- Reactive bits ---------------------
 
-  #observeEvent(input$tabs, { # do stuff when tab changes
-  #  print(paste("tab:", input$tabs))  
-  #  if (input$tabs=="GraphTab") { ##  Graph Tab ##
-  #    print(paste("Population and title:",prep_data()))
-  #  }
-  #})
+  observeEvent(input$tabs, { # do stuff when tab changes
+    print(paste("tab:", input$tabs))  
+    if (input$tabs=="MapTab") { ##  Graph Tab ##
+      draw_map()
+    }
+  })
     
   #---------------------------------------------------    
   #------------------- Select Data -------------------
@@ -635,11 +798,17 @@ server <- function(input, output) {
       prep_data()
       build_model()
       p <- build_basic_plot()
-      if (input$missed) {
-          p <- add_missed(p)
-      } else {
-          p <- p + theme(legend.position = "none")
+
+      if (input$mult) {
+          p <- add_mult(p)
+      } 
+      if (input$estmiss) {
+          p <- add_estmiss(p)
+      } 
+      if (input$avoid) {
+          p <- add_crowdsize(p)
       }
+      p <-  build_legend(p)
       output$plot_graph <- renderPlot({
           print(p)
           })
@@ -652,26 +821,47 @@ server <- function(input, output) {
   observeEvent({input$modeling
                 input$fit
                 input$intercept
-                input$missed
-                input$missed_pos
+                input$mult
+                input$mult_pos
                 input$zoom
                 input$avoid
+                input$estmiss
                 1} , { # 
+                  
       build_model()
+                  
       p <- build_basic_plot()
-      if (input$missed) {
-          p <- add_missed(p)
-      } else {
-          p <- p + theme(legend.position = "none")
-      }
+      
+      if (input$mult) {
+          p <- add_mult(p)
+      } 
+      if (input$estmiss) {
+          p <- add_estmiss(p)
+      } 
       if (input$avoid) {
           p <- add_crowdsize(p)
       }
+      p <-  build_legend(p)
+      
       output$plot_graph <- renderPlot({
           print(p)
           })
       displayed_data()
   })
+    
+  #---------------------------------------------------    
+  #------------------- Mapping Controls --------------
+  #---------------------------------------------------    
+  observeEvent({
+    input$county_color
+    1} , { #  draw map
+      
+      draw_map()
+      
+      })
+      
+  
+  
 }
 
 # Run the application 
