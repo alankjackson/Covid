@@ -21,10 +21,16 @@ library(lubridate)
 #   Directory where data is stored
 
 DataLocation <- "https://www.ajackson.org/Covid/"
+DataArchive <- "https://www.ajackson.org/SharedData/"
 
 #   Tibble database
 
+#   Case data
 DF <- readRDS(gzcon(url(paste0(DataLocation, "Covid.rds"))))
+#   Testing data
+TestingData <- readRDS(gzcon(url(paste0(DataLocation, "Testing.rds"))))
+#   County polygons
+Texas <- readRDS(gzcon(url(paste0(DataArchive, "Texas_County_Outlines.rds"))))
 
 init_zoom <- 10
 MapCenter <- c(-99.9018, 31.9686) # center of state
