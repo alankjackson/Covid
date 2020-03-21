@@ -26,14 +26,23 @@ DataArchive <- "https://www.ajackson.org/SharedData/"
 #   Tibble database
 
 #   Case data
-DF <- readRDS(gzcon(url(paste0(DataLocation, "Covid.rds"))))
+z <- gzcon(url(paste0(DataLocation, "Covid.rds")))
+DF <- readRDS(z)
+close(z)
 #   Testing data
-#TestingData <- readRDS(gzcon(url(paste0(DataLocation, "Testing.rds"))))
+z <- gzcon(url(paste0(DataLocation, "Testing.rds")))
+TestingData <- readRDS(z)
+close(z)
+TestingData$Total <- as.numeric(TestingData$Total)
+
 #   County polygons
 Texas <- readRDS(gzcon(url(paste0(DataArchive, "Texas_County_Outlines_lowres.rds"))))
 
 init_zoom <- 6
 MapCenter <- c(-99.9018, 31.9686) # center of state
+
+global_slope <- 0.13
+# https://dartthrowingchimp.shinyapps.io/covid19-app/
 
 # Clean up footnotes
 
@@ -157,6 +166,13 @@ Counties <- tribble(
     "Kent", 749, "Borden", 665, "McMullen", 662,
     "Kenedy", 595, "King", 228, "Loving", 102
 )
+
+#   Sort counties with 20 largest first, then alphabetical
+
+ByPop <- arrange(Counties, -Population)
+ByAlpha <- arrange(ByPop[21:nrow(ByPop),], County)
+Counties <- bind_rows(ByPop[1:20,], ByAlpha)
+ByPop <- ByAlpha <- NULL
 
 Regions <- tribble(
             ~Region, ~Population, ~Label,
@@ -316,7 +332,7 @@ ui <- basicPage(
                                     label = h5("Exponential Fit Controls"),
                                     choices = list(
                                         "Fit data" = "do fit",
-                                        "Worldwide (0.061)" = "standard",
+                                        "Worldwide (0.13)" = "standard",
                                         "User entry" = "user"
                                     ),
                                     selected = "do fit"
@@ -326,7 +342,7 @@ ui <- basicPage(
                                       "fit",
                                       label = h5("Slope"),
                                       step = 0.005,
-                                      value = 0.061
+                                      value = global_slope
                                   ),
                                   numericInput(
                                       "intercept",
@@ -397,6 +413,7 @@ server <- function(input, output) {
   #------------------- Prep Data ---------------------
   #---------------------------------------------------    
   prep_data <- function(){ # return population, label for graph title and tibble subset
+    print(":::::::  prep_data")
     if (input$dataset=="Region") { # work with regions
         print(paste("--1--", DefineRegions$List[DefineRegions$Region==input$region]))######################### print
       PopLabel <<- Regions %>% filter(Region==input$region)
@@ -405,15 +422,21 @@ server <- function(input, output) {
           filter(County %in% target) %>% 
           group_by(Date) %>% 
           summarise(Cases=sum(Cases), Days=mean(Days), Estimate=sum(Estimate))
-      #return(c(foo$Population, foo$Label, subdata))
       print(paste("---1.5---", subdata, input$region))######################### print
+      begin <<- subdata$Date[1] # date of first reported case
       return()
     } else {
         print(paste("--2--", input$county))######################### print
+      #   Is there any data?
+      if (! input$county %in% DF$County) {
+        showNotification(paste("No reported cases in", input$county))
+        return()
+      }
+      
       PopLabel <<- Counties %>% filter(County==input$county) %>% 
                      mutate(Label=paste(input$county, "County"))
       subdata <<- DF %>% filter(County==input$county)
-      #return(c(foo$Population, paste(foo[1],"County"), subdata))
+      begin <<- subdata$Date[1] # date of first reported case
       return()
     }
   } # end prep_data
@@ -422,43 +445,53 @@ server <- function(input, output) {
   #------------------- Build Model -------------------
   #---------------------------------------------------    
   build_model <- function(){ 
+    print(":::::::  build_model")
       # Linear fits to log(cases)
     ##########   Base case with actual data  
-      LogFits <- lm(log10(Cases)~Days, data=subdata)
-    m <<- LogFits[["coefficients"]][["Days"]]
-    b <<- LogFits[["coefficients"]][["(Intercept)"]]
-    Rsqr <<- summary(LogFits)$adj.r.squared
-    std_dev <<- sigma(LogFits)
-    print(paste("--3--", m, b))  ######################### print
-    return()
+    LogFits <- lm(log10(Cases)~Days, data=subdata)
+    m <- LogFits[["coefficients"]][["Days"]]
+    b <- LogFits[["coefficients"]][["(Intercept)"]]
+    Rsqr <- summary(LogFits)$adj.r.squared
+    std_dev <- sigma(LogFits)
+    print(paste("--3--", m, b, Rsqr, std_dev))  ######################### print
+    # return a tibble
+    tribble(~m, ~b, ~Rsqr, ~std_dev,
+             m,  b,  Rsqr,  std_dev)
   }
       
   build_est_model <- function(){ 
+    print(":::::::  build_est_model")
       # Linear fits to log(cases)
     ##########   Case with estimates of undercount
     subdata <<- subdata %>% # update mult cases in case needed
                  mutate(Estimate=Cases*input$mult_pos)
     LogFits <- lm(log10(Estimate)~Days, data=subdata)
-    m_est <<- LogFits[["coefficients"]][["Days"]]
-    b_est <<- LogFits[["coefficients"]][["(Intercept)"]]
-    Rsqr_est <<- summary(LogFits)$adj.r.squared
-    print(paste("--3.9--", m_est, b_est))  ######################### print
-
-    return()
+    m <- LogFits[["coefficients"]][["Days"]]
+    b <- LogFits[["coefficients"]][["(Intercept)"]]
+    Rsqr <- summary(LogFits)$adj.r.squared
+    std_dev <- sigma(LogFits)
+    print(paste("--3.9--", m, b))  ######################### print
+    # return a tibble
+    tribble(~m, ~b, ~Rsqr, ~std_dev,
+             m,  b,  Rsqr,  std_dev)
   }
     
   #---------------------------------------------------    
   #------------------- Build exponential curve -------
   #---------------------------------------------------    
-    build_expline <- function(m, b, crv=c('real', 'est')){
+    build_expline <- function(crv=c('real', 'est')){
+    print(":::::::  build_expline")
       #   Go 10 days into future
-      #dayseq <- 0:(as.integer(today(tzone="America/Chicago") - ymd("2020-03-11")) + 10)
-      lastday <- as.integer(LastDate - ymd("2020-03-11")) + 1 # last day of real data
+      lastday <- as.integer(LastDate - begin) + 1 # last day of real data
       dayseq <- 0:(lastday + 9)
-      dateseq <- as_date(ymd("2020-03-11"):(LastDate+10))
-      build_model()
-      build_est_model()
-      print(paste("----build_expline----",m,b))
+      dateseq <- as_date(begin:(LastDate+10))
+      model <- build_model()
+      est_model <- build_est_model()
+      m <- model$m
+      b <- model$b
+      m_est <- est_model$m
+      b_est <- est_model$b
+      print(paste("----build_expline----", crv, model))
       if (input$modeling=="do fit") {
         Cases <- case_when(
           crv=="real" ~  10**(m*dayseq+b),
@@ -467,28 +500,26 @@ server <- function(input, output) {
       } else if (input$modeling=="user") {
         m <- input$fit
         b <- input$intercept
-        #b <- case_when(
-        #  crv=="real" ~  log10(subdata$Cases[1]),
-        #  crv=="est"  ~  log10(subdata$Estimate[1])
-        #)
-        #b <<- log10(subdata$Cases[1])
-        Cases <- 10**(m*dayseq+b)
-      } else {
-        m <- 0.061
-        b <- case_when(
-          crv=="real" ~  log10(subdata$Cases[lastday]) - m*lastday,
-          crv=="est"  ~  log10(subdata$Estimate[lastday]) - m*lastday
+        Cases <- case_when (
+          crv=="real" ~  10**(m*dayseq+b),
+          crv=="est"  ~  10**(m*dayseq+b)*input$mult_pos
         )
-        #b <<- log10(subdata$Cases[1])
+      } else {
+        m <- global_slope
+        b <- case_when(
+          crv=="real" ~  log10(subdata$Cases[lastday]) - m*(lastday-1),
+          crv=="est"  ~  log10(subdata$Estimate[lastday]) - m*(lastday-1)
+        )
         Cases <- 10**(m*dayseq+b)
       }
-      SD_upper <- Cases+Cases*std_dev
-      SD_lower <- Cases-Cases*std_dev
+      SD_upper <- Cases+Cases*model$std_dev
+      SD_lower <- Cases-Cases*model$std_dev
       ExpLine <- tibble( Days=dayseq, Date=dateseq, Cases=Cases,
                          SD_upper=SD_upper, SD_lower=SD_lower)
-      print(paste("--4.5--", m*dayseq+b))######################### print
       print(paste("--5--", ExpLine))######################### print
-      return(ExpLine)
+      #  return a tibble
+      tribble(~Line, ~m, ~b,
+               ExpLine, m, b)
     }  
   
   #---------------------------------------------------    
@@ -497,11 +528,14 @@ server <- function(input, output) {
   
   build_basic_plot <- function(){
       # Build exponential line for plot
-    print(paste("--4--", m, b))######################### print
-    EqText <- paste0("Fit is log(Cases) = ",signif(m,3),"*Days + ",signif(b,3))
-    ExpLine <- build_expline(m, b, "real")
+    print(":::::::  build_basic_plot")
+    foo <- build_expline("real")
+    EqText <- paste0("Fit is log(Cases) = ",
+                     signif(foo$m,3),"*Days + ",
+                     signif(foo$b,3))
+    ExpLine <- foo$Line[[1]]
+    xform <- 10.0 # transform for secondary axis. Multiply primary by this
     grob <- grid::grid.text(EqText, x=0.7,  y=0.1, gp=grid::gpar(col="black", fontsize=15))
-    print(paste("--6--"))######################### print
       p <- subdata %>% 
           ggplot(aes(x=Date, y=Cases)) +
           geom_col(alpha = 2/3)+
@@ -517,29 +551,42 @@ server <- function(input, output) {
                         color="fit" ),
                     size=1,
                     linetype="solid") +
-          geom_errorbar(data=ExpLine[(nrow(ExpLine)-10):nrow(ExpLine)+1,],
-                        aes(x=Date, y=Cases, ymin=SD_lower, ymax=SD_upper)) +
-          geom_point(data=ExpLine[(nrow(ExpLine)-10):nrow(ExpLine)+1,],
-                        aes(x=Date, y=Cases)) +
+          geom_point(data=ExpLine[(nrow(ExpLine)-9):nrow(ExpLine),],
+                        aes(x=Date, y=Cases),
+                     shape=20, size=2, fill="blue") +
+          geom_point(data=TestingData,
+                        aes(x=Date, y=Total/xform, color="tests"),
+                     size=3, shape=23, fill="black") +
           annotation_custom(grob) +
           theme(text = element_text(size=20)) +
           labs(title=paste0("COVID-19 Cases in ",PopLabel$Label), 
                subtitle=paste0(" as of ", lastdate))
-      if (!input$zoom) {
-          p <- p + ylim(0, 6*max(subdata$Cases))  # limit height of modeled fit
+      
+      if (!is.nan(ExpLine$SD_lower[1])){
+           p <- p + geom_errorbar(data=ExpLine[(nrow(ExpLine)-9):nrow(ExpLine),],
+                        aes(x=Date, y=Cases, ymin=SD_lower, ymax=SD_upper)) 
       }
-    print(paste("--6.9--"))######################### print
-          #annotation_custom(grob2) +
+      
+      if (!input$zoom) {
+          # limit height of modeled fit
+        p <- p + scale_y_continuous(limits=c(0, 6*max(subdata$Cases)),
+                                    sec.axis = sec_axis(~.*xform, 
+                                    name = "Statewide Test Total"))
+      } else {
+        p <- p + scale_y_continuous(sec.axis = sec_axis(~.*xform, 
+                                    name = "Statewide Test Total"))
+      }
     return(p)
   }
   
+
   #---------------------------------------------------    
   #------------------- Add mult Plot ---------------
   #---------------------------------------------------    
   add_mult <- function(p) {
-    print(paste("--7--"))######################### print
-    ExpLine_est <- build_expline(m_est, b_est, "est")
-    Est_layer <-   geom_line(data=ExpLine_est,
+    print(":::::::  add_mult")
+    foo <- build_expline("est")
+    Est_layer <-   geom_line(data=foo$Line[[1]],
                              aes(x=Date, y=Cases,
                                  color="mult"),
                              size=1,
@@ -554,12 +601,12 @@ server <- function(input, output) {
   #---------------------------------------------------    
   # use worldwide slope, derive b from last number of cases
   add_estmiss <- function(p) {
-    print(paste("--9--"))######################### print
-      lastday <- as.integer(LastDate - ymd("2020-03-11")) + 1  # last day of real data
+    print(":::::::  add_estmiss")
+      lastday <- as.integer(LastDate - begin) + 1  # last day of real data
       dayseq <- 0:(lastday - 1)
-      dateseq <- as_date(ymd("2020-03-11"):(LastDate))
-      m <- 0.061
-      b <- log10(subdata$Cases[lastday]) - m*lastday
+      dateseq <- as_date(begin:(LastDate))
+      m <- global_slope
+      b <- log10(subdata$Cases[lastday]) - m*(lastday-1)
       temp <- tibble( Days=dayseq, 
                       Date=dateseq, 
                       Cases=10**(m*dayseq + b)
@@ -580,10 +627,11 @@ server <- function(input, output) {
   #---------------------------------------------------    
   
   build_legend <- function(p){
+    print(":::::::  build_legend")
     
-    Labels <- c("Data")
-    Values <- c("fit"="blue")
-    Breaks <- c("fit")
+    Labels <- c("Data", "Tests")
+    Values <- c("fit"="blue", "tests"="black")
+    Breaks <- c("fit", "tests")
     
     if (input$mult) {
       Labels <- c(Labels, "Multiplied")
@@ -606,10 +654,10 @@ server <- function(input, output) {
     print(paste("Labels:", Labels))
     p <- p + Est_legend + Legend_layer
     
-    if (!input$mult & !input$estmiss) { # no legend needed
-      p <- p + theme(legend.position = "none")
-      return(p)
-    }
+    #if (!input$mult & !input$estmiss) { # no legend needed
+    #  p <- p + theme(legend.position = "none")
+    #  return(p)
+    #}
     
     return(p)
   }
@@ -619,20 +667,28 @@ server <- function(input, output) {
   #---------------------------------------------------    
   # When is probability of 1% contact reached?
   add_crowdsize <- function(p) {
+    print(":::::::  add_crowdsize")
       Population <- PopLabel[2][[1]]
 
-      ExpLine <- build_expline(m, b, "real") 
-      ExpLine_est <- build_expline(m_est, b_est, "est") 
-      #Days, Date, Cases, SD_upper, SD_lower
+      foo <- build_expline("real") 
+      ExpLine <- foo$Line[[1]]
+      m <- foo$m
+      b <- foo$b
+      foo <- build_expline("est") 
+      ExpLine_est <- foo$Line[[1]]
+      m_est <- foo$m 
+      b_est <- foo$b  
       
       TestDays <- as.integer(LastDate 
-                             - ymd("2020-03-11")) + c(0,5,10) + 1
+                             - begin) + c(0,5,10) + 1
       TestDates <- LastDate + c(0,5,10)
       Crowdsize <- signif((0.01*Population)/(10**(TestDays*m+b)), 2)
-      Crowdsize_est <- signif((0.01*Population)/(10**(TestDays*m_est+b_est)), 2)
+      print(paste("--->>> m, b", m, b))
+      Crowdsize_est <- signif((0.01*Population)/(10**(TestDays*m_est+b_est)
+                                                 *input$mult_pos), 2)
       
-      dayseq <- 0:(as.integer(LastDate - ymd("2020-03-11")) + 10)
-      dateseq <- as_date(ymd("2020-03-11"):(LastDate + 10))
+      dayseq <- 0:(as.integer(LastDate - begin) + 10)
+      dateseq <- as_date(begin:(LastDate + 10))
       Cases <- ExpLine$Cases
       Cases_est <- ExpLine_est$Cases
       #  Scale cases so similar scaling to days
@@ -702,19 +758,25 @@ server <- function(input, output) {
   #---------------------------------------------------    
   #------------------- Displayed Data text -----------
   #---------------------------------------------------    
-  displayed_data <- function(){
-      output$data_details <- renderUI({
-          str1 <- paste("Most recent value, on",subdata$Date[nrow(subdata)],
-                        "was<b>", subdata$Cases[nrow(subdata)],"</b>Cases")
-          str3 <- paste("           Doubling Time =", signif(log10(2)/m,2), "days")
-          if (Rsqr>.8) {
-            str2 <- paste("R<sup>2</sup> value for fit =", signif(Rsqr,4))
-          } else {
-            str2 <- paste("<font color=\"red\">R<sup>2</sup> value for fit =", signif(Rsqr,4),
-                          "<b>which is poor</b></font>")
-          }
-          HTML(paste(str1, str3, str2, sep = '<br/>'))
-      })
+  displayed_data <- function(m, Rsqr){
+    print(":::::::  displayed_data")
+    output$data_details <- renderUI({
+      str1 <- paste("Most recent value, on",subdata$Date[nrow(subdata)],
+                    "was<b>", subdata$Cases[nrow(subdata)],"</b>Cases")
+      str3 <- paste("           Doubling Time =", signif(log10(2)/m,2), "days")
+      
+      if (!is.nan(Rsqr)){
+        if (Rsqr>.8) {
+          str2 <- paste("R<sup>2</sup> value for fit =", signif(Rsqr,4))
+        } else {
+          str2 <- paste("<font color=\"red\">R<sup>2</sup> value for fit =", 
+                        signif(Rsqr,4),
+                        "<b>which is poor</b></font>")
+        }
+        HTML(paste(str1, str3, str2, sep = '<br/>'))
+      } 
+      HTML(paste(str1, str3, sep = '<br/>'))
+    })
   }
   
   ######################  Map ########################
@@ -729,6 +791,17 @@ server <- function(input, output) {
       palette = heat.colors(8),
       reverse=TRUE,
       domain = MappingData$percapita)
+    
+    Range <- range(MappingData$percapita,na.rm=TRUE)
+    
+    palcap <-colorQuantile(palette = heat.colors(8), 
+                           domain = MappingData$percapita, 
+                           n = 8, 
+                           #probs = seq(0, 1, length.out = n + 1), 
+                           na.color = "transparent", 
+                           alpha = FALSE, 
+                           reverse = TRUE,
+                           right = FALSE) 
     
     palcase <- colorNumeric(
       na.color = "transparent",
@@ -774,6 +847,11 @@ server <- function(input, output) {
           #        leftPosition=35) %>% 
           addLegend("bottomleft", pal = palcap, values = ~percapita, 
                     title = "Cases per 100,000",
+                    labels= as.character(seq(Range[1], Range[2], length.out = 8)),
+                    labFormat = function(type, cuts, p) {
+                      n = length(cuts)
+                      paste0(cuts[-n], " &ndash; ", cuts[-1])
+                    },
                     opacity = 1)
       }) 
     }
@@ -795,8 +873,9 @@ server <- function(input, output) {
                 input$region
                 input$county
                 1}, { # Change data selection
+    print(":::::::  observe_event 1")
       prep_data()
-      build_model()
+      foo <- build_model()
       p <- build_basic_plot()
 
       if (input$mult) {
@@ -812,7 +891,7 @@ server <- function(input, output) {
       output$plot_graph <- renderPlot({
           print(p)
           })
-      displayed_data()
+      displayed_data(foo$m, foo$Rsqr)
   })
     
   #---------------------------------------------------    
@@ -828,7 +907,8 @@ server <- function(input, output) {
                 input$estmiss
                 1} , { # 
                   
-      build_model()
+    print(":::::::  observe_event 2")
+      foo <- build_model()
                   
       p <- build_basic_plot()
       
@@ -846,7 +926,7 @@ server <- function(input, output) {
       output$plot_graph <- renderPlot({
           print(p)
           })
-      displayed_data()
+      displayed_data(foo$m, foo$Rsqr)
   })
     
   #---------------------------------------------------    
