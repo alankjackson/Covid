@@ -291,6 +291,8 @@ p <- CovidData %>% filter(County==!!County) %>%
   annotation_custom(grob2) +
   labs(title=paste0("CORVID-19 Cases in ",CountyLabel))
 
+ggplot_build(p)
+
 Est_layer <-   geom_line(data=ExpLine_est,
                           aes(x=Date, y=Estimate,
                           color="purple"),
