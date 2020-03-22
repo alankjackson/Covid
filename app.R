@@ -320,16 +320,21 @@ ui <- basicPage(
                                     label = strong("Est missed cases"),
                                     value = FALSE
                                 ),
+                                checkboxInput(
+                                    inputId = "logscale",
+                                    label = strong("Log Scaling"),
+                                    value = FALSE
+                                ),
                                 
                             ),
                             # end wellPanel Control plot options
                             #-------------------- Modeling parameters
                             wellPanel(
                                 # Modeling parameters
-                                h4("Adjust parameters"),
+                                h4("Data Fits"),
                                 radioButtons(
                                     "modeling",
-                                    label = h5("Exponential Fit Controls"),
+                                    label = h5("Exponential Fit"),
                                     choices = list(
                                         "Fit data" = "do fit",
                                         "Worldwide (0.13)" = "standard",
@@ -350,6 +355,11 @@ ui <- basicPage(
                                       step = 0.10,
                                       value = 1.00
                                   )
+                                ),
+                                checkboxInput(
+                                    inputId = "weights",
+                                    label = strong("Weight fit"),
+                                    value = TRUE
                                 ),
                                 HTML("<hr>"),
                                 checkboxInput(
@@ -406,8 +416,7 @@ server <- function(input, output) {
 #   Global variables are
 #    PopLabel = list(Region, Population, Label)
 #    subdata = tibble of data subsetted 
-#    fit parameters m, b, m_est, b_est
-#    plots: p=basic, avoid=avoid, mult=mult cases model
+#    begin = date of first reported case
        
   #---------------------------------------------------    
   #------------------- Prep Data ---------------------
@@ -448,7 +457,12 @@ server <- function(input, output) {
     print(":::::::  build_model")
       # Linear fits to log(cases)
     ##########   Base case with actual data  
-    LogFits <- lm(log10(Cases)~Days, data=subdata)
+    weights <- (1:nrow(subdata))**1.5
+    if (input$weights) {
+      LogFits <- lm(log10(Cases)~Days, data=subdata, weights=weights)
+    } else {
+      LogFits <- lm(log10(Cases)~Days, data=subdata)
+    }
     m <- LogFits[["coefficients"]][["Days"]]
     b <- LogFits[["coefficients"]][["(Intercept)"]]
     Rsqr <- summary(LogFits)$adj.r.squared
@@ -489,6 +503,7 @@ server <- function(input, output) {
       est_model <- build_est_model()
       m <- model$m
       b <- model$b
+      Rsqr <- model$Rsqr
       m_est <- est_model$m
       b_est <- est_model$b
       print(paste("----build_expline----", crv, model))
@@ -518,8 +533,8 @@ server <- function(input, output) {
                          SD_upper=SD_upper, SD_lower=SD_lower)
       print(paste("--5--", ExpLine))######################### print
       #  return a tibble
-      tribble(~Line, ~m, ~b,
-               ExpLine, m, b)
+      tribble(~Line, ~m, ~b, ~Rsqr,
+               ExpLine, m, b, Rsqr)
     }  
   
   #---------------------------------------------------    
@@ -538,7 +553,7 @@ server <- function(input, output) {
     grob <- grid::grid.text(EqText, x=0.7,  y=0.1, gp=grid::gpar(col="black", fontsize=15))
       p <- subdata %>% 
           ggplot(aes(x=Date, y=Cases)) +
-          geom_col(alpha = 2/3)+
+          geom_col(alpha = 2/3) +
           geom_label(aes(label=Cases), stat='identity', size = 3) +
           expand_limits(x = LastDate+10) +
           geom_line(data=ExpLine,
@@ -557,24 +572,41 @@ server <- function(input, output) {
           geom_point(data=TestingData,
                         aes(x=Date, y=Total/xform, color="tests"),
                      size=3, shape=23, fill="black") +
-          annotation_custom(grob) +
+          geom_text(data=TestingData,
+                    aes(x=Date, y=Total/xform, label=Total),
+                    nudge_x=-1.25, nudge_y=0.0) +
           theme(text = element_text(size=20)) +
           labs(title=paste0("COVID-19 Cases in ",PopLabel$Label), 
                subtitle=paste0(" as of ", lastdate))
       
-      if (!is.nan(ExpLine$SD_lower[1])){
+      p <- p + annotate("label", 
+                        x=(LastDate - begin + 10)/1.5+begin, 
+                        y=subdata$Cases[nrow(subdata)]/3, 
+                        label=EqText)
+      
+      if (!is.nan(ExpLine$SD_lower[1]) & input$modeling=="do fit"){
            p <- p + geom_errorbar(data=ExpLine[(nrow(ExpLine)-9):nrow(ExpLine),],
                         aes(x=Date, y=Cases, ymin=SD_lower, ymax=SD_upper)) 
       }
       
+      if (input$logscale) {
+        trans_value <- "log10"
+        min_limit <- min(subdata$Cases[1], 10)
+      } else {
+        trans_value <- "identity"
+        min_limit <- 0
+      }
       if (!input$zoom) {
           # limit height of modeled fit
-        p <- p + scale_y_continuous(limits=c(0, 6*max(subdata$Cases)),
+        p <- p + scale_y_continuous(limits=c(min_limit, 6*max(subdata$Cases)),
                                     sec.axis = sec_axis(~.*xform, 
-                                    name = "Statewide Test Total"))
+                                    name = "Statewide Test Total"),
+                                    trans=trans_value)
       } else {
-        p <- p + scale_y_continuous(sec.axis = sec_axis(~.*xform, 
-                                    name = "Statewide Test Total"))
+        p <- p + scale_y_continuous(limits=c(min_limit, max(ExpLine$Cases)),
+                                    sec.axis = sec_axis(~.*xform, 
+                                    name = "Statewide Test Total"),
+                                    trans=trans_value)
       }
     return(p)
   }
@@ -644,7 +676,7 @@ server <- function(input, output) {
       Breaks <- c(Breaks, "est_miss")
     }
     
-    Est_legend <- theme(legend.position="right")
+    Est_legend <- theme(legend.position=c( 0.1, 0.5 ))
       
     Legend_layer <- scale_color_manual(name = "Models", 
                                          values = Values,
@@ -652,12 +684,7 @@ server <- function(input, output) {
                                          breaks = Breaks)
     print(paste("Values:", Values))
     print(paste("Labels:", Labels))
-    p <- p + Est_legend + Legend_layer
-    
-    #if (!input$mult & !input$estmiss) { # no legend needed
-    #  p <- p + theme(legend.position = "none")
-    #  return(p)
-    #}
+    p <- p + Est_legend + Legend_layer 
     
     return(p)
   }
@@ -765,7 +792,7 @@ server <- function(input, output) {
                     "was<b>", subdata$Cases[nrow(subdata)],"</b>Cases")
       str3 <- paste("           Doubling Time =", signif(log10(2)/m,2), "days")
       
-      if (!is.nan(Rsqr)){
+      if (!is.nan(Rsqr) & input$modeling=="do fit"){
         if (Rsqr>.8) {
           str2 <- paste("R<sup>2</sup> value for fit =", signif(Rsqr,4))
         } else {
@@ -774,8 +801,9 @@ server <- function(input, output) {
                         "<b>which is poor</b></font>")
         }
         HTML(paste(str1, str3, str2, sep = '<br/>'))
-      } 
-      HTML(paste(str1, str3, sep = '<br/>'))
+      } else {
+        HTML(paste(str1, str3, sep = '<br/>'))
+      }
     })
   }
   
@@ -875,7 +903,7 @@ server <- function(input, output) {
                 1}, { # Change data selection
     print(":::::::  observe_event 1")
       prep_data()
-      foo <- build_model()
+      foo <- build_expline("real")
       p <- build_basic_plot()
 
       if (input$mult) {
@@ -905,10 +933,12 @@ server <- function(input, output) {
                 input$zoom
                 input$avoid
                 input$estmiss
+                input$logscale
+                input$weights
                 1} , { # 
                   
     print(":::::::  observe_event 2")
-      foo <- build_model()
+      foo <- build_expline("real")
                   
       p <- build_basic_plot()
       
@@ -919,7 +949,11 @@ server <- function(input, output) {
           p <- add_estmiss(p)
       } 
       if (input$avoid) {
+        if (input$logscale) {
+          showNotification("Crowdsize not available with log scale")
+        } else {
           p <- add_crowdsize(p)
+        }
       }
       p <-  build_legend(p)
       
