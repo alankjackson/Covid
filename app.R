@@ -452,7 +452,13 @@ server <- function(input, output) {
     ##########   Case with estimates of undercount
     subdata <<- subdata %>% # update mult cases in case needed
                  mutate(Estimate=Cases*input$mult_pos)
-    LogFits <- lm(log10(Estimate)~Days, data=subdata)
+    weights <- (1:nrow(subdata))**1.5
+    if (input$weights) {
+      LogFits <- lm(log10(Estimate)~Days, data=subdata, weights=weights)
+    } else {
+      LogFits <- lm(log10(Estimate)~Days, data=subdata)
+    }
+    #LogFits <- lm(log10(Estimate)~Days, data=subdata)
     m <- LogFits[["coefficients"]][["Days"]]
     b <- LogFits[["coefficients"]][["(Intercept)"]]
     Rsqr <- summary(LogFits)$adj.r.squared
