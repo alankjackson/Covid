@@ -104,7 +104,7 @@ average fit. Note that you can turn off the weighting if you wish.
 The growth rate is amazingly consistent worldwide. The number I am using
 comes from [dart throwing chimp](https://dartthrowingchimp.shinyapps.io/covid19-app/), and it is 
 easy to see on his growth graph that most countries have followed similar 
-trends his 0.3 growth value translates to my 0.13 slope since I use log 
+trends. His 0.3 growth value translates to my 0.13 slope since I use log 
 base 10, and he uses natural logarithms.
 
 Because the global value is only a slope, I derive the y intercept by 
