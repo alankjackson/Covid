@@ -342,7 +342,10 @@ ui <- basicPage(
                                     label = strong("Multiply Cases"),
                                     value = FALSE
                                 ),
-                                numericInput("mult_pos", label = h5("Factor"), value = 2),
+                                numericInput("mult_pos", label = h5("Factor"), 
+                                             min = 0.01,
+                                             max = 20,
+                                             value = 2),
                             ),
                             # end wellPanel Modeling parameters
                             
