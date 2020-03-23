@@ -528,7 +528,8 @@ server <- function(input, output) {
                      signif(foo$m,3),"*Days + ",
                      signif(foo$b,3))
     ExpLine <- foo$Line[[1]]
-    xform <- 10.0 # transform for secondary axis. Multiply primary by this
+    xform <- 2*signif(max(TestingData$Total)/(6*max(subdata$Cases)),2)
+    #xform <- 10.0 # transform for secondary axis. Multiply primary by this
     grob <- grid::grid.text(EqText, x=0.7,  y=0.1, gp=grid::gpar(col="black", fontsize=15))
       p <- subdata %>% 
           ggplot(aes(x=Date, y=Cases)) +
@@ -553,7 +554,7 @@ server <- function(input, output) {
                      size=3, shape=23, fill="black") +
           geom_text(data=TestingData,
                     aes(x=Date, y=Total/xform, label=Total),
-                    nudge_x=-1.25, nudge_y=0.0) +
+                    nudge_x=-1.00, nudge_y=0.0) +
           theme(text = element_text(size=20)) +
           labs(title=paste0("COVID-19 Cases in ",PopLabel$Label), 
                subtitle=paste0(" as of ", lastdate))
@@ -704,6 +705,7 @@ server <- function(input, output) {
       x_nudge <- -r*cos((pi/2 -atan(Delta)))- 0.5
       y_nudge <- r*sin((pi/2 -atan(Delta)))/CaseScale
       y_extra <- max(ExpLine$Cases)/30
+      y_extra <- 1
       
       # Build label tibble
       CrowdLabels <- tibble(Date=TestDates,
