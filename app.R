@@ -216,31 +216,6 @@ MapLabels <- lapply(seq(nrow(MappingData)), function(i) {
       "NA", "Zero"))
 })
 
-addTitle = function(object,
-                    text,
-                    color = "black",
-                    fontSize = "20px",
-                    fontFamily = "Sans",
-                    leftPosition = 50,
-                    topPosition = 2){
-  
-  htmlwidgets::onRender(object, paste0("
-                                       function(el,x){
-                                       h1 = document.createElement('h1');
-                                       h1.innerHTML = '", text ,"';
-                                       h1.id='titleh1';
-                                       h1.style.color = '", color ,"';
-                                       h1.style.fontSize = '",fontSize,"';
-                                       h1.style.fontFamily='",fontFamily,"';
-                                       h1.style.position = 'fixed';
-                                       h1.style['-webkit-transform']='translateX(-50%)';
-                                       h1.style.left='",leftPosition ,"%';
-                                       h1.style.top='",topPosition,"%';
-                                       document.body.appendChild(h1);
-                                       }"))
-}
-
-
 ##################################################
 # Define UI for displaying data for Texas
 ##################################################
@@ -381,6 +356,7 @@ ui <- basicPage(
         HTML("<hr>"),
         fluidPage(#-------------------- Map
             column( 9, # Map
+                    h3(textOutput("MapTitle")),
                     leafletOutput("TexasMap",
                                   height = "800px"),
                     HTML("<hr>"),
@@ -400,10 +376,7 @@ ui <- basicPage(
      ), # end tabPanel Map
     ##########   Documentation Tab
                            tabPanel("Documentation", fluid=TRUE, value="DocumentationTab",
-#Counties %>% filter(County=="Harris"|County=="Fort Bend"|County=="Galveston"|County=="Waller"|County=="Montgomery"|County=="Liberty"|County=="Brazoria"|County=="Chambers"|County=="Austin") %>% summarise_at("Population",sum)
-#Collin, Dallas, Denton, Ellis, Hood, Hunt, Johnson, Kaufman, Parker, Rockwall, Somervell, Tarrant and Wise
-#Counties %>% filter(County=="Atascosa" |County=="Bandera" |County=="Bexar" |County=="Comal" |County=="Guadalupe" |County=="Kendall" |County=="Medina" |County=="Wilson") %>% summarise_at("Population",sum)
-#Counties %>% filter(County=="Bastrop" |County=="Caldwell" |County=="Hays" |County=="Travis" |County=="Williamson") %>% summarise_at("Population",sum)
+                                    withMathJax(includeMarkdown("Documentation.Rmd")),
                                     HTML("<hr>"),
 
           )  # end tabPanel Documentation
@@ -819,6 +792,8 @@ server <- function(input, output) {
       palette = heat.colors(8),
       reverse=TRUE,
       domain = MappingData$percapita)
+      output$MapTitle <- renderText(
+                            paste0("Texas COVID-19 Cases as of ", lastdate))
     
     Range <- range(MappingData$percapita,na.rm=TRUE)
     
@@ -836,7 +811,7 @@ server <- function(input, output) {
       palette = heat.colors(8),
       reverse=TRUE,
       domain = MappingData$Cases)
-      
+    
     if (input$county_color=="casetotal") {
       output$TexasMap <- renderLeaflet({
         #   Basemap
