@@ -454,7 +454,7 @@ server <- function(input, output) {
       # Linear fits to log(cases)
     ##########   Case with estimates of undercount
     subdata <<- subdata %>% # update mult cases in case needed
-                 mutate(Estimate=Cases*input$mult_pos)
+                 mutate(Estimate=Cases*replace_na(input$mult_pos,0.1))
     weights <- (1:nrow(subdata))**1.5
     if (input$weights) {
       LogFits <- lm(log10(Estimate)~Days, data=subdata, weights=weights)
@@ -499,7 +499,7 @@ server <- function(input, output) {
         b <- input$intercept
         Cases <- case_when (
           crv=="real" ~  10**(m*dayseq+b),
-          crv=="est"  ~  10**(m*dayseq+b)*input$mult_pos
+          crv=="est"  ~  10**(m*dayseq+b)*replace_na(input$mult_pos, 0.1)
         )
       } else {
         m <- global_slope
@@ -695,7 +695,7 @@ server <- function(input, output) {
       Crowdsize <- signif((0.01*Population)/(10**(TestDays*m+b)), 2)
       print(paste("--->>> m, b", m, b))
       Crowdsize_est <- signif((0.01*Population)/(10**(TestDays*m_est+b_est)
-                                                 *input$mult_pos), 2)
+                                                 *replace_na(input$mult_pos,0.1)), 2)
       
       dayseq <- 0:(as.integer(LastDate - begin) + 10)
       dateseq <- as_date(begin:(LastDate + 10))
