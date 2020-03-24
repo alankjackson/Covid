@@ -18,7 +18,7 @@ mytable <- read_html(page) %>%
   html_table()
 
 mytable <- mytable[[1]]
-names(mytable) <- c("County", "Cases")
+names(mytable) <- c("County", "Cases", "Deaths")
 mytable <- mytable %>% mutate(Date=lubridate::today())
 
 # Get rid of footnotes
@@ -37,6 +37,17 @@ testing_status <-   testing_status[[1]][["X2"]] %>%
 
 testing_status <- testing_status %>% mutate(Date=lubridate::today())
 
+# Get number of deaths
+
+deaths_today <- read_html(page) %>% 
+  html_nodes(xpath='/html/body/form/div[4]/div/div[3]/div[2]/div/div/div[2]/table[2]') %>% html_table()
+
+deaths_today <- deaths_today[[1]][["X2"]][2]
+deaths_today <- tribble(
+  ~Date, ~Cum_Deaths,
+  lubridate::today(), deaths_today
+)
+
 # Read in the old data
 CovidData <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
 # append the new data
@@ -48,6 +59,7 @@ saveRDS(CovidData,"/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
 # Also save to mirror site
 saveRDS(CovidData,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Covid.rds")
 
+################   Testing data
 # Read in the old data
 TestingData <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Testing.rds")
 # append the new data
@@ -58,5 +70,20 @@ saveRDS(TestingData,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::
 saveRDS(TestingData,"/home/ajackson/Dropbox/Rprojects/Covid/Testing.rds")
 # Also save to mirror site
 saveRDS(TestingData,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Testing.rds")
+
+
+################   Death data
+# Read in the old data
+deaths <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Deaths.rds")
+# append the new data
+deaths <- bind_rows(deaths, deaths_today)
+# Save an accumulated file in case of a failure
+saveRDS(deaths ,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),"_deaths.rds"))
+# Save the real file for later use
+saveRDS(deaths,"/home/ajackson/Dropbox/Rprojects/Covid/Deaths.rds")
+# Also save to mirror site
+saveRDS(deaths,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Deaths.rds")
+
+
 
 print(paste("Ending run ---------------------", lubridate::now()))
