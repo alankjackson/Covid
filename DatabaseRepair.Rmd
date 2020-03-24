@@ -1,0 +1,62 @@
+---
+title: "DatabaseRepair"
+author: "Alan Jackson"
+date: "3/14/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##  delete and save last days data
+
+
+```{r del}
+
+path <- "/home/ajackson/Dropbox/Rprojects/Covid/"
+
+foo <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
+
+indicies <- tail(which(foo$County=="Total"),2)
+
+foo <- foo[1:indicies[1],]
+foo <- foo[1:71,]
+
+# Save an accumulated file in case of a failure
+saveRDS(foo,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),"_Covid.rds"))
+# Save the real file for later use
+saveRDS(foo,"/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
+# Also save to mirror site
+saveRDS(foo,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Covid.rds")
+
+```
+
+##  Delete Total field
+
+```{r delete total}
+
+path <- "/home/ajackson/Dropbox/Rprojects/Covid/"
+
+foo <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
+
+foo <- foo %>% filter(County!="Total")
+
+# Save an accumulated file in case of a failure
+saveRDS(foo,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),"_Covid.rds"))
+# Save the real file for later use
+saveRDS(foo,"/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
+# Also save to mirror site
+saveRDS(foo,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Covid.rds")
+
+
+
+```
+
+
+
+
+
+
