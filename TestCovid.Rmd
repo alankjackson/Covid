@@ -46,7 +46,7 @@ mytable <- read_html(page) %>%
   html_table()
 
 mytable <- mytable[[1]]
-names(mytable) <- c("County", "Cases")
+names(mytable) <- c("County", "Cases", "Deaths")
 mytable <- mytable %>% mutate(Date=lubridate::today())
 
 testing_status <- read_html(page) %>% 
@@ -61,7 +61,33 @@ testing_status <-   testing_status[[1]][["X2"]] %>%
 
 testing_status <- testing_status %>% mutate(Date=lubridate::today())
 
+# Get number of deaths
+# /html/body/form/div[4]/div/div[3]/div[2]/div/div/div[2]/table[2]/tbody/tr[2]/td/strong
+
+deaths <- read_html(page) %>% 
+  html_nodes(xpath='/html/body/form/div[4]/div/div[3]/div[2]/div/div/div[2]/table[2]') %>% html_table()
+
+deaths <- deaths[[1]][["X2"]][2]
+
 ```
+
+##  Build beginning of death table from news reports
+
+```{r}
+
+deaths <- tribble(
+  ~Date, ~Cum_Deaths,
+  "2020/03/15", 2,
+  "2020/03/18", 3,
+  "2020/03/19", 5,
+  "2020/03/22", 6,
+  "2020/03/23", 8,
+)
+
+saveRDS(deaths,"/home/ajackson/Dropbox/Rprojects/Covid/Deaths.rds")
+
+```
+
 
 ## Append new data to old data and save
 
@@ -83,6 +109,18 @@ TestingData <- bind_rows(TestingData, testing_status)
 saveRDS(TestingData,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),"_Testing.rds"))
 # Save the real file for later use
 saveRDS(TestingData,"/home/ajackson/Dropbox/Rprojects/Covid/Testing.rds")
+
+# Read in the old data
+TestingData <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Deaths.rds")
+# append the new data
+TestingData <- bind_rows(TestingData, testing_status)
+# Save an accumulated file in case of a failure
+saveRDS(TestingData,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),"_Deaths.rds"))
+# Save the real file for later use
+saveRDS(TestingData,"/home/ajackson/Dropbox/Rprojects/Covid/Deaths.rds")
+# Also save to mirror site
+saveRDS(TestingData,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Deaths.rds")
+
 ```
 
 ## Test some plotting code to get that right
@@ -514,6 +552,16 @@ leaflet(TodayData) %>%
               fillOpacity = 0.5,
               label = ~NAME_2,
               fillColor = ~palcase(temp$Cases))
+
+```
+
+## look at daily differences.
+
+Is there an inflection point? Is the daily increase slowing?
+
+Also compare different metro areas and counties.
+
+```{r deltas}
 
 ```
 
