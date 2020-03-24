@@ -61,7 +61,7 @@ it is to not allow crowds of people to gather.
 
 #### Expand scale
 
-By default, I chop off the Y scale so taht the actual data is easily seen.
+By default, I chop off the Y scale so that the actual data is easily seen.
 The toogle will expand (or sometimes reduce) the scale so that all 
 plotted objects are visible.
 
