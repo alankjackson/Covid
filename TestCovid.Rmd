@@ -75,6 +75,119 @@ deaths_today <- tribble(
 deaths <- bind_rows(deaths, deaths_today)
 ```
 
+## Oh shit Major refactor of state website
+
+```{r refactor}
+tag <-  '/html/body/div/div/div/div/div/div/margin-container/full-container/div[11]/margin-container/full-container/div/div/nav'
+
+url <- "https://txdshs.maps.arcgis.com/apps/opsdashboard/index.html#/ed483ecd702b4298ab01e8b9cafc8b83"
+#   Bad idea, disabling certificate check
+###page <- RCurl::getURL(url, ssl.verifyhost = 0L, ssl.verifypeer = 0L)
+
+# Load the Library
+library(RSelenium)
+library(xfun)
+
+# start the server and browser in headless mode
+rD <- rsDriver(browser="firefox",
+               extraCapabilities = list("moz:firefoxOptions" = list(
+                 args = list('--headless')))
+               )
+
+driver <- rD$client
+
+# navigate to an URL
+driver$navigate(url)
+Sys.sleep(9)
+
+# get parsed page source
+parsed_pagesource <- driver$getPageSource()[[1]]
+
+#close the driver
+driver$close()
+
+#close the server
+rD$server$stop()
+
+# Extract Cases by county
+result <- read_html(parsed_pagesource) %>%
+    html_nodes(xpath='/html/body/div/div/div/div/div/div/margin-container/full-container/div[11]/margin-container/full-container/div/div/nav') %>%
+    html_text() %>% 
+    str_replace_all("\n"," ") %>% 
+    str_split("  +")
+
+result <- result[[1]][2:(length(result[[1]])-1)]
+res <- cbind.data.frame(split(result, 
+                              rep(1:2, times=length(result)/2)), 
+                        stringsAsFactors=F)
+names(res) <- c("County", "Cases") 
+res$County <- str_remove(res$County, " County") 
+res$Cases <- as.numeric(res$Cases)
+
+# Extract testing status
+
+total_tests <- 
+  read_html(parsed_pagesource) %>%
+    #html_nodes(xpath='//*[@id="ember133"]') %>%
+    html_nodes(xpath='//*[@id="ember16"]') %>%
+    html_text() %>%  
+    str_replace_all("\n"," ") %>% 
+    str_remove_all(",") %>% 
+    str_split("  +") 
+total_tests <- as.numeric(total_tests[[1]][2])
+public_tests <- 
+  read_html(parsed_pagesource) %>%
+    #html_nodes(xpath='//*[@id="ember129"]') %>%
+    html_nodes(xpath='//*[@id="ember23"]') %>%
+    html_text() %>%  
+    str_replace_all("\n"," ") %>% 
+    str_remove_all(",") %>% 
+    str_split("  +")
+public_tests <- as.numeric(public_tests[[1]][2])
+private_tests <- 
+  read_html(parsed_pagesource) %>%
+    #html_nodes(xpath='//*[@id="ember131"]') %>%
+    html_nodes(xpath='//*[@id="ember30"]') %>%
+    html_text() %>% 
+    str_replace_all("\n"," ") %>% 
+    str_remove_all(",") %>% 
+    str_split("  +")
+private_tests <- as.numeric(private_tests[[1]][2])
+
+testing_status <- tribble(
+  ~Total,               ~Public,            ~Private,
+  total_tests[[1]][2], public_tests[[1]][2], private_tests[[1]][2]
+) %>%  
+  mutate_all(as.numeric)
+
+testing_status <- testing_status %>% mutate(Date=lubridate::today())
+
+# Extract Deaths
+
+deaths <- 
+  read_html(parsed_pagesource) %>%
+    html_nodes(xpath='//*[@id="ember45"]') %>%
+    html_text() %>% 
+    str_replace_all("\n"," ") %>% 
+    str_remove_all(",") %>% 
+    str_split("  +")
+deaths=as.numeric(deaths[[1]][2])
+
+deaths_today <- tribble(
+  ~Date, ~Cum_Deaths,
+  lubridate::today(), deaths
+)
+
+
+
+
+
+
+
+```
+
+
+
 ##  Build beginning of death table from news reports
 
 ```{r}
