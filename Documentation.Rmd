@@ -93,7 +93,7 @@ and represent one standard deviation. Additionally, at the bottom of the page,
 the $R^{2}$ value also derives from that fit.
 
 By default, I weight the fitting, to bias the fit towards the newer data,
-assuming that because of the slow rampup of testing, the early numbers are
+assuming that because of the slow ramp-up of testing, the early numbers are
 probably not very good. To weight them, I arbitrarily use a function
 $w = d^{1.5}$, which should represent $\frac{1}{\sigma^{2}}$. In practice, 
 this rather arbitrary weighting seems to help the fit approach the global
@@ -108,7 +108,7 @@ trends. His 0.3 growth value translates to my 0.13 slope since I use log
 base 10, and he uses natural logarithms.
 
 Because the global value is only a slope, I derive the y intercept by 
-tying the curve to the most recent datapoint.
+tieing the curve to the most recent datapoint.
 
 #### User Entry
 
