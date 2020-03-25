@@ -62,13 +62,17 @@ testing_status <-   testing_status[[1]][["X2"]] %>%
 testing_status <- testing_status %>% mutate(Date=lubridate::today())
 
 # Get number of deaths
-# /html/body/form/div[4]/div/div[3]/div[2]/div/div/div[2]/table[2]/tbody/tr[2]/td/strong
 
-deaths <- read_html(page) %>% 
+deaths_today <- read_html(page) %>% 
   html_nodes(xpath='/html/body/form/div[4]/div/div[3]/div[2]/div/div/div[2]/table[2]') %>% html_table()
 
-deaths <- deaths[[1]][["X2"]][2]
-
+deaths_today <- deaths_today[[1]][["X2"]][2]
+deaths_today <- tribble(
+  ~Date, ~Cum_Deaths,
+  lubridate::today(), deaths_today
+)
+# append the new data
+deaths <- bind_rows(deaths, deaths_today)
 ```
 
 ##  Build beginning of death table from news reports
@@ -84,6 +88,7 @@ deaths <- tribble(
   "2020/03/23", 8,
 )
 
+deaths$Date <- lubridate::ymd(deaths$Date)
 saveRDS(deaths,"/home/ajackson/Dropbox/Rprojects/Covid/Deaths.rds")
 
 ```
