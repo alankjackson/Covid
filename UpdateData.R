@@ -147,9 +147,9 @@ CovidData <- bind_rows(CovidData, mytable)
 # Save an accumulated file in case of a failure
 saveRDS(CovidData,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),"_Covid.rds"))
 # Save the real file for later use
-##saveRDS(CovidData,"/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
+saveRDS(CovidData,"/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
 # Also save to mirror site
-##saveRDS(CovidData,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Covid.rds")
+saveRDS(CovidData,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Covid.rds")
 
 ################   Testing data
 # Read in the old data
@@ -159,9 +159,9 @@ TestingData <- bind_rows(TestingData, testing_status)
 # Save an accumulated file in case of a failure
 saveRDS(TestingData,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),"_Testing.rds"))
 # Save the real file for later use
-##saveRDS(TestingData,"/home/ajackson/Dropbox/Rprojects/Covid/Testing.rds")
+saveRDS(TestingData,"/home/ajackson/Dropbox/Rprojects/Covid/Testing.rds")
 # Also save to mirror site
-##saveRDS(TestingData,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Testing.rds")
+saveRDS(TestingData,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Testing.rds")
 
 
 ################   Death data
@@ -172,9 +172,9 @@ deaths <- bind_rows(deaths, deaths_today)
 # Save an accumulated file in case of a failure
 saveRDS(deaths ,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),"_deaths.rds"))
 # Save the real file for later use
-##saveRDS(deaths,"/home/ajackson/Dropbox/Rprojects/Covid/Deaths.rds")
+saveRDS(deaths,"/home/ajackson/Dropbox/Rprojects/Covid/Deaths.rds")
 # Also save to mirror site
-##saveRDS(deaths,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Deaths.rds")
+saveRDS(deaths,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Deaths.rds")
 
 
 
