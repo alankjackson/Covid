@@ -6,47 +6,139 @@ library(stringr)
 library(rvest)
 library(httr)
 library(xml2)
+library(RSelenium)
+library(xfun)
 
 options(stringsAsFactors = FALSE)
 
-url <- "https://www.dshs.state.tx.us/news/updates.shtm#coronavirus"
-#   Bad idea, disabling certificate check
-page <- RCurl::getURL("https://www.dshs.state.tx.us/news/updates.shtm#coronavirus", ssl.verifyhost = 0L, ssl.verifypeer = 0L)
+url <- "https://txdshs.maps.arcgis.com/apps/opsdashboard/index.html#/ed483ecd702b4298ab01e8b9cafc8b83"
 
-mytable <- read_html(page) %>% 
-  html_nodes(xpath='/html/body/form/div[4]/div/div[3]/div[2]/div/div/div[2]/div/table') %>% 
-  html_table()
+#---------------------------------------------------------------------
+#   retrieve the webpage with a headless browser
+#---------------------------------------------------------------------
 
-mytable <- mytable[[1]]
-names(mytable) <- c("County", "Cases", "Deaths")
+# start the server and browser in headless mode
+rD <- rsDriver(browser="firefox",
+               extraCapabilities = list("moz:firefoxOptions" = list(
+                 args = list('--headless')))
+)
+
+driver <- rD$client
+
+# navigate to an URL
+driver$navigate(url)
+Sys.sleep(9)
+
+# get parsed page source
+parsed_pagesource <- driver$getPageSource()[[1]]
+
+#close the driver
+driver$close()
+
+#close the server
+rD$server$stop()
+
+#---------------------------------------------------------------------
+#   Extract cases per county
+#---------------------------------------------------------------------
+
+result <- read_html(parsed_pagesource) %>%
+  html_nodes(xpath='/html/body/div/div/div/div/div/div/margin-container/full-container/div[11]/margin-container/full-container/div/div/nav') %>%
+  html_text() %>% 
+  str_replace_all("\n"," ") %>% 
+  str_split("  +")
+
+result <- result[[1]][2:(length(result[[1]])-1)]
+res <- cbind.data.frame(split(result, 
+                              rep(1:2, times=length(result)/2)), 
+                        stringsAsFactors=F)
+names(res) <- c("County", "Cases") 
+res$County <- str_remove(res$County, " County") 
+res$Cases <- as.numeric(res$Cases)
+
+#   What to do. Deaths per county appeared and then disappeared.
+#   I'll just add the column in for now.
+
+mytable <- res %>% mutate(Deaths="-")
 mytable <- mytable %>% mutate(Date=lubridate::today())
 
-# Get rid of footnotes
-mytable$County <- str_replace(mytable$County, "\\d", "")
+mytable
+
+#---------------------------------------------------------------------
+#   Extract Testing status
+#---------------------------------------------------------------------
+
+total_tests <- 
+  read_html(parsed_pagesource) %>%
+  html_nodes(xpath='//*[@id="ember16"]') %>%
+  html_text() %>%  
+  str_replace_all("\n"," ") %>% 
+  str_remove_all(",") %>% 
+  str_split("  +") 
+total_tests <- total_tests[[1]][2]
+
+public_tests <- 
+  read_html(parsed_pagesource) %>%
+  html_nodes(xpath='//*[@id="ember23"]') %>%
+  html_text() %>%  
+  str_replace_all("\n"," ") %>% 
+  str_remove_all(",") %>% 
+  str_split("  +")
+public_tests <- public_tests[[1]][2]
+
+private_tests <- 
+  read_html(parsed_pagesource) %>%
+  html_nodes(xpath='//*[@id="ember30"]') %>%
+  html_text() %>% 
+  str_replace_all("\n"," ") %>% 
+  str_remove_all(",") %>% 
+  str_split("  +")
+private_tests <- private_tests[[1]][2]
 
 
-testing_status <- read_html(page) %>% 
-  html_nodes(xpath='/html/body/form/div[4]/div/div[3]/div[2]/div/div/div[2]/table[1]') %>% 
-  html_table()
+print(paste("Total:", total_tests))
+print(paste("Public:", public_tests))
+print(paste("Private:", private_tests))
 
-testing_status <-   testing_status[[1]][["X2"]] %>% 
-  str_remove_all("\\D") %>% 
-  tibble(x=.) %>% 
-  mutate(y=c("Total", "Public", "Private")) %>% 
-  spread(key=y, value=x)
+
+print("--0--")
+
+testing_status <- tribble(
+  ~Total,               ~Public,            ~Private,
+  total_tests, public_tests, private_tests
+)   
+
+print("--1--")
 
 testing_status <- testing_status %>% mutate(Date=lubridate::today())
 
-# Get number of deaths
+print("--2--")
+#---------------------------------------------------------------------
+#   Extract Total Deaths
+#---------------------------------------------------------------------
 
-deaths_today <- read_html(page) %>% 
-  html_nodes(xpath='/html/body/form/div[4]/div/div[3]/div[2]/div/div/div[2]/table[2]') %>% html_table()
+deaths <- 
+  read_html(parsed_pagesource) %>%
+  html_nodes(xpath='//*[@id="ember45"]') %>%
+  html_text() %>% 
+  str_replace_all("\n"," ") %>% 
+  str_remove_all(",") %>% 
+  str_split("  +")
+print("--3--")
+deaths=as.numeric(deaths[[1]][2])
 
-deaths_today <- deaths_today[[1]][["X2"]][2]
+print("--4--")
 deaths_today <- tribble(
   ~Date, ~Cum_Deaths,
-  lubridate::today(), deaths_today
+  lubridate::today(), deaths
 )
+
+print("--5--")
+#---------------------------------------------------------------------
+#   Read in old data, append new data, and save
+#---------------------------------------------------------------------
+
+########################################################
 
 # Read in the old data
 CovidData <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
@@ -55,9 +147,9 @@ CovidData <- bind_rows(CovidData, mytable)
 # Save an accumulated file in case of a failure
 saveRDS(CovidData,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),"_Covid.rds"))
 # Save the real file for later use
-saveRDS(CovidData,"/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
+##saveRDS(CovidData,"/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
 # Also save to mirror site
-saveRDS(CovidData,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Covid.rds")
+##saveRDS(CovidData,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Covid.rds")
 
 ################   Testing data
 # Read in the old data
@@ -67,9 +159,9 @@ TestingData <- bind_rows(TestingData, testing_status)
 # Save an accumulated file in case of a failure
 saveRDS(TestingData,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),"_Testing.rds"))
 # Save the real file for later use
-saveRDS(TestingData,"/home/ajackson/Dropbox/Rprojects/Covid/Testing.rds")
+##saveRDS(TestingData,"/home/ajackson/Dropbox/Rprojects/Covid/Testing.rds")
 # Also save to mirror site
-saveRDS(TestingData,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Testing.rds")
+##saveRDS(TestingData,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Testing.rds")
 
 
 ################   Death data
@@ -80,9 +172,9 @@ deaths <- bind_rows(deaths, deaths_today)
 # Save an accumulated file in case of a failure
 saveRDS(deaths ,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),"_deaths.rds"))
 # Save the real file for later use
-saveRDS(deaths,"/home/ajackson/Dropbox/Rprojects/Covid/Deaths.rds")
+##saveRDS(deaths,"/home/ajackson/Dropbox/Rprojects/Covid/Deaths.rds")
 # Also save to mirror site
-saveRDS(deaths,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Deaths.rds")
+##saveRDS(deaths,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Deaths.rds")
 
 
 
