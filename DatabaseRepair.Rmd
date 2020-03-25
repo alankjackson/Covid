@@ -55,6 +55,28 @@ saveRDS(foo,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Covid.rds")
 
 ```
 
+##  Add Deaths field
+
+```{r delete total}
+
+path <- "/home/ajackson/Dropbox/Rprojects/Covid/"
+
+foo <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
+
+foo <- foo %>% mutate(Deaths="-")
+
+# Save an accumulated file in case of a failure
+saveRDS(foo,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),"_Covid.rds"))
+# Save the real file for later use
+saveRDS(foo,"/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
+# Also save to mirror site
+saveRDS(foo,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Covid.rds")
+
+
+
+```
+
+
 
 
 
