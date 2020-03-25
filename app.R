@@ -34,6 +34,10 @@ z <- gzcon(url(paste0(DataLocation, "Testing.rds")))
 TestingData <- readRDS(z)
 close(z)
 TestingData$Total <- as.numeric(TestingData$Total)
+#   Death data
+z <- gzcon(url(paste0(DataLocation, "Deaths.rds")))
+DeathData <- readRDS(z)
+close(z)
 
 #   County polygons
 Texas <- readRDS(gzcon(url(paste0(DataArchive, "Texas_County_Outlines_lowres.rds"))))
@@ -61,6 +65,12 @@ DF <- DF %>% bind_rows(
 
 DF <- DF %>% 
     mutate(Days=as.integer(Date-ymd("2020-03-11")))
+
+# Fix Deaths field
+
+DF$Deaths <- str_replace(DF$Deaths,"-", "na")
+DF <- DF %>% 
+  mutate(Deaths=as.numeric(Deaths))
 
 # Add dummy Estimate field
 
@@ -212,7 +222,8 @@ MapLabels <- lapply(seq(nrow(MappingData)), function(i) {
     str_replace_all(
       paste0( MappingData[i,]$County, ' County<br>', 
               MappingData[i,]$Cases,' Cases Total<br>', 
-              MappingData[i,]$percapita, " per 100,000"),
+              MappingData[i,]$percapita, " per 100,000<br>",
+              MappingData[i,]$Deaths, " Deaths"),
       "NA", "Zero"))
 })
 
@@ -367,9 +378,11 @@ ui <- basicPage(
             #-------------------- Controls
             column(3, # Controls
                    #    Select quantity to color counties with
-                   radioButtons("county_color", label = strong("Display which variable?"),
+                   radioButtons("county_color", 
+                                label = strong("Display which variable?"),
                                 choices = list( "Total Cases" = "casetotal", 
-                                               "Cases per 100,000 population" = "percapita"), 
+                                               "Cases per 100,000 population" = "percapita",
+                                               "Deaths" = "deaths"), 
                                 selected = "casetotal",
                                 width='90%',
                                 inline=FALSE),
@@ -797,31 +810,28 @@ server <- function(input, output) {
   #---------------------------------------------------    
   
   draw_map <- function() {
-    # Create a continuous palette function
-    palcap <- colorNumeric(
-      na.color = "transparent",
-      palette = heat.colors(8),
-      reverse=TRUE,
-      domain = MappingData$percapita)
-      output$MapTitle <- renderText(
-                            paste0("Texas COVID-19 Cases as of ", lastdate))
     
     Range <- range(MappingData$percapita,na.rm=TRUE)
     
     palcap <-colorQuantile(palette = heat.colors(8), 
                            domain = MappingData$percapita, 
                            n = 8, 
-                           #probs = seq(0, 1, length.out = n + 1), 
                            na.color = "transparent", 
                            alpha = FALSE, 
                            reverse = TRUE,
                            right = FALSE) 
     
     palcase <- colorNumeric(
-      na.color = "transparent",
-      palette = heat.colors(8),
-      reverse=TRUE,
-      domain = MappingData$Cases)
+                            na.color = "transparent",
+                            palette = heat.colors(8),
+                            reverse=TRUE,
+                            domain = MappingData$Cases)
+    
+    paldeath <- colorNumeric(
+                            na.color = "transparent",
+                            palette = heat.colors(8),
+                            reverse=TRUE,
+                            domain = MappingData$Deaths)
     
     if (input$county_color=="casetotal") {
       output$TexasMap <- renderLeaflet({
@@ -837,13 +847,11 @@ server <- function(input, output) {
                       fillOpacity = 0.7,
                       label = MapLabels,
                       fillColor = ~palcase(MappingData$Cases)) %>% 
-          #addTitle(text=paste0("Texas COVID-19 Cases as of ", lastdate),
-          #         leftPosition=35) %>% 
           addLegend("bottomleft", pal = palcase, values = ~Cases, 
                     title = "Total Cases",
                     opacity = 1)
       }) 
-    } else {
+    } else if (input$county_color=="percapita") {
       output$TexasMap <- renderLeaflet({
         #   Basemap
         leaflet(MappingData) %>% 
@@ -857,8 +865,6 @@ server <- function(input, output) {
                       fillOpacity = 0.7,
                       label = MapLabels,
                       fillColor = ~palcap(MappingData$percapita)) %>% 
-          #addTitle(text=paste0("Texas COVID-19 Cases as of ", lastdate),
-          #        leftPosition=35) %>% 
           addLegend("bottomleft", pal = palcap, values = ~percapita, 
                     title = "Cases per 100,000",
                     labels= as.character(seq(Range[1], Range[2], length.out = 8)),
@@ -868,7 +874,25 @@ server <- function(input, output) {
                     },
                     opacity = 1)
       }) 
-    }
+    } else { #  Deaths
+      output$TexasMap <- renderLeaflet({
+        #   Basemap
+        leaflet(MappingData) %>% 
+          setView(lng = MapCenter[1] , lat = MapCenter[2], zoom = init_zoom ) %>%   
+          addTiles() %>%
+          addPolygons(data = MappingData, 
+                      group="deaths",
+                      stroke = TRUE,
+                      weight = 1,
+                      smoothFactor = 0.2, 
+                      fillOpacity = 0.7,
+                      label = MapLabels,
+                      fillColor = ~paldeath(MappingData$Deaths)) %>% 
+          addLegend("bottomleft", pal = paldeath, values = ~Deaths, 
+                    title = "Total Deaths",
+                    opacity = 1)
+      }) 
+    } 
   }
    
   #------------------- Reactive bits ---------------------
