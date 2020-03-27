@@ -25,6 +25,8 @@ indicies <- tail(which(foo$County=="Total"),2)
 foo <- foo[1:indicies[1],]
 foo <- foo[1:71,]
 
+foo <- foo[1:440,]
+
 # Save an accumulated file in case of a failure
 saveRDS(foo,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),"_Covid.rds"))
 # Save the real file for later use
@@ -75,6 +77,52 @@ saveRDS(foo,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Covid.rds")
 
 
 ```
+
+##  Fix DeathData
+
+```{r deathdata}
+
+path <- "/home/ajackson/Dropbox/Rprojects/Covid/"
+
+foo <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Deaths.rds")
+
+foo <- foo[1:7,]
+
+saveRDS(foo ,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),"_deaths.rds"))
+# Save the real file for later use
+saveRDS(foo,"/home/ajackson/Dropbox/Rprojects/Covid/Deaths.rds")
+# Also save to mirror site
+saveRDS(foo,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Deaths.rds")
+```
+
+##  Add LastUpdate field
+
+```{r deathdata}
+
+path <- "/home/ajackson/Dropbox/Rprojects/Covid/"
+
+foo <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
+
+foo <- foo %>% 
+  mutate(LastUpdate=Date) %>% 
+  mutate(Deaths=str_replace(Deaths,"-", "na")) %>% 
+  mutate(Deaths=as.numeric(Deaths)) %>% 
+  replace_na(list(Count_ = 0, Deaths=0))
+
+hour(foo$LastUpdate) <- 11
+
+foo$LastUpdate <- as.character(foo$LastUpdate)
+
+
+# Save the real file for later use
+saveRDS(foo,"/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
+# Also save to mirror site
+saveRDS(foo,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Covid.rds")
+```
+
+
+
+
 
 
 
