@@ -42,25 +42,39 @@ rD$server$stop()
 #   Extract cases per county
 #---------------------------------------------------------------------
 
-result <- read_html(parsed_pagesource) %>%
-  html_nodes(xpath='/html/body/div/div/div/div/div/div/margin-container/full-container/div[11]/margin-container/full-container/div/div/nav') %>%
-  html_text() %>% 
-  str_replace_all("\n"," ") %>% 
-  str_split("  +")
-
-result <- result[[1]][2:(length(result[[1]])-1)]
-res <- cbind.data.frame(split(result, 
-                              rep(1:2, times=length(result)/2)), 
-                        stringsAsFactors=F)
-names(res) <- c("County", "Cases") 
-res$County <- str_remove(res$County, " County") 
-res$Cases <- as.numeric(res$Cases)
+#result <- read_html(parsed_pagesource) %>%
+#  html_nodes(xpath='/html/body/div/div/div/div/div/div/margin-container/full-container/div[11]/margin-container/full-container/div/div/nav') %>%
+#  html_text() %>% 
+#  str_replace_all("\n"," ") %>% 
+#  str_split("  +")
+#
+#result <- result[[1]][2:(length(result[[1]])-1)]
+#res <- cbind.data.frame(split(result, 
+#                              rep(1:2, times=length(result)/2)), 
+#                        stringsAsFactors=F)
+#names(res) <- c("County", "Cases") 
+#res$County <- str_remove(res$County, " County") 
+#res$Cases <- as.numeric(res$Cases)
 
 #   What to do. Deaths per county appeared and then disappeared.
 #   I'll just add the column in for now.
 
-mytable <- res %>% mutate(Deaths="-")
-mytable <- mytable %>% mutate(Date=lubridate::today())
+#mytable <- res %>% mutate(Deaths="-")
+#mytable <- mytable %>% mutate(Date=lubridate::today())
+#
+#mytable
+
+####   Use arcgis site instead, easier and they still post deaths
+
+url <- "https://opendata.arcgis.com/datasets/bc83058386d2434ca8cf90b26dc6b580_0.csv"
+
+mytable <- read_csv(url) %>% 
+  replace_na(list(Count_ = 0, Deaths=0)) %>% 
+  select(County, Cases=Count_, Deaths, LastUpdate) %>% 
+  mutate(Date=lubridate::today()) %>% # Add today's date
+  select(County, Cases, Date, Deaths, LastUpdate) # reorder columns
+
+mytable$LastUpdate <- as.character(mytable$LastUpdate)
 
 mytable
 
