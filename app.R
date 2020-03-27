@@ -42,6 +42,7 @@ close(z)
 #   County polygons
 Texas <- readRDS(gzcon(url(paste0(DataArchive, "Texas_County_Outlines_lowres.rds"))))
 
+
 init_zoom <- 6
 MapCenter <- c(-99.9018, 31.9686) # center of state
 
@@ -52,36 +53,46 @@ global_slope <- 0.13
 
 DF$County <- str_replace(DF$County, "\\d", "")
 
+
 # Add Statewide Totals per day
 
-DF <- DF %>% bind_rows(
+DF <- DF %>% select(-LastUpdate) %>% bind_rows(
                   DF %>%
                   group_by(Date) %>% 
                   summarise(Cases = sum(Cases)) %>% 
                   mutate(County="Total")
                  ) %>% 
     arrange(Date)
+
 # Calc days since March 11
 
 DF <- DF %>% 
     mutate(Days=as.integer(Date-ymd("2020-03-11")))
 
+DeathData <- DeathData %>% 
+    mutate(Days=as.integer(Date-ymd("2020-03-11")))
+
 # Fix Deaths field
 
 DF$Deaths <- str_replace(DF$Deaths,"-", "na")
+
 DF <- DF %>% 
   mutate(Deaths=as.numeric(Deaths))
+
 
 # Add dummy Estimate field
 
 DF <- DF %>% 
     mutate(Estimate=Cases)
 
+
 #   Last date in dataset formatted for plotting
 
 sf <- stamp_date("Sunday, Jan 17, 1999")
 lastdate <- sf(DF$Date[nrow(DF)])
+
 LastDate <- DF[nrow(DF),]$Date
+
 
 #   Crowdsize text
 
@@ -201,6 +212,20 @@ DefineRegions <- tribble(
     "Austin", c("Bastrop", "Caldwell", "Hays", "Travis", "Williamson")
 )
 
+# https://docs.google.com/document/d/1ETeXAfYOvArfLvlxExE0_xrO5M4ITC0_Am38CRusCko/edit#
+Disease <- tibble::tribble(
+              ~Demographics, "% Hosp", "% Hosp ICU", "% CFR",
+                      "12%", "0-9", "0.1%", "5.0%", "0.002%",
+                      "13%", "10-19", "0.3%", "5.0%", "0.006%",
+                      "14%", "20-29", "1.2%", "5.0%", "0.03%",
+                      "13%", "30-39", "3.2%", "5.0%", "0.08%",
+                      "12%", "40-49", "4.9%", "6.3%", "0.15%",
+                      "13%", "50-59", "10.2%", "12.2%", "0.60%",
+                      "11%", "60-69", "16.6%", "27.4%", "2.20%",
+                       "7%", "70-79", "24.3%", "43.2%", "5.10%",
+                       "4%", "80+", "27.3%", "70.9%", "9.30%"
+                            )
+
 # prep mapping polygons
 
 TodayData <- DF %>% filter(Date==LastDate) %>% 
@@ -215,7 +240,7 @@ MappingData <-  merge(Texas, TodayData,
 # Build labels for map
 
 MappingData <- MappingData %>%
-  mutate(percapita=signif(percapita,3))  
+  mutate(percapita=signif(percapita,3)) 
 
 MapLabels <- lapply(seq(nrow(MappingData)), function(i) {
   htmltools::HTML(
@@ -365,6 +390,103 @@ ui <- basicPage(
                     
                 ),
                 # end tabPanel Graph
+    ##########   Analysis Tab
+    tabPanel( "Analysis", fluid = TRUE, value = "AnalysisTab",
+        HTML("<hr>"),
+        fluidPage(#-------------------- Analysis Tabs
+        column( 9, # Tabs
+     tabsetPanel(id = "An_tabs",
+                ##########   Graph Tab
+          tabPanel(
+                    "Deaths",
+                    fluid = TRUE,
+                    value = "Deaths",
+                    HTML("<hr>"),
+                    plotOutput("plot_deaths",
+                               height = "800px"),
+                    h4("Details on displayed data"),
+                    htmlOutput("death_details"),
+                  ), # end tab panel Deaths
+          tabPanel(
+                    "Slope Change",
+                    fluid = TRUE,
+                    value = "SlopeChange",
+                    HTML("<hr>"),
+                  ), # end tab panel Deaths
+          tabPanel(
+                    "Missed Tests",
+                    fluid = TRUE,
+                    value = "Tests",
+                    HTML("<hr>"),
+                  ), # end tab panel Deaths
+          tabPanel(
+                    "Something",
+                    fluid = TRUE,
+                    value = "Something",
+                    HTML("<hr>"),
+                  ) # end tab panel Deaths
+               ), # end TabSet panel An_tabs
+             ), # end column 
+            #-------------------- Data Selection
+           column(3, # Controls
+                   # Select data to plot
+                   h4("Choose the data"),
+                   radioButtons(
+                     "An_dataset",
+                     label = strong("Which Data?"),
+                     choices = list("Region" = "Region",
+                                    "County" = "County"),
+                     selected = "Region",
+                     width = '90%'
+                   ),
+                   conditionalPanel(
+                     #    Select Region
+                     condition = "input.An_dataset == 'Region'",
+                     selectInput("An_region", "Choose a Region:",
+                                 Regions$Region,
+                                 selected = "Texas")
+                   ), # end conditional panel
+                   conditionalPanel(
+                     #    Select County
+                     condition = "input.An_dataset == 'County'",
+                     selectInput(
+                       "An_county",
+                       label = "Choose a County:",
+                       Counties$County,
+                       selected = "Harris"
+                     )
+                   ), # end conditional panel
+                  conditionalPanel(
+                    #    Deaths Tab
+                    condition = "input.An_tabs == 'Deaths'",
+                      checkboxInput(
+                        inputId = "Deaths_logscale",
+                        label = strong("Log Scaling"),
+                        value = FALSE
+                    ),
+                      checkboxInput(
+                        inputId = "Deaths_zoom",
+                        label = strong("Expand Scale"),
+                        value = FALSE
+                    ),
+                    
+                  ),
+                  # end conditional panel
+                  conditionalPanel(
+                    #    Slope Change Tab
+                    condition = "input.An_tabs == 'SlopeChange'",
+                    selectInput(
+                      "county",
+                      label = "Choose a County:",
+                      Counties$County,
+                      selected = "Harris"
+                    )
+                  ),
+                  # end conditional panel
+                 ) # end column Controls
+         ) # end fluid page
+                   
+     ), # end tabPanel Analysis
     ##########   Map Tab
     tabPanel( "Map", fluid = TRUE, value = "MapTab",
         HTML("<hr>"),
@@ -381,8 +503,9 @@ ui <- basicPage(
                    radioButtons("county_color", 
                                 label = strong("Display which variable?"),
                                 choices = list( "Total Cases" = "casetotal", 
-                                               "Cases per 100,000 population" = "percapita",
-                                               "Deaths" = "deaths"), 
+                                               "Cases per 100,000 population" = "percapita"
+                                               #"Deaths" = "deaths"
+                                               ), 
                                 selected = "casetotal",
                                 width='90%',
                                 inline=FALSE),
@@ -442,12 +565,12 @@ server <- function(input, output) {
   #---------------------------------------------------    
   #------------------- Build Model -------------------
   #---------------------------------------------------    
-  build_model <- function(){ 
+  build_model <- function(subdata, weight_flag){ 
     print(":::::::  build_model")
       # Linear fits to log(cases)
     ##########   Base case with actual data  
     weights <- (1:nrow(subdata))**1.5
-    if (input$weights) {
+    if (weight_flag) {
       LogFits <- lm(log10(Cases)~Days, data=subdata, weights=weights)
     } else {
       LogFits <- lm(log10(Cases)~Days, data=subdata)
@@ -484,6 +607,30 @@ server <- function(input, output) {
     tribble(~m, ~b, ~Rsqr, ~std_dev,
              m,  b,  Rsqr,  std_dev)
   }
+  #---------------------------------------------------    
+  #---------------New  Build Model -------------------
+  #---------------------------------------------------    
+  new_build_model <- function(x, y, weight_flag){ 
+    print(":::::::  new_build_model")
+    print(paste("x", x))
+    print(paste("y", y))
+      # Linear fits to log(cases)
+    ##########   Base case with actual data  
+    weights <- (1:length(x))**1.5
+    if (weight_flag) {
+      LogFits <- lm(log10(y)~x, weights=weights)
+    } else {
+      LogFits <- lm(log10(y)~x)
+    }
+    m <- LogFits[["coefficients"]][["x"]]
+    b <- LogFits[["coefficients"]][["(Intercept)"]]
+    Rsqr <- summary(LogFits)$adj.r.squared
+    std_dev <- sigma(LogFits)
+    print(paste("--A3--", m, b, Rsqr, std_dev))  ######################### print
+    # return a tibble
+    tribble(~m, ~b, ~Rsqr, ~std_dev,
+             m,  b,  Rsqr,  std_dev)
+  }
     
   #---------------------------------------------------    
   #------------------- Build exponential curve -------
@@ -494,7 +641,7 @@ server <- function(input, output) {
       lastday <- as.integer(LastDate - begin) + 1 # last day of real data
       dayseq <- 0:(lastday + 9)
       dateseq <- as_date(begin:(LastDate+10))
-      model <- build_model()
+      model <- build_model(subdata, input$weights)
       est_model <- build_est_model()
       m <- model$m
       b <- model$b
@@ -526,7 +673,47 @@ server <- function(input, output) {
       SD_lower <- Cases-Cases*model$std_dev
       ExpLine <- tibble( Days=dayseq, Date=dateseq, Cases=Cases,
                          SD_upper=SD_upper, SD_lower=SD_lower)
+      #print(paste("--5--", ExpLine))######################### print
+      #  return a tibble
+      tribble(~Line, ~m, ~b, ~Rsqr,
+               ExpLine, m, b, Rsqr)
+    }  
+  
+  #---------------------------------------------------    
+  #-----------Build an exponential model -------------
+  #---------------------------------------------------    
+    build_expmodel <- function(data, 
+                               y="Cases",
+                               weights=TRUE, 
+                               fit=c('all', 'm', 'b'),
+                               m=1.3,
+                               b=1){
+    print(":::::::  build_expmodel")
+      #   Go 10 days into future
+      lastday <- as.integer(LastDate - begin) + 1 # last day of real data
+      dayseq <- 0:(lastday + 9)
+      dateseq <- as_date(begin:(LastDate+10))
+      model <- new_build_model(data$Days, unlist(data[,y]), weights)
+      
+      m <- model$m
+      b <- model$b
+      Rsqr <- model$Rsqr
+      print(paste("----build_expline----", model))
+      if (fit=="all") {
+          Cases <- 10**(m*dayseq+b)
+      } else if (fit=="m") {
+        m <- input$fit
+        b <- input$intercept
+      } else {
+        m <- global_slope
+        Cases <- 10**(m*dayseq+b)
+      }
+      SD_upper <- Cases+Cases*model$std_dev
+      SD_lower <- Cases-Cases*model$std_dev
+      ExpLine <- tibble( Days=dayseq, Date=dateseq,!!y:=Cases,
+                         SD_upper=SD_upper, SD_lower=SD_lower) 
       print(paste("--5--", ExpLine))######################### print
+      print(summary(ExpLine))
       #  return a tibble
       tribble(~Line, ~m, ~b, ~Rsqr,
                ExpLine, m, b, Rsqr)
@@ -804,6 +991,163 @@ server <- function(input, output) {
     })
   }
   
+  ################################## Analysis
+  
+       
+  #---------------------------------------------------    
+  #------------------- Prep Analysis Data ------------
+  #---------------------------------------------------    
+  prep_An_data <- function(){ # return population, label for graph title and tibble subset
+    print(":::::::  prep_An_data")
+    if (input$dataset=="Region") { # work with regions
+        print(paste("--A1--", DefineRegions$List[DefineRegions$Region==input$region]))######################### print
+      An_PopLabel <<- Regions %>% filter(Region==input$region)
+      target <- unlist(DefineRegions$List[DefineRegions$Region==input$region])
+      An_subdata <<- DF %>% 
+          filter(County %in% target) %>% 
+          group_by(Date) %>% 
+          summarise(Cases=sum(Cases), Days=mean(Days), Estimate=sum(Estimate))
+      print(paste("---A1.5---", subdata, input$region))######################### print
+      An_begin <<- subdata$Date[1] # date of first reported case
+      return()
+    } else {
+        print(paste("--A2--", input$county))######################### print
+      #   Is there any data?
+      if (! input$county %in% DF$County) {
+        showNotification(paste("No reported cases in", input$county))
+        return()
+      }
+      
+      An_PopLabel <<- Counties %>% filter(County==input$county) %>% 
+                     mutate(Label=paste(input$county, "County"))
+      An_subdata <<- DF %>% filter(County==input$county)
+      An_begin <<- subdata$Date[1] # date of first reported case
+      return()
+    }
+  } # end prep_data
+    
+  #---------------------------------------------------    
+  #------------------- Build Death Plot --------------
+  #---------------------------------------------------    
+  
+  build_deaths_plot <- function(){
+      # Build exponential line for plot
+    print(":::::::  build_death_plot")
+    foo <- build_expmodel(DeathData,
+                          y="Cum_Deaths",
+                          fit="all")
+    print("build_deaths_plot --- 1")
+    EqText <- paste0("Fit is log(Cumulative Deaths) = ",
+                     signif(foo$m,3),"*Days + ",
+                     signif(foo$b,3))
+    print("build_deaths_plot --- 2")
+    ExpLine <- foo$Line[[1]]
+    print(summary(ExpLine))
+    print("build_deaths_plot --- 3")
+    #xform <- 2*signif(max(TestingData$Total)/(6*max(foo$Cum_Deaths)),2)
+    print("build_deaths_plot --- 4")
+    #xform <- 10.0 # transform for secondary axis. Multiply primary by this
+    grob <- grid::grid.text(EqText, x=0.7,  y=0.1, gp=grid::gpar(col="black", fontsize=15))
+    print("build_deaths_plot --- 5")
+    if (!input$Deaths_logscale) {
+        p <- DeathData %>% 
+            ggplot(aes(x=Date, y=Cum_Deaths)) +
+            geom_col(alpha = 2/3) 
+     } else {
+        
+        p <- DeathData %>% 
+            ggplot(aes(x=Date, y=Cum_Deaths)) +
+            geom_point() 
+     } 
+        p <- p + geom_label(aes(label=Cum_Deaths), stat='identity', size = 3) +
+          expand_limits(x = LastDate+10) +
+          geom_line(data=ExpLine,
+                    aes(x=Date, y=Cum_Deaths,
+                        color="fit"),
+                    size=1,
+                    linetype="dashed") +
+          geom_line(data=ExpLine[1:(nrow(ExpLine)-10),],
+                    aes(x=Date, y=Cum_Deaths,
+                        color="fit" ),
+                    size=1,
+                    linetype="solid") +
+          geom_point(data=ExpLine[(nrow(ExpLine)-9):nrow(ExpLine),],
+                        aes(x=Date, y=Cum_Deaths),
+                     shape=20, size=2, fill="blue") +
+          geom_label(data=ExpLine[(nrow(ExpLine)-9):nrow(ExpLine),],
+                      aes(label=as.integer(Cum_Deaths+.5)),
+                      hjust=1, vjust=0) +
+          geom_line(data=ExpLine,
+                    aes(x=Date-13, y=Cum_Deaths*60,
+                        color="tests"),
+                    size=1,
+                    linetype="dashed") +
+          #geom_point(data=TestingData,
+          #              aes(x=Date, y=Total/xform, color="tests"),
+          #           size=3, shape=23, fill="black") +
+          #geom_text(data=TestingData,
+          #          aes(x=Date, y=Total/xform, label=Total),
+          #          nudge_x=-1.00, nudge_y=0.0) +
+          theme(text = element_text(size=20)) +
+          labs(title=paste0("COVID-19 Deaths in ",PopLabel$Label), 
+               subtitle=paste0(" as of ", lastdate))
+      
+      p <- p + annotate("label", 
+                        x=(LastDate - begin + 10)/1.5+begin, 
+                        y=DeathData$Cum_Deaths[nrow(DeathData)]/5, 
+                        label=EqText)
+      
+      if (!is.nan(ExpLine$SD_lower[1]) & input$modeling=="do fit"){
+           p <- p + geom_errorbar(data=ExpLine[(nrow(ExpLine)-9):nrow(ExpLine),],
+                        aes(x=Date, y=Cum_Deaths, ymin=SD_lower, ymax=SD_upper)) 
+      }
+      
+      if (input$Deaths_logscale) {
+        trans_value <- "log10"
+        min_limit <- min(ExpLine$Cum_Deaths[1], 2)
+      } else {
+        trans_value <- "identity"
+        min_limit <- 0
+      }
+      if (input$Deaths_zoom) {
+          # limit height of modeled fit
+        p <- p + scale_y_continuous(limits=c(min_limit, 6*max(ExpLine$Cum_Deaths)),
+                                    #sec.axis = sec_axis(~.*xform, 
+                                    #name = "Statewide Test Total"),
+                                    trans=trans_value)
+      } else {
+        p <- p + scale_y_continuous(limits=c(min_limit, max(ExpLine$Cum_Deaths)),
+                                    #sec.axis = sec_axis(~.*xform, 
+                                    #name = "Statewide Test Total"),
+                                    trans=trans_value)
+      }
+  
+    print(":::::::  displayed_data")
+    m <- foo$m
+    b <- foo$b 
+    Rsqr <- foo$Rsqr
+    output$death_details <- renderUI({
+      str1 <- paste("Most recent value, on",DeathData$Date[nrow(DeathData)],
+                    "was<b>", DeathData$Cum_Deaths[nrow(DeathData)],"</b>Deaths")
+      str3 <- paste("           Doubling Time =", signif(log10(2)/m,2), "days")
+      
+      if (!is.nan(Rsqr)){
+        if (Rsqr>.8) {
+          str2 <- paste("R<sup>2</sup> value for fit =", signif(Rsqr,4))
+        } else {
+          str2 <- paste("<font color=\"red\">R<sup>2</sup> value for fit =", 
+                        signif(Rsqr,4),
+                        "<b>which is poor</b></font>")
+        }
+        HTML(paste(str1, str3, str2, sep = '<br/>'))
+      } else {
+        HTML(paste(str1, str3, sep = '<br/>'))
+      }
+    })
+  
+    return(p)
+  }
+  
   ######################  Map ########################
   #---------------------------------------------------    
   #------------------- Build Model -------------------
@@ -811,8 +1155,10 @@ server <- function(input, output) {
   
   draw_map <- function() {
     
+    print("Map --1--")
     Range <- range(MappingData$percapita,na.rm=TRUE)
     
+    print("Map --2--")
     palcap <-colorQuantile(palette = heat.colors(8), 
                            domain = MappingData$percapita, 
                            n = 8, 
@@ -821,19 +1167,23 @@ server <- function(input, output) {
                            reverse = TRUE,
                            right = FALSE) 
     
+    print("Map --3--")
     palcase <- colorNumeric(
                             na.color = "transparent",
                             palette = heat.colors(8),
                             reverse=TRUE,
                             domain = MappingData$Cases)
     
-    paldeath <- colorNumeric(
-                            na.color = "transparent",
-                            palette = heat.colors(8),
-                            reverse=TRUE,
-                            domain = MappingData$Deaths)
+    print("Map --4--")
+   # paldeath <- colorNumeric(
+   #                         na.color = "transparent",
+   #                         palette = heat.colors(8),
+   #                         reverse=TRUE,
+   #                         domain = MappingData$Deaths)
     
+    print("Map --5--")
     if (input$county_color=="casetotal") {
+    print("Map --6--")
       output$TexasMap <- renderLeaflet({
         #   Basemap
         leaflet(MappingData) %>% 
@@ -875,25 +1225,26 @@ server <- function(input, output) {
                     opacity = 1)
       }) 
     } else { #  Deaths
-      output$TexasMap <- renderLeaflet({
+      #output$TexasMap <- renderLeaflet({
         #   Basemap
-        leaflet(MappingData) %>% 
-          setView(lng = MapCenter[1] , lat = MapCenter[2], zoom = init_zoom ) %>%   
-          addTiles() %>%
-          addPolygons(data = MappingData, 
-                      group="deaths",
-                      stroke = TRUE,
-                      weight = 1,
-                      smoothFactor = 0.2, 
-                      fillOpacity = 0.7,
-                      label = MapLabels,
-                      fillColor = ~paldeath(MappingData$Deaths)) %>% 
-          addLegend("bottomleft", pal = paldeath, values = ~Deaths, 
-                    title = "Total Deaths",
-                    opacity = 1)
-      }) 
+      #  leaflet(MappingData) %>% 
+      #    setView(lng = MapCenter[1] , lat = MapCenter[2], zoom = init_zoom ) %>%   
+      #    addTiles() %>%
+      #    addPolygons(data = MappingData, 
+      #                group="deaths",
+      #                stroke = TRUE,
+      #                weight = 1,
+      #                smoothFactor = 0.2, 
+      #                fillOpacity = 0.7,
+      #                label = MapLabels,
+      #                fillColor = ~paldeath(MappingData$Deaths)) %>% 
+      #    addLegend("bottomleft", pal = paldeath, values = ~Deaths, 
+      #              title = "Total Deaths",
+      #              opacity = 1)
+      #}) 
     } 
-  }
+    print("Map --7--")
+  } 
    
   #------------------- Reactive bits ---------------------
 
@@ -901,6 +1252,9 @@ server <- function(input, output) {
     print(paste("tab:", input$tabs))  
     if (input$tabs=="MapTab") { ##  Graph Tab ##
       draw_map()
+    }
+    if (input$tabs=="AnalysisTab") { ## Analysis Tab ##
+      prep_An_data()
     }
   })
     
@@ -931,7 +1285,67 @@ server <- function(input, output) {
           })
       displayed_data(foo$m, foo$Rsqr)
   })
-    
+   
+  #---------------------------------------------------    
+  #------------------- Select Analysis Data ----------
+  #---------------------------------------------------    
+  observeEvent({
+                input$An_dataset
+                input$An_region
+                input$An_county
+                1}, { # Change data selection
+    print(":::::::  observe_event Analysis Data")
+                  
+      prep_An_data()
+      
+      if (input$An_tabs == "Deaths") {
+        p <- build_deaths_plot()
+        output$plot_deaths <- renderPlot({print(p)})
+      }
+      if (input$An_tabs == "SlopeChange") {
+         # p <- build_slope_plot()
+      } 
+      if (input$An_tabs == "Tests") {
+         # p <- build_tests_plot()
+      } 
+      if (input$An_tabs == "Something") {
+         # p <- build_something()
+      }
+      
+     # displayed_data(foo$m, foo$Rsqr)
+  })
+   
+  #---------------------------------------------------    
+  #------------------- Analysis ----------------------
+  #---------------------------------------------------    
+  observeEvent({
+                input$An_dataset
+                input$An_region
+                input$An_county
+                input$Deaths_logscale
+                input$Deaths_zoom
+                1}, { # Change data selection
+    print(":::::::  observe_event Analysis Data")
+                  
+      prep_An_data()
+      
+      if (input$An_tabs == "Deaths") {
+        p <- build_deaths_plot()
+        output$plot_deaths <- renderPlot({print(p)})
+      }
+      if (input$An_tabs == "SlopeChange") {
+         # p <- build_slope_plot()
+      } 
+      if (input$An_tabs == "Tests") {
+         # p <- build_tests_plot()
+      } 
+      if (input$An_tabs == "Something") {
+         # p <- build_something()
+      }
+      
+     # displayed_data(foo$m, foo$Rsqr)
+  })
+
   #---------------------------------------------------    
   #------------------- Fiddle with Model -------------
   #---------------------------------------------------    
@@ -945,6 +1359,38 @@ server <- function(input, output) {
                 input$estmiss
                 input$logscale
                 input$weights
+                1} , { # 
+                  
+    print(":::::::  observe_event 2")
+      foo <- build_expline("real")
+                  
+      p <- build_basic_plot()
+      
+      if (input$mult) {
+          p <- add_mult(p)
+      } 
+      if (input$estmiss) {
+          p <- add_estmiss(p)
+      } 
+      if (input$avoid) {
+        if (input$logscale) {
+          showNotification("Crowdsize not available with log scale")
+        } else {
+          p <- add_crowdsize(p)
+        }
+      }
+      p <-  build_legend(p)
+      
+      output$plot_graph <- renderPlot({
+          print(p)
+          })
+      displayed_data(foo$m, foo$Rsqr)
+  })
+    
+  #---------------------------------------------------    
+  #------------------- Analysis Tab ------------------
+  #---------------------------------------------------    
+  observeEvent({input$An_tabs
                 1} , { # 
                   
     print(":::::::  observe_event 2")
