@@ -24,6 +24,12 @@ There are a few peculiarities of this data which users should be aware of:
 
 For these reasons, my numbers will differ from news accounts, and tend to lag by about a day. County and metro area total will lag by several days as the state researches county of residence, but the state total should be fairly current.
 
+On March 25, the following message appeared on the state website:
+
+_Why did the case counts reported by DSHS increase suddenly?_
+
+_DSHS updated the method of reporting COVID-19 cases in Texas to provide the public with more timely information. The DSHS daily case count now includes all cases reported publicly by local health departments around the state. With the change, Texas is now reporting an additional 305 cases of COVID-19._
+
 ## Graph
 
 The Graph tab is designed to allow easy data analysis to understand the time progression of the epidemic.
