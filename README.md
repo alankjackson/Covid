@@ -1,3 +1,10 @@
+---
+title: "Documentation"
+author: "Alan Jackson"
+date: "3/22/2020"
+output: html_document
+---
+
 # Documentation
 
 The purpose of this website is to allow easy access and analysis of 
