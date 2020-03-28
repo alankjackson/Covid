@@ -532,7 +532,11 @@ server <- function(input, output) {
 #    PopLabel = list(Region, Population, Label)
 #    subdata = tibble of data subsetted 
 #    begin = date of first reported case
-       
+  
+  ###    Hide the Analysis tab until it is ready
+  hideTab(inputId = "tabs", target = "AnalysisTab")
+  
+  
   #---------------------------------------------------    
   #------------------- Prep Data ---------------------
   #---------------------------------------------------    
@@ -1178,11 +1182,11 @@ server <- function(input, output) {
                             domain = MappingData$Cases)
     
     print("Map --4--")
-   # paldeath <- colorNumeric(
-   #                         na.color = "transparent",
-   #                         palette = heat.colors(8),
-   #                         reverse=TRUE,
-   #                         domain = MappingData$Deaths)
+    paldeath <- colorNumeric(
+                            na.color = "transparent",
+                            palette = heat.colors(8),
+                            reverse=TRUE,
+                            domain = MappingData$Deaths)
     
     print("Map --5--")
     if (input$county_color=="casetotal") {
@@ -1228,23 +1232,23 @@ server <- function(input, output) {
                     opacity = 1)
       }) 
     } else { #  Deaths
-      #output$TexasMap <- renderLeaflet({
+      output$TexasMap <- renderLeaflet({
         #   Basemap
-      #  leaflet(MappingData) %>% 
-      #    setView(lng = MapCenter[1] , lat = MapCenter[2], zoom = init_zoom ) %>%   
-      #    addTiles() %>%
-      #    addPolygons(data = MappingData, 
-      #                group="deaths",
-      #                stroke = TRUE,
-      #                weight = 1,
-      #                smoothFactor = 0.2, 
-      #                fillOpacity = 0.7,
-      #                label = MapLabels,
-      #                fillColor = ~paldeath(MappingData$Deaths)) %>% 
-      #    addLegend("bottomleft", pal = paldeath, values = ~Deaths, 
-      #              title = "Total Deaths",
-      #              opacity = 1)
-      #}) 
+        leaflet(MappingData) %>% 
+          setView(lng = MapCenter[1] , lat = MapCenter[2], zoom = init_zoom ) %>%   
+          addTiles() %>%
+          addPolygons(data = MappingData, 
+                      group="deaths",
+                      stroke = TRUE,
+                      weight = 1,
+                      smoothFactor = 0.2, 
+                      fillOpacity = 0.7,
+                      label = MapLabels,
+                      fillColor = ~paldeath(MappingData$Deaths)) %>% 
+          addLegend("bottomleft", pal = paldeath, values = ~Deaths, 
+                    title = "Total Deaths",
+                    opacity = 1)
+      }) 
     } 
     print("Map --7--")
   } 
