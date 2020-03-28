@@ -518,7 +518,7 @@ ui <- basicPage(
      ), # end tabPanel Map
     ##########   Documentation Tab
                            tabPanel("Documentation", fluid=TRUE, value="DocumentationTab",
-                                    withMathJax(includeMarkdown("Documentation.Rmd")),
+                                    withMathJax( includeMarkdown("Documentation.Rmd") ),
                                     HTML("<hr>"),
 
           )  # end tabPanel Documentation
