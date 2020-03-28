@@ -53,6 +53,9 @@ global_slope <- 0.13
 
 DF$County <- str_replace(DF$County, "\\d", "")
 
+# drop rows with zero cases
+
+DF <- DF %>% filter(Cases>0)
 
 # Add Statewide Totals per day
 
