@@ -243,7 +243,9 @@ MappingData <-  merge(Texas, TodayData,
 # Build labels for map
 
 MappingData <- MappingData %>%
-  mutate(percapita=signif(percapita,3)) 
+  mutate(percapita=signif(percapita,3)) %>% 
+  mutate(Deaths=na_if(Deaths,0)) %>% 
+  mutate(DperC=na_if(signif(Deaths/Cases,2),0))
 
 MapLabels <- lapply(seq(nrow(MappingData)), function(i) {
   htmltools::HTML(
@@ -741,10 +743,20 @@ server <- function(input, output) {
     xform <- 2*signif(max(TestingData$Total)/(6*max(subdata$Cases)),2)
     #xform <- 10.0 # transform for secondary axis. Multiply primary by this
     grob <- grid::grid.text(EqText, x=0.7,  y=0.1, gp=grid::gpar(col="black", fontsize=15))
+    if (!input$logscale) {
       p <- subdata %>% 
-          ggplot(aes(x=Date, y=Cases)) +
-          geom_col(alpha = 2/3) +
-          geom_label(aes(label=Cases), stat='identity', size = 3) +
+        ggplot(aes(x=Date, y=Cases)) +
+        geom_col(alpha = 2/3) 
+    } else {
+      
+      p <- subdata %>% 
+        ggplot(aes(x=Date, y=Cases)) +
+        geom_point() 
+    } 
+#      p <- subdata %>% 
+#          ggplot(aes(x=Date, y=Cases)) +
+#          geom_col(alpha = 2/3) +
+      p <- p +  geom_label(aes(label=Cases), stat='identity', size = 3) +
           expand_limits(x = LastDate+10) +
           geom_line(data=ExpLine,
                     aes(x=Date, y=Cases,
