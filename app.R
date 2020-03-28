@@ -243,7 +243,9 @@ MappingData <-  merge(Texas, TodayData,
 # Build labels for map
 
 MappingData <- MappingData %>%
-  mutate(percapita=signif(percapita,3)) 
+  mutate(percapita=signif(percapita,3)) %>% 
+  mutate(Deaths=na_if(Deaths, 0)) %>% 
+  mutate(DPerC=na_if(signif(Deaths/Cases,2),0))
 
 MapLabels <- lapply(seq(nrow(MappingData)), function(i) {
   htmltools::HTML(
@@ -251,7 +253,8 @@ MapLabels <- lapply(seq(nrow(MappingData)), function(i) {
       paste0( MappingData[i,]$County, ' County<br>', 
               MappingData[i,]$Cases,' Cases Total<br>', 
               MappingData[i,]$percapita, " per 100,000<br>",
-              MappingData[i,]$Deaths, " Deaths"),
+              MappingData[i,]$Deaths, " Deaths<br>",
+              MappingData[i,]$DPerC, " Deaths per Case"),
       "NA", "Zero"))
 })
 
@@ -507,7 +510,8 @@ ui <- basicPage(
                                 label = strong("Display which variable?"),
                                 choices = list( "Total Cases" = "casetotal", 
                                                "Cases per 100,000 population" = "percapita",
-                                               "Deaths" = "deaths"
+                                               "Deaths" = "deaths",
+                                               "Deaths/Cases" = "deathpercase"
                                                ), 
                                 selected = "casetotal",
                                 width='90%',
@@ -1159,7 +1163,8 @@ server <- function(input, output) {
   draw_map <- function() {
     
     print("Map --1--")
-    Range <- range(MappingData$percapita,na.rm=TRUE)
+    Range <- range(MappingData$percapita, na.rm=TRUE)
+    DPerCRange <- range(MappingData$DPerC, na.rm=TRUE)
     
     print("Map --2--")
     palcap <-colorQuantile(palette = heat.colors(8), 
@@ -1184,6 +1189,13 @@ server <- function(input, output) {
                             reverse=TRUE,
                             domain = MappingData$Deaths)
     
+    paldeathpercase <- colorQuantile(
+                            na.color = "transparent",
+                            palette = heat.colors(5),
+                            n = 5, 
+                            reverse=TRUE,
+                            right = FALSE,
+                            domain = MappingData$DPerC)
     print("Map --5--")
     if (input$county_color=="casetotal") {
     print("Map --6--")
@@ -1227,7 +1239,7 @@ server <- function(input, output) {
                     },
                     opacity = 1)
       }) 
-    } else { #  Deaths
+    } else if (input$county_color=="deaths")  { #  Deaths
       output$TexasMap <- renderLeaflet({
         #   Basemap
         leaflet(MappingData) %>% 
@@ -1245,7 +1257,31 @@ server <- function(input, output) {
                     title = "Total Deaths",
                     opacity = 1)
       }) 
-    } 
+    } else { # deathpercase
+      output$TexasMap <- renderLeaflet({
+        #   Basemap
+        leaflet(MappingData) %>% 
+          setView(lng = MapCenter[1] , lat = MapCenter[2], zoom = init_zoom ) %>%   
+          addTiles() %>%
+          addPolygons(data = MappingData, 
+                      group="DPerC",
+                      stroke = TRUE,
+                      weight = 1,
+                      smoothFactor = 0.2, 
+                      fillOpacity = 0.7,
+                      label = MapLabels,
+                      fillColor = ~paldeathpercase(MappingData$DPerC)) %>% 
+          addLegend("bottomleft", pal = paldeathpercase, values = ~DPerC, 
+                    title = "Deaths per Case",
+                    labels= as.character(seq(DPerCRange[1], DPerCRange[2], length.out = 5)),
+                    labFormat = function(type, cuts, p) {
+                      n = length(cuts)
+                      paste0(cuts[-n], " &ndash; ", cuts[-1])
+                    },
+                    opacity = 1)
+      }) 
+      
+    }
     print("Map --7--")
   } 
    
