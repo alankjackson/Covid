@@ -1,9 +1,3 @@
----
-title: "Documentation"
-author: "Alan Jackson"
-date: "3/22/2020"
-output: html_document
----
 
 # Documentation
 
