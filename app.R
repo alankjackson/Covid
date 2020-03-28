@@ -507,7 +507,7 @@ ui <- basicPage(
                                 label = strong("Display which variable?"),
                                 choices = list( "Total Cases" = "casetotal", 
                                                "Cases per 100,000 population" = "percapita"
-                                               #"Deaths" = "deaths"
+                                               "Deaths" = "deaths"
                                                ), 
                                 selected = "casetotal",
                                 width='90%',
