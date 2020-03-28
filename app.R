@@ -506,7 +506,7 @@ ui <- basicPage(
                    radioButtons("county_color", 
                                 label = strong("Display which variable?"),
                                 choices = list( "Total Cases" = "casetotal", 
-                                               "Cases per 100,000 population" = "percapita"
+                                               "Cases per 100,000 population" = "percapita",
                                                "Deaths" = "deaths"
                                                ), 
                                 selected = "casetotal",
