@@ -80,7 +80,8 @@ DeathData <- DeathData %>%
 DF$Deaths <- str_replace(DF$Deaths,"-", "na")
 
 DF <- DF %>% 
-  mutate(Deaths=as.numeric(Deaths))
+  mutate(Deaths=as.numeric(Deaths)) %>% 
+  mutate(Deaths=na_if(Deaths, 0))
 
 
 # Add dummy Estimate field
@@ -96,11 +97,6 @@ lastdate <- sf(DF$Date[nrow(DF)])
 
 LastDate <- DF[nrow(DF),]$Date
 
-
-#   Crowdsize text
-
-CrowdText <- "Sizes of groups to avoid to keep\nchance of meeting a contagious\nperson below 1%"
-grob2 <- grid::grid.text(CrowdText, x=0.3,  y=0.8, gp=grid::gpar(col="black", fontsize=16))
 
 # Load population of counties into tibble
 Counties <- tribble(
@@ -257,6 +253,11 @@ MapLabels <- lapply(seq(nrow(MappingData)), function(i) {
               MappingData[i,]$DPerC, " Deaths per Case"),
       "NA", "Zero"))
 })
+
+span <- function(vector){
+  foo <- range(vector, na.rm=TRUE)
+  return(max(foo) - min(foo))
+}
 
 ##################################################
 # Define UI for displaying data for Texas
@@ -475,6 +476,27 @@ ui <- basicPage(
                         label = strong("Expand Scale"),
                         value = FALSE
                     ),
+                    HTML("<hr>"),
+                      checkboxInput(
+                        inputId = "Deaths_back_est",
+                        label = strong("Estimate Cases"),
+                        value = FALSE
+                    ),
+                      splitLayout(
+                        numericInput(
+                            "An_CFR",
+                            label = h5("CFR (%)"),
+                            step = 0.1,
+                            value = 1.0
+                        ),
+                        numericInput(
+                            "An_DeathLag",
+                            label = h5("Days to Death"),
+                            step = 1.0,
+                            value = 13.00
+                        )
+                      ),
+                    HTML("<hr>"),
                     
                   ),
                   # end conditional panel
@@ -740,7 +762,7 @@ server <- function(input, output) {
     ExpLine <- foo$Line[[1]]
     xform <- 2*signif(max(TestingData$Total)/(6*max(subdata$Cases)),2)
     #xform <- 10.0 # transform for secondary axis. Multiply primary by this
-    grob <- grid::grid.text(EqText, x=0.7,  y=0.1, gp=grid::gpar(col="black", fontsize=15))
+    grob <- grid::grid.text(EqText, x=0.7,  y=0.0, gp=grid::gpar(col="black", fontsize=15))
       p <- subdata %>% 
           ggplot(aes(x=Date, y=Cases)) +
           geom_col(alpha = 2/3) +
@@ -961,6 +983,11 @@ server <- function(input, output) {
                                      colour = "black", 
                                      size=0.5)
       
+#   Crowdsize text
+
+CrowdText <- "Sizes of groups to avoid to keep\nchance of meeting a contagious\nperson below 1%"
+grob2 <- grid::grid.text(CrowdText, x=0.3,  y=0.8, gp=grid::gpar(col="black", fontsize=16))
+
       p <- p + CrowdLayer1 + 
                CrowdLayer2 + 
                CrowdLayer3 +
@@ -1010,13 +1037,16 @@ server <- function(input, output) {
         print(paste("--A1--", DefineRegions$List[DefineRegions$Region==input$An_region]))######################### print
       An_PopLabel <<- Regions %>% filter(Region==input$An_region)
       target <- unlist(DefineRegions$List[DefineRegions$Region==input$An_region])
+      print(DF)
+      #browser()
       An_subdata <<- DF %>% 
           filter(County %in% target) %>% 
           group_by(Date) %>% 
           summarise(Cases=sum(Cases), 
                     Days=mean(Days), 
                     Estimate=sum(Estimate),
-                    Deaths=sum(Deaths))
+                    Deaths=sum(Deaths, na.rm=TRUE)) %>% 
+          mutate(Deaths=na_if(Deaths, 0))
       print(paste("---A1.5---", An_subdata, input$An_region))######################### print
       An_begin <<- An_subdata$Date[1] # date of first reported case
       return()
@@ -1058,7 +1088,7 @@ server <- function(input, output) {
     #xform <- 2*signif(max(TestingData$Total)/(6*max(foo$Cum_Deaths)),2)
     print("build_deaths_plot --- 4")
     #xform <- 10.0 # transform for secondary axis. Multiply primary by this
-    grob <- grid::grid.text(EqText, x=0.7,  y=0.1, gp=grid::gpar(col="black", fontsize=15))
+    #grob <- grid::grid.text(EqText, x=0.7,  y=100, gp=grid::gpar(col="black", fontsize=15))
     print("build_deaths_plot --- 5")
     if (!input$Deaths_logscale) {
         p <- An_subdata %>% 
@@ -1070,7 +1100,7 @@ server <- function(input, output) {
             ggplot(aes(x=Date, y=Deaths)) +
             geom_point() 
      } 
-        p <- p + geom_label(aes(label=Deaths), stat='identity', size = 3) +
+        p <- p + 
           expand_limits(x = LastDate+10) +
           geom_line(data=ExpLine,
                     aes(x=Date, y=Deaths,
@@ -1082,17 +1112,20 @@ server <- function(input, output) {
                         color="fit" ),
                     size=1,
                     linetype="solid") +
+          geom_label(aes(label=Deaths), 
+                            stat='identity',
+                            size = 3) +
           geom_point(data=ExpLine[(nrow(ExpLine)-9):nrow(ExpLine),],
                         aes(x=Date, y=Deaths),
                      shape=20, size=2, fill="blue") +
           geom_label(data=ExpLine[(nrow(ExpLine)-9):nrow(ExpLine),],
                       aes(label=as.integer(Deaths+.5)),
                       hjust=1, vjust=0) +
-          geom_line(data=ExpLine,
-                    aes(x=Date-13, y=Deaths*60,
-                        color="tests"),
-                    size=1,
-                    linetype="dashed") +
+          #geom_line(data=ExpLine,
+          #          aes(x=Date-13, y=Deaths*60,
+          #              color="tests"),
+          #          size=1,
+          #          linetype="dashed") +
           #geom_point(data=TestingData,
           #              aes(x=Date, y=Total/xform, color="tests"),
           #           size=3, shape=23, fill="black") +
@@ -1103,15 +1136,16 @@ server <- function(input, output) {
           labs(title=paste0("COVID-19 Deaths in ",PopLabel$Label), 
                subtitle=paste0(" as of ", lastdate))
       
-      p <- p + annotate("label", 
-                        x=(LastDate - begin + 10)/1.5+begin, 
-                        y=An_subdata$Deaths[nrow(An_subdata)]/5, 
-                        label=EqText)
+      #p <- p + annotate("label", 
+      #                  x=(LastDate - begin + 10)/1.5+begin, 
+      #                  #y=An_subdata$Deaths[nrow(An_subdata)]/5, 
+      #                  y=0,
+      #                  label=EqText)
       
-      if (!is.nan(ExpLine$SD_lower[1]) & input$modeling=="do fit"){
-           p <- p + geom_errorbar(data=ExpLine[(nrow(ExpLine)-9):nrow(ExpLine),],
-                        aes(x=Date, y=Deaths, ymin=SD_lower, ymax=SD_upper)) 
-      }
+      #if (!is.nan(ExpLine$SD_lower[1]) & input$modeling=="do fit"){
+      #     p <- p + geom_errorbar(data=ExpLine[(nrow(ExpLine)-9):nrow(ExpLine),],
+      #                  aes(x=Date, y=Deaths, ymin=SD_lower, ymax=SD_upper)) 
+      #}
       
       if (input$Deaths_logscale) {
         trans_value <- "log10"
@@ -1140,7 +1174,8 @@ server <- function(input, output) {
     output$death_details <- renderUI({
       str1 <- paste("Most recent value, on",An_subdata$Date[nrow(An_subdata)],
                     "was<b>", An_subdata$Deaths[nrow(An_subdata)],"</b>Deaths")
-      str3 <- paste("           Doubling Time =", signif(log10(2)/m,2), "days")
+      str3 <- paste("           Doubling Time =", signif(log10(2)/m,2), "days",
+                    "<br> ", EqText)
       
       if (!is.nan(Rsqr)){
         if (Rsqr>.8) {
@@ -1344,8 +1379,13 @@ server <- function(input, output) {
       prep_An_data()
       
       if (input$An_tabs == "Deaths") {
-        p <- build_deaths_plot()
-        output$plot_deaths <- renderPlot({print(p)})
+        if ((sum(!is.na(An_subdata$Deaths))>2) &
+            (span(An_subdata$Deaths)>0)) {
+          p <- build_deaths_plot()
+          output$plot_deaths <- renderPlot({print(p)})
+        } else {
+          showNotification("Too little death data")
+        }
       }
       if (input$An_tabs == "SlopeChange") {
          # p <- build_slope_plot()
@@ -1375,8 +1415,13 @@ server <- function(input, output) {
       prep_An_data()
       
       if (input$An_tabs == "Deaths") {
-        p <- build_deaths_plot()
-        output$plot_deaths <- renderPlot({print(p)})
+        if ((sum(!is.na(An_subdata$Deaths))>2) &
+            (span(An_subdata$Deaths)>0)) {
+          p <- build_deaths_plot()
+          output$plot_deaths <- renderPlot({print(p)})
+        } else {
+          showNotification("Too little death data")
+        }
       }
       if (input$An_tabs == "SlopeChange") {
          # p <- build_slope_plot()
