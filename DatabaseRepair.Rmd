@@ -120,6 +120,67 @@ saveRDS(foo,"/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
 saveRDS(foo,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Covid.rds")
 ```
 
+## Subtract one day from dates - I have retrieval date, not actual date
+
+```{r shift dates}
+
+path <- "/home/ajackson/Dropbox/Rprojects/Covid/"
+
+foo <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
+foo <- foo %>% 
+  mutate(Date=Date-1)
+# Save the real file for later use
+saveRDS(foo,"/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
+# Also save to mirror site
+saveRDS(foo,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Covid.rds")
+
+#    deaths
+foo <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Deaths.rds")
+
+foo <- foo %>% 
+  mutate(Date=if_else(Date>ymd("2020-03-22"),Date-1, Date))
+
+# Save the real file for later use
+saveRDS(foo,"/home/ajackson/Dropbox/Rprojects/Covid/Deaths.rds")
+# Also save to mirror site
+saveRDS(foo,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Deaths.rds")
+
+# Tests
+foo <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Testing.rds")
+foo <- foo %>% 
+  mutate(Date=Date-1)
+
+# Save the real file for later use
+saveRDS(foo,"/home/ajackson/Dropbox/Rprojects/Covid/Testing.rds")
+# Also save to mirror site
+saveRDS(foo,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Testing.rds")
+
+```
+
+
+## Add NYT data to standard dataset to flesh out time series of deaths by county
+
+```{r death by county}
+
+path <- "/home/ajackson/Dropbox/Rprojects/Covid/"
+
+df <- read_csv(paste0(path, "us-counties.csv")) %>% 
+  filter(state=="Texas") %>% 
+  mutate(NYT_deaths=deaths, NYT_cases=cases) %>% 
+  select(Date=date, County=county, NYT_deaths, NYT_cases)
+
+foo <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
+
+foobar <- left_join(foo, df, by=c("Date", "County"))
+
+foobar <- foobar %>% mutate(Deaths=pmax(Deaths, NYT_deaths,na.rm=TRUE ))
+
+foobar <- foobar %>% select(-NYT_deaths, -NYT_cases)
+# Save the real file for later use
+saveRDS(foobar,"/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
+# Also save to mirror site
+saveRDS(foobar,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Covid.rds")
+```
 
 
 
