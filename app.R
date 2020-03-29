@@ -62,18 +62,18 @@ DF <- DF %>% filter(Cases>0)
 DF <- DF %>% select(-LastUpdate) %>% bind_rows(
                   DF %>%
                   group_by(Date) %>% 
-                  summarise(Cases = sum(Cases)) %>% 
+                  summarise(Cases = sum(Cases), Deaths=sum(Deaths)) %>% 
                   mutate(County="Total")
                  ) %>% 
     arrange(Date)
 
-# Calc days since March 11
+# Calc days since March 10
 
 DF <- DF %>% 
-    mutate(Days=as.integer(Date-ymd("2020-03-11")))
+    mutate(Days=as.integer(Date-ymd("2020-03-10")))
 
 DeathData <- DeathData %>% 
-    mutate(Days=as.integer(Date-ymd("2020-03-11")))
+    mutate(Days=as.integer(Date-ymd("2020-03-10")))
 
 # Fix Deaths field
 
@@ -1006,29 +1006,32 @@ server <- function(input, output) {
   #---------------------------------------------------    
   prep_An_data <- function(){ # return population, label for graph title and tibble subset
     print(":::::::  prep_An_data")
-    if (input$dataset=="Region") { # work with regions
-        print(paste("--A1--", DefineRegions$List[DefineRegions$Region==input$region]))######################### print
-      An_PopLabel <<- Regions %>% filter(Region==input$region)
-      target <- unlist(DefineRegions$List[DefineRegions$Region==input$region])
+    if (input$An_dataset=="Region") { # work with regions
+        print(paste("--A1--", DefineRegions$List[DefineRegions$Region==input$An_region]))######################### print
+      An_PopLabel <<- Regions %>% filter(Region==input$An_region)
+      target <- unlist(DefineRegions$List[DefineRegions$Region==input$An_region])
       An_subdata <<- DF %>% 
           filter(County %in% target) %>% 
           group_by(Date) %>% 
-          summarise(Cases=sum(Cases), Days=mean(Days), Estimate=sum(Estimate))
-      print(paste("---A1.5---", subdata, input$region))######################### print
-      An_begin <<- subdata$Date[1] # date of first reported case
+          summarise(Cases=sum(Cases), 
+                    Days=mean(Days), 
+                    Estimate=sum(Estimate),
+                    Deaths=sum(Deaths))
+      print(paste("---A1.5---", An_subdata, input$An_region))######################### print
+      An_begin <<- An_subdata$Date[1] # date of first reported case
       return()
     } else {
-        print(paste("--A2--", input$county))######################### print
+        print(paste("--A2--", input$An_county))######################### print
       #   Is there any data?
-      if (! input$county %in% DF$County) {
-        showNotification(paste("No reported cases in", input$county))
+      if (! input$An_county %in% DF$County) {
+        showNotification(paste("No reported cases in", input$An_county))
         return()
       }
       
-      An_PopLabel <<- Counties %>% filter(County==input$county) %>% 
-                     mutate(Label=paste(input$county, "County"))
-      An_subdata <<- DF %>% filter(County==input$county)
-      An_begin <<- subdata$Date[1] # date of first reported case
+      An_PopLabel <<- Counties %>% filter(County==input$An_county) %>% 
+                     mutate(Label=paste(input$An_county, "County"))
+      An_subdata <<- DF %>% filter(County==input$An_county)
+      An_begin <<- An_subdata$Date[1] # date of first reported case
       return()
     }
   } # end prep_data
@@ -1040,8 +1043,9 @@ server <- function(input, output) {
   build_deaths_plot <- function(){
       # Build exponential line for plot
     print(":::::::  build_death_plot")
-    foo <- build_expmodel(DeathData,
-                          y="Cum_Deaths",
+    print(An_subdata)
+    foo <- build_expmodel(An_subdata,
+                          y="Deaths",
                           fit="all")
     print("build_deaths_plot --- 1")
     EqText <- paste0("Fit is log(Cumulative Deaths) = ",
@@ -1057,35 +1061,35 @@ server <- function(input, output) {
     grob <- grid::grid.text(EqText, x=0.7,  y=0.1, gp=grid::gpar(col="black", fontsize=15))
     print("build_deaths_plot --- 5")
     if (!input$Deaths_logscale) {
-        p <- DeathData %>% 
-            ggplot(aes(x=Date, y=Cum_Deaths)) +
+        p <- An_subdata %>% 
+            ggplot(aes(x=Date, y=Deaths)) +
             geom_col(alpha = 2/3) 
      } else {
         
-        p <- DeathData %>% 
-            ggplot(aes(x=Date, y=Cum_Deaths)) +
+        p <- An_subdata %>% 
+            ggplot(aes(x=Date, y=Deaths)) +
             geom_point() 
      } 
-        p <- p + geom_label(aes(label=Cum_Deaths), stat='identity', size = 3) +
+        p <- p + geom_label(aes(label=Deaths), stat='identity', size = 3) +
           expand_limits(x = LastDate+10) +
           geom_line(data=ExpLine,
-                    aes(x=Date, y=Cum_Deaths,
+                    aes(x=Date, y=Deaths,
                         color="fit"),
                     size=1,
                     linetype="dashed") +
           geom_line(data=ExpLine[1:(nrow(ExpLine)-10),],
-                    aes(x=Date, y=Cum_Deaths,
+                    aes(x=Date, y=Deaths,
                         color="fit" ),
                     size=1,
                     linetype="solid") +
           geom_point(data=ExpLine[(nrow(ExpLine)-9):nrow(ExpLine),],
-                        aes(x=Date, y=Cum_Deaths),
+                        aes(x=Date, y=Deaths),
                      shape=20, size=2, fill="blue") +
           geom_label(data=ExpLine[(nrow(ExpLine)-9):nrow(ExpLine),],
-                      aes(label=as.integer(Cum_Deaths+.5)),
+                      aes(label=as.integer(Deaths+.5)),
                       hjust=1, vjust=0) +
           geom_line(data=ExpLine,
-                    aes(x=Date-13, y=Cum_Deaths*60,
+                    aes(x=Date-13, y=Deaths*60,
                         color="tests"),
                     size=1,
                     linetype="dashed") +
@@ -1101,29 +1105,29 @@ server <- function(input, output) {
       
       p <- p + annotate("label", 
                         x=(LastDate - begin + 10)/1.5+begin, 
-                        y=DeathData$Cum_Deaths[nrow(DeathData)]/5, 
+                        y=An_subdata$Deaths[nrow(An_subdata)]/5, 
                         label=EqText)
       
       if (!is.nan(ExpLine$SD_lower[1]) & input$modeling=="do fit"){
            p <- p + geom_errorbar(data=ExpLine[(nrow(ExpLine)-9):nrow(ExpLine),],
-                        aes(x=Date, y=Cum_Deaths, ymin=SD_lower, ymax=SD_upper)) 
+                        aes(x=Date, y=Deaths, ymin=SD_lower, ymax=SD_upper)) 
       }
       
       if (input$Deaths_logscale) {
         trans_value <- "log10"
-        min_limit <- min(ExpLine$Cum_Deaths[1], 2)
+        min_limit <- min(ExpLine$Deaths[1], 2)
       } else {
         trans_value <- "identity"
         min_limit <- 0
       }
       if (input$Deaths_zoom) {
           # limit height of modeled fit
-        p <- p + scale_y_continuous(limits=c(min_limit, 6*max(ExpLine$Cum_Deaths)),
+        p <- p + scale_y_continuous(limits=c(min_limit, 6*max(ExpLine$Deaths)),
                                     #sec.axis = sec_axis(~.*xform, 
                                     #name = "Statewide Test Total"),
                                     trans=trans_value)
       } else {
-        p <- p + scale_y_continuous(limits=c(min_limit, max(ExpLine$Cum_Deaths)),
+        p <- p + scale_y_continuous(limits=c(min_limit, max(ExpLine$Deaths)),
                                     #sec.axis = sec_axis(~.*xform, 
                                     #name = "Statewide Test Total"),
                                     trans=trans_value)
@@ -1134,8 +1138,8 @@ server <- function(input, output) {
     b <- foo$b 
     Rsqr <- foo$Rsqr
     output$death_details <- renderUI({
-      str1 <- paste("Most recent value, on",DeathData$Date[nrow(DeathData)],
-                    "was<b>", DeathData$Cum_Deaths[nrow(DeathData)],"</b>Deaths")
+      str1 <- paste("Most recent value, on",An_subdata$Date[nrow(An_subdata)],
+                    "was<b>", An_subdata$Deaths[nrow(An_subdata)],"</b>Deaths")
       str3 <- paste("           Doubling Time =", signif(log10(2)/m,2), "days")
       
       if (!is.nan(Rsqr)){
@@ -1165,6 +1169,7 @@ server <- function(input, output) {
     print("Map --1--")
     Range <- range(MappingData$percapita, na.rm=TRUE)
     DPerCRange <- range(MappingData$DPerC, na.rm=TRUE)
+    print(as.character(seq(DPerCRange[1], DPerCRange[2], length.out = 5)))
     
     print("Map --2--")
     palcap <-colorQuantile(palette = heat.colors(8), 
@@ -1235,7 +1240,7 @@ server <- function(input, output) {
                     labels= as.character(seq(Range[1], Range[2], length.out = 8)),
                     labFormat = function(type, cuts, p) {
                       n = length(cuts)
-                      paste0(cuts[-n], " &ndash; ", cuts[-1])
+                      paste0(signif(cuts[-n],2), " &ndash; ", signif(cuts[-1],2))
                     },
                     opacity = 1)
       }) 
@@ -1276,7 +1281,7 @@ server <- function(input, output) {
                     labels= as.character(seq(DPerCRange[1], DPerCRange[2], length.out = 5)),
                     labFormat = function(type, cuts, p) {
                       n = length(cuts)
-                      paste0(cuts[-n], " &ndash; ", cuts[-1])
+                      paste0(signif(cuts[-n],2), " &ndash; ", signif(cuts[-1],2))
                     },
                     opacity = 1)
       }) 
@@ -1332,6 +1337,7 @@ server <- function(input, output) {
                 input$An_dataset
                 input$An_region
                 input$An_county
+                input$An_tabs
                 1}, { # Change data selection
     print(":::::::  observe_event Analysis Data")
                   
