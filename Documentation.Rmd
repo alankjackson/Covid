@@ -8,7 +8,7 @@ output: html_document
 # Documentation
 
 The purpose of this website is to allow easy access and analysis of 
-Covid-19 data for the state of Texas, including subsets by major metropolitan areas, and by individual counties. The underlying data is updated every day at 1:00 PM.
+Covid-19 data for the state of Texas, including subsets by major metropolitan areas, and by individual counties. The underlying data is updated every day at 1:40 PM.
 
 ## Data
 
@@ -19,8 +19,9 @@ the website for the Texas State Department of Health
 There are a few peculiarities of this data which users should be aware of:
 
 1. The data reported is what they had received at 8 PM the previous day
-2. They update their website by noon
+2. They update their website by noon, usually.
 3. They have a category "Pending County Assignment" that can be quite large. The county assigned to a case is the county of residence, **not** the reporting county.
+This has been discontinued.
 
 For these reasons, my numbers will differ from news accounts, and tend to lag by about a day. County and metro area total will lag by several days as the state researches county of residence, but the state total should be fairly current.
 
@@ -36,6 +37,8 @@ response website at https://opendata.arcgis.com/datasets/bc83058386d2434ca8cf90b
 
 To infill the missing death by date by county data, the New York Times
 has helpfully provided a nice datafile at https://github.com/nytimes/covid-19-data
+
+For daily updates of the deaths by county, I use data from the Texas Division of Emergency Management website, which they get from the Health Department.
 
 ## Graph
 
