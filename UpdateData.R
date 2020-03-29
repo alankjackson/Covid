@@ -71,7 +71,7 @@ url <- "https://opendata.arcgis.com/datasets/bc83058386d2434ca8cf90b26dc6b580_0.
 mytable <- read_csv(url) %>% 
   replace_na(list(Count_ = 0, Deaths=0)) %>% 
   select(County, Cases=Count_, Deaths, LastUpdate) %>% 
-  mutate(Date=lubridate::today()) %>% # Add today's date
+  mutate(Date=lubridate::today()-1) %>% # Add today's date
   select(County, Cases, Date, Deaths, LastUpdate) # reorder columns
 
 mytable$LastUpdate <- as.character(mytable$LastUpdate)
@@ -124,7 +124,7 @@ testing_status <- tribble(
 
 print("--1--")
 
-testing_status <- testing_status %>% mutate(Date=lubridate::today())
+testing_status <- testing_status %>% mutate(Date=lubridate::today()-1)
 
 print("--2--")
 #---------------------------------------------------------------------
@@ -144,7 +144,7 @@ deaths=as.numeric(deaths[[1]][2])
 print("--4--")
 deaths_today <- tribble(
   ~Date, ~Cum_Deaths,
-  lubridate::today(), deaths
+  lubridate::today()-1, deaths
 )
 
 print("--5--")
