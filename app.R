@@ -70,10 +70,10 @@ DF <- DF %>% select(-LastUpdate) %>% bind_rows(
 # Calc days since March 11
 
 DF <- DF %>% 
-    mutate(Days=as.integer(Date-ymd("2020-03-11")))
+    mutate(Days=as.integer(Date-ymd("2020-03-10")))
 
 DeathData <- DeathData %>% 
-    mutate(Days=as.integer(Date-ymd("2020-03-11")))
+    mutate(Days=as.integer(Date-ymd("2020-03-10")))
 
 # Fix Deaths field
 
