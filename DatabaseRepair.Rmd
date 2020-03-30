@@ -99,21 +99,21 @@ saveRDS(foo,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Covid.rds")
 
 ```
 
-##  Fix DeathData
+##  Fix Covid
 
 ```{r deathdata}
 
 path <- "/home/ajackson/Dropbox/Rprojects/Covid/"
 
-foo <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Deaths.rds")
+foo <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
 
-foo <- foo[1:7,]
+foo <- slice(foo,-1295:-1548)
 
 saveRDS(foo ,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),"_deaths.rds"))
 # Save the real file for later use
-saveRDS(foo,"/home/ajackson/Dropbox/Rprojects/Covid/Deaths.rds")
+saveRDS(foo,"/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
 # Also save to mirror site
-saveRDS(foo,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Deaths.rds")
+saveRDS(foo,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Covid.rds")
 ```
 
 ##  Add LastUpdate field
