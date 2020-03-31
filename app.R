@@ -479,7 +479,7 @@ ui <- basicPage(
                     HTML("<hr>"),
                       checkboxInput(
                         inputId = "Deaths_back_est",
-                        label = strong("Estimate Cases"),
+                        label = strong("Est Cases from Deaths"),
                         value = FALSE
                     ),
                       splitLayout(
@@ -762,7 +762,7 @@ server <- function(input, output) {
     ExpLine <- foo$Line[[1]]
     xform <- 2*signif(max(TestingData$Total)/(6*max(subdata$Cases)),2)
     #xform <- 10.0 # transform for secondary axis. Multiply primary by this
-    grob <- grid::grid.text(EqText, x=0.7,  y=0.0, gp=grid::gpar(col="black", fontsize=15))
+    #grob <- grid::grid.text(EqText, x=0.7,  y=0.0, gp=grid::gpar(col="black", fontsize=15))
       p <- subdata %>% 
           ggplot(aes(x=Date, y=Cases)) +
           geom_col(alpha = 2/3) +
@@ -791,10 +791,10 @@ server <- function(input, output) {
           labs(title=paste0("COVID-19 Cases in ",PopLabel$Label), 
                subtitle=paste0(" as of ", lastdate))
       
-      p <- p + annotate("label", 
-                        x=(LastDate - begin + 10)/1.5+begin, 
-                        y=subdata$Cases[nrow(subdata)]/3, 
-                        label=EqText)
+      #p <- p + annotate("label", 
+      #                  x=(LastDate - begin + 10)/1.5+begin, 
+      #                  y=subdata$Cases[nrow(subdata)]/3, 
+      #                  label=EqText)
       
       if (!is.nan(ExpLine$SD_lower[1]) & input$modeling=="do fit"){
            p <- p + geom_errorbar(data=ExpLine[(nrow(ExpLine)-9):nrow(ExpLine),],
@@ -820,6 +820,43 @@ server <- function(input, output) {
                                     name = "Statewide Test Total"),
                                     trans=trans_value)
       }
+      leg_labs <- c("Data", "Tests")
+      leg_vals <- c("blue", "black")
+      leg_brks <- c("fit", "tests")
+      if (input$mult) {
+          p <- add_mult(p)
+          leg_labs <- c(leg_labs, "Multiplied")
+          leg_vals <- c(leg_vals, "red")
+          leg_brks <- c(leg_brks, "mult")
+      } 
+      if (input$estmiss) {
+          p <- add_estmiss(p)
+          leg_labs <- c(leg_labs, "Missed\nCases")
+          leg_vals <- c(leg_vals, "green")
+          leg_brks <- c(leg_brks, "est_miss")
+      } 
+      if (input$avoid) {
+        if (input$logscale) {
+          showNotification("Crowdsize not available with log scale")
+        } else {
+          p <- add_crowdsize(p)
+        }
+      }
+      p <-  build_legend(p, "Cases",
+                             leg_labs, # Labels for legend
+                             leg_vals, # Color values
+                             leg_brks # Breaks (named lists)
+      )
+      m <- foo$m
+      b <- foo$b 
+      Rsqr <- foo$Rsqr
+      output$data_details <- data_details(subdata,
+                                           "Cases",
+                                           EqText,
+                                           m,
+                                           b,
+                                           Rsqr)
+      
     return(p)
   }
   
@@ -870,33 +907,19 @@ server <- function(input, output) {
   #------------------- Build Legend ------------------
   #---------------------------------------------------    
   
-  build_legend <- function(p){
+  build_legend <- function(p, title, plabs, pvals, pbrks){
     print(":::::::  build_legend")
     
-    Labels <- c("Data", "Tests")
-    Values <- c("fit"="blue", "tests"="black")
-    Breaks <- c("fit", "tests")
+    #   Create list of named characters
+    names(pvals) <- pbrks
     
-    if (input$mult) {
-      Labels <- c(Labels, "Multiplied")
-      Values <- c(Values, "mult"="red")
-      Breaks <- c(Breaks, "mult")
-    }
-    if (input$estmiss) {
-      Labels <- c(Labels, "Missed\nCases")
-      Values <- c(Values, "est_miss"="green")
-      Breaks <- c(Breaks, "est_miss")
-    }
-    
-    Est_legend <- theme(legend.position=c( 0.1, 0.5 ))
+    legend <- theme(legend.position=c( 0.1, 0.5 ))
       
-    Legend_layer <- scale_color_manual(name = "Models", 
-                                         values = Values,
-                                         labels = Labels,
-                                         breaks = Breaks)
-    print(paste("Values:", Values))
-    print(paste("Labels:", Labels))
-    p <- p + Est_legend + Legend_layer 
+    Legend_layer <- scale_color_manual(name = title, 
+                                         values = pvals,
+                                         labels = plabs,
+                                         breaks = pbrks)
+    p <- p + legend + Legend_layer 
     
     return(p)
   }
@@ -1000,31 +1023,7 @@ grob2 <- grid::grid.text(CrowdText, x=0.3,  y=0.8, gp=grid::gpar(col="black", fo
       }
   }
   
-  #---------------------------------------------------    
-  #------------------- Displayed Data text -----------
-  #---------------------------------------------------    
-  displayed_data <- function(m, Rsqr){
-    print(":::::::  displayed_data")
-    output$data_details <- renderUI({
-      str1 <- paste("Most recent value, on",subdata$Date[nrow(subdata)],
-                    "was<b>", subdata$Cases[nrow(subdata)],"</b>Cases")
-      str3 <- paste("           Doubling Time =", signif(log10(2)/m,2), "days")
-      
-      if (!is.nan(Rsqr) & input$modeling=="do fit"){
-        if (Rsqr>.8) {
-          str2 <- paste("R<sup>2</sup> value for fit =", signif(Rsqr,4))
-        } else {
-          str2 <- paste("<font color=\"red\">R<sup>2</sup> value for fit =", 
-                        signif(Rsqr,4),
-                        "<b>which is poor</b></font>")
-        }
-        HTML(paste(str1, str3, str2, sep = '<br/>'))
-      } else {
-        HTML(paste(str1, str3, sep = '<br/>'))
-      }
-    })
-  }
-  
+
   ################################## Analysis
   
        
@@ -1046,7 +1045,9 @@ grob2 <- grid::grid.text(CrowdText, x=0.3,  y=0.8, gp=grid::gpar(col="black", fo
                     Days=mean(Days), 
                     Estimate=sum(Estimate),
                     Deaths=sum(Deaths, na.rm=TRUE)) %>% 
+          #filter(Cases>0) %>% 
           mutate(Deaths=na_if(Deaths, 0))
+      #An_subdata$Days <- seq(0:(nrow(An_subdata)-1))
       print(paste("---A1.5---", An_subdata, input$An_region))######################### print
       An_begin <<- An_subdata$Date[1] # date of first reported case
       return()
@@ -1060,8 +1061,10 @@ grob2 <- grid::grid.text(CrowdText, x=0.3,  y=0.8, gp=grid::gpar(col="black", fo
       
       An_PopLabel <<- Counties %>% filter(County==input$An_county) %>% 
                      mutate(Label=paste(input$An_county, "County"))
-      An_subdata <<- DF %>% filter(County==input$An_county)
-      An_begin <<- An_subdata$Date[1] # date of first reported case
+      An_subdata <<- DF %>% filter(County==input$An_county) %>% 
+          filter(Cases>0)
+#      An_subdata$Days <- seq(0:(nrow(An_subdata)-1))
+#      An_begin <<- An_subdata$Date[1] # date of first reported case
       return()
     }
   } # end prep_data
@@ -1085,42 +1088,39 @@ grob2 <- grid::grid.text(CrowdText, x=0.3,  y=0.8, gp=grid::gpar(col="black", fo
     ExpLine <- foo$Line[[1]]
     print(summary(ExpLine))
     print("build_deaths_plot --- 3")
-    #xform <- 2*signif(max(TestingData$Total)/(6*max(foo$Cum_Deaths)),2)
-    print("build_deaths_plot --- 4")
-    #xform <- 10.0 # transform for secondary axis. Multiply primary by this
-    #grob <- grid::grid.text(EqText, x=0.7,  y=100, gp=grid::gpar(col="black", fontsize=15))
-    print("build_deaths_plot --- 5")
+    
+    
+    p <- An_subdata %>% 
+        ggplot(aes(x=Date, y=Deaths)) 
+    
+    p <- p + 
+      expand_limits(x = LastDate+10) +
+      geom_line(data=ExpLine,
+                aes(x=Date, y=Deaths,
+                    color="fit"),
+                size=1,
+                linetype="dashed") +
+      geom_line(data=ExpLine[1:(nrow(ExpLine)-10),],
+                aes(x=Date, y=Deaths,
+                    color="fit" ),
+                size=1,
+                linetype="solid") +
+      geom_point(data=ExpLine[(nrow(ExpLine)-9):nrow(ExpLine),],
+                    aes(x=Date, y=Deaths),
+                 shape=20, size=2, fill="blue") 
     if (!input$Deaths_logscale) {
-        p <- An_subdata %>% 
-            ggplot(aes(x=Date, y=Deaths)) +
-            geom_col(alpha = 2/3) 
+        p <- p + geom_col(alpha = 2/3)  +
+             geom_label(aes(label=Deaths), 
+                            stat='identity',
+                            size = 3) 
      } else {
         
-        p <- An_subdata %>% 
-            ggplot(aes(x=Date, y=Deaths)) +
-            geom_point() 
+        p <- p + geom_point(aes(color="data"), size=2) 
      } 
-        p <- p + 
-          expand_limits(x = LastDate+10) +
-          geom_line(data=ExpLine,
-                    aes(x=Date, y=Deaths,
-                        color="fit"),
-                    size=1,
-                    linetype="dashed") +
-          geom_line(data=ExpLine[1:(nrow(ExpLine)-10),],
-                    aes(x=Date, y=Deaths,
-                        color="fit" ),
-                    size=1,
-                    linetype="solid") +
-          geom_label(aes(label=Deaths), 
-                            stat='identity',
-                            size = 3) +
-          geom_point(data=ExpLine[(nrow(ExpLine)-9):nrow(ExpLine),],
-                        aes(x=Date, y=Deaths),
-                     shape=20, size=2, fill="blue") +
-          geom_label(data=ExpLine[(nrow(ExpLine)-9):nrow(ExpLine),],
-                      aes(label=as.integer(Deaths+.5)),
-                      hjust=1, vjust=0) +
+    print("build_deaths_plot --- 4")
+      p <- p + geom_label(data=ExpLine[(nrow(ExpLine)-9):nrow(ExpLine),],
+                  aes(label=as.integer(Deaths+.5)),
+                  hjust=1, vjust=0) +
           #geom_line(data=ExpLine,
           #          aes(x=Date-13, y=Deaths*60,
           #              color="tests"),
@@ -1167,22 +1167,86 @@ grob2 <- grid::grid.text(CrowdText, x=0.3,  y=0.8, gp=grid::gpar(col="black", fo
                                     trans=trans_value)
       }
   
+    
+    print("build_deaths_plot --- 5")
+    if (input$Deaths_back_est) {#  Build a model for the number of cases from deaths
+      print(ExpLine)
+      #dayseq <- 0:(lastday + 9)
+      #dateseq <- as_date(begin:(LastDate+10))
+      #Cases <- 10**(m*dayseq+b)
+      #ExpLine <- tibble( Days=dayseq, Date=dateseq, est_cases=Cases)
+      ExpLine <- ExpLine %>% 
+        mutate(est_cases=Deaths/(input$An_CFR/100))
+      print(ExpLine)
+      p <- p + geom_line(data=ExpLine,
+                    aes(x=Date-input$An_DeathLag, y=est_cases,
+                        color="est"),
+                    size=1,
+                    linetype="dashed") 
+      p <-  build_legend(p, "Deaths",
+                             c("Data", "Fit", "Est Cases"), # Labels for legend
+                             c("black", "blue", "red"), # Color values
+                             c("data", "fit", "est") # Breaks (named lists)
+                             )
+    } else {
+      p <-  build_legend(p, "Deaths",
+                             c("Data", "Fit"), # Labels for legend
+                             c("black", "blue"), # Color values
+                             c("data", "fit") # Breaks (named lists)
+                             )
+    }      
+    
+      if (input$Deaths_logscale) {
+        trans_value <- "log10"
+        min_limit <- min(ExpLine$Deaths[1], 2)
+      } else {
+        trans_value <- "identity"
+        min_limit <- 0
+      }
+      if (input$Deaths_zoom) {
+          # limit height of modeled fit
+        p <- p + scale_y_continuous(limits=c(min_limit, 6*max(ExpLine$Deaths)),
+                                    #sec.axis = sec_axis(~.*xform, 
+                                    #name = "Statewide Test Total"),
+                                    trans=trans_value)
+      } else {
+        p <- p + scale_y_continuous(limits=c(min_limit, max(ExpLine$Deaths)),
+                                    #sec.axis = sec_axis(~.*xform, 
+                                    #name = "Statewide Test Total"),
+                                    trans=trans_value)
+      }
+  
+    
     print(":::::::  displayed_data")
     m <- foo$m
     b <- foo$b 
     Rsqr <- foo$Rsqr
-    output$death_details <- renderUI({
-      str1 <- paste("Most recent value, on",An_subdata$Date[nrow(An_subdata)],
-                    "was<b>", An_subdata$Deaths[nrow(An_subdata)],"</b>Deaths")
+    output$death_details <- data_details(An_subdata,
+                                         "Deaths",
+                                         EqText,
+                                         m,
+                                         b,
+                                         Rsqr)
+
+    return(p)
+  }
+  
+  #---------------------------------------------------    
+  #------------------- Build Data Details Panel ------
+  #---------------------------------------------------    
+  data_details <- function(data, variable, EqText, m, b, rsqr) {
+    renderUI({
+      str1 <- paste("Most recent value, on",data$Date[nrow(data)],
+                    "was<b>", data[nrow(data), variable],"</b>",variable)
       str3 <- paste("           Doubling Time =", signif(log10(2)/m,2), "days",
                     "<br> ", EqText)
       
       if (!is.nan(Rsqr)){
         if (Rsqr>.8) {
-          str2 <- paste("R<sup>2</sup> value for fit =", signif(Rsqr,4))
+          str2 <- paste("R<sup>2</sup> value for fit =", signif(rsqr,4))
         } else {
           str2 <- paste("<font color=\"red\">R<sup>2</sup> value for fit =", 
-                        signif(Rsqr,4),
+                        signif(rsqr,4),
                         "<b>which is poor</b></font>")
         }
         HTML(paste(str1, str3, str2, sep = '<br/>'))
@@ -1190,8 +1254,6 @@ grob2 <- grid::grid.text(CrowdText, x=0.3,  y=0.8, gp=grid::gpar(col="black", fo
         HTML(paste(str1, str3, sep = '<br/>'))
       }
     })
-  
-    return(p)
   }
   
   ######################  Map ########################
@@ -1349,20 +1411,10 @@ grob2 <- grid::grid.text(CrowdText, x=0.3,  y=0.8, gp=grid::gpar(col="black", fo
       foo <- build_expline("real")
       p <- build_basic_plot()
 
-      if (input$mult) {
-          p <- add_mult(p)
-      } 
-      if (input$estmiss) {
-          p <- add_estmiss(p)
-      } 
-      if (input$avoid) {
-          p <- add_crowdsize(p)
-      }
-      p <-  build_legend(p)
       output$plot_graph <- renderPlot({
           print(p)
           })
-      displayed_data(foo$m, foo$Rsqr)
+      #displayed_data(foo$m, foo$Rsqr)
   })
    
   #---------------------------------------------------    
@@ -1409,6 +1461,9 @@ grob2 <- grid::grid.text(CrowdText, x=0.3,  y=0.8, gp=grid::gpar(col="black", fo
                 input$An_county
                 input$Deaths_logscale
                 input$Deaths_zoom
+                input$Deaths_back_est
+                input$An_CFR
+                input$An_DeathLag
                 1}, { # Change data selection
     print(":::::::  observe_event Analysis Data")
                   
@@ -1456,25 +1511,10 @@ grob2 <- grid::grid.text(CrowdText, x=0.3,  y=0.8, gp=grid::gpar(col="black", fo
                   
       p <- build_basic_plot()
       
-      if (input$mult) {
-          p <- add_mult(p)
-      } 
-      if (input$estmiss) {
-          p <- add_estmiss(p)
-      } 
-      if (input$avoid) {
-        if (input$logscale) {
-          showNotification("Crowdsize not available with log scale")
-        } else {
-          p <- add_crowdsize(p)
-        }
-      }
-      p <-  build_legend(p)
-      
       output$plot_graph <- renderPlot({
           print(p)
           })
-      displayed_data(foo$m, foo$Rsqr)
+      #displayed_data(foo$m, foo$Rsqr)
   })
     
   #---------------------------------------------------    
@@ -1482,31 +1522,7 @@ grob2 <- grid::grid.text(CrowdText, x=0.3,  y=0.8, gp=grid::gpar(col="black", fo
   #---------------------------------------------------    
   observeEvent({input$An_tabs
                 1} , { # 
-                  
     print(":::::::  observe_event 2")
-      foo <- build_expline("real")
-                  
-      p <- build_basic_plot()
-      
-      if (input$mult) {
-          p <- add_mult(p)
-      } 
-      if (input$estmiss) {
-          p <- add_estmiss(p)
-      } 
-      if (input$avoid) {
-        if (input$logscale) {
-          showNotification("Crowdsize not available with log scale")
-        } else {
-          p <- add_crowdsize(p)
-        }
-      }
-      p <-  build_legend(p)
-      
-      output$plot_graph <- renderPlot({
-          print(p)
-          })
-      displayed_data(foo$m, foo$Rsqr)
   })
     
   #---------------------------------------------------    
@@ -1515,13 +1531,8 @@ grob2 <- grid::grid.text(CrowdText, x=0.3,  y=0.8, gp=grid::gpar(col="black", fo
   observeEvent({
     input$county_color
     1} , { #  draw map
-      
       draw_map()
-      
       })
-      
-  
-  
 }
 
 # Run the application 
