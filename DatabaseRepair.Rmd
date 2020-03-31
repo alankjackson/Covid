@@ -183,7 +183,7 @@ saveRDS(foo,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Testing.rds")
 
 ```{r death by county}
 
-path <- "/home/ajackson/Dropbox/Rprojects/Covid/"
+path <- "/home/ajackson/Dropbox/Rprojects/Covid/NYTdata/covid-19-data-master/"
 
 df <- read_csv(paste0(path, "us-counties.csv")) %>% 
   filter(state=="Texas") %>% 
@@ -194,7 +194,9 @@ foo <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
 
 foobar <- left_join(foo, df, by=c("Date", "County"))
 
-foobar <- foobar %>% mutate(Deaths=pmax(Deaths, NYT_deaths,na.rm=TRUE ))
+#foobar <- foobar %>% mutate(Deaths=pmax(Deaths, NYT_deaths,na.rm=TRUE ))
+mask <- foobar$Date==ymd("2020-03-28")
+foobar[mask,]$Cases <- pmax(foobar[mask,]$Cases, foobar[mask,]$NYT_cases)
 
 foobar <- foobar %>% select(-NYT_deaths, -NYT_cases)
 # Save the real file for later use
