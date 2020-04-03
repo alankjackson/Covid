@@ -438,30 +438,6 @@ prep_data(DF, 'county', 'Hidalgo')
       #  return a tibble
       tribble(~Line, ~m, ~b, ~Rsqr,
                ExpLine, m, b, Rsqr)
-  }  
-
-
-
-  #---------------------------------------------------    
-  #------------------- Build Legend ------------------
-  #---------------------------------------------------    
-  
-  build_legend <- function(p, title, plabs, pvals, pbrks){
-    print(":::::::  build_legend")
-    
-    #   Create list of named characters
-    names(pvals) <- pbrks
-    
-    legend <- theme(legend.position=c( 0.12, 0.5 ))
-      
-    Legend_layer <- scale_color_manual(name = title, 
-                                         values = pvals,
-                                         labels = plabs,
-                                         breaks = pbrks)
-    p <- p + legend + Legend_layer 
-    
-    return(p)
-  }
 
 ######################################################################
 #           Test Section
@@ -472,6 +448,7 @@ foo <- build_expmodel(subdata,
                       indep="Cases",
                       in_weights=input$weights,
                       fit="all")
+  }  
 ```
 
 
@@ -485,6 +462,7 @@ foo <- build_expmodel(subdata,
   
   build_basic_plot <- function(subdata,
                                TestingData,
+                               PopLabel,
                                in_modeling=c("do fit", "standard", "user"), 
                                in_fit,
                                in_intercept,
@@ -500,7 +478,9 @@ foo <- build_expmodel(subdata,
 
     begin <- subdata$Date[1] # date of first reported case
     
+    #------------------
     # Build an exponential model
+    #------------------
     if (in_modeling == "do fit") { # full fit
       foo <- build_expmodel(subdata,
                             indep="Cases",
@@ -512,13 +492,15 @@ foo <- build_expmodel(subdata,
                             in_weights=in_weights,
                             fit="b_only",
                             m=global_slope)
-    } else { # user
+    } else if (in_modeling == "user") { # user
       foo <- build_expmodel(subdata,
                             indep="Cases",
                             in_weights=in_weights,
                             fit="none",
                             m=in_fit,
                             b=in_intercept)
+    } else {print("Something bad happened in basic_plot with in_modeling")
+            return()
     }
       print("build_basic_plot ---- 1")
     EqText <- paste0("Fit is log(Cases) = ",
@@ -533,7 +515,9 @@ foo <- build_expmodel(subdata,
     #  Basic canvas     
     p <- subdata %>% 
           ggplot(aes(x=Date, y=Cases))
+    #------------------
     #  Plot Exponential fit line, Extension of line, and testing data
+    #------------------
     p <-  p +
           expand_limits(x = LastDate+10) +
           geom_line(data=ExpLine,
@@ -559,6 +543,9 @@ foo <- build_expmodel(subdata,
           labs(title=paste0("COVID-19 Cases in ",PopLabel$Label), 
                subtitle=paste0(" as of ", lastdate))
           
+    #------------------
+    #  Bars or points?
+    #------------------
     if (!in_logscale) {
         p <- p + geom_col(alpha = 2/3)  +
              geom_label(aes(label=Cases), 
@@ -572,12 +559,18 @@ foo <- build_expmodel(subdata,
      }       
 
       print("build_basic_plot ---- 3")
+    #------------------
+    #  Error bars
+    #------------------
       if (!is.nan(ExpLine$SD_lower[1]) & in_modeling=="do fit"){
            p <- p + geom_errorbar(data=ExpLine[(nrow(ExpLine)-9):nrow(ExpLine),],
                         aes(x=Date, y=Cases, ymin=SD_lower, ymax=SD_upper)) 
       }
       print("build_basic_plot ---- 4")
       
+    #------------------
+    #  Log scaling
+    #------------------
       if (in_logscale) {
         trans_value <- "log10"
         min_limit <- min(subdata$Cases[1], 10)
@@ -593,35 +586,52 @@ foo <- build_expmodel(subdata,
                                     name = "Statewide Test Total"),
                                     trans=trans_value)
       } else {
-        p <- p + scale_y_continuous(limits=c(min_limit, max(ExpLine$Cases)),
+        p <- p + scale_y_continuous(limits=c(min_limit, max(1.1*ExpLine$Cases)),
                                     sec.axis = sec_axis(~.*xform, 
                                     name = "Statewide Test Total"),
                                     trans=trans_value)
       }
       print("build_basic_plot ---- 6")
+    #------------------
+    #  Legend
+    #------------------
       leg_labs <- c("Data", "Fit", "Tests") # Labels for legend
       leg_vals <- c("black", "blue", "black") # Color values
       leg_brks <- c("data", "fit", "tests") # Breaks (named lists)
+    #------------------
+    #  Multiply cases
+    #------------------
       if (in_mult) {
-          p <- add_mult(p, in_mult_pos=in_mult_pos, in_weights = in_weights)
+          p <- add_mult(p, subdata, in_mult_pos=in_mult_pos, in_weights = in_weights)
           leg_labs <- c(leg_labs, "Multiplied")
           leg_vals <- c(leg_vals, "red")
           leg_brks <- c(leg_brks, "mult")
       } 
       print("build_basic_plot ---- 7")
+    #------------------
+    #  Estimate missed cases
+    #------------------
       if (in_estmiss) {
-          p <- add_estmiss(p)
+          p <- add_estmiss(p, subdata)
           leg_labs <- c(leg_labs, "Missed\nCases")
           leg_vals <- c(leg_vals, "green")
           leg_brks <- c(leg_brks, "est_miss")
       } 
       print("build_basic_plot ---- 8")
+    #------------------
+    #  Crowdsize
+    #------------------
       if (in_avoid) {
-        if (in_logscale) {
-          showNotification("Crowdsize not available with log scale")
-        } else {
-          p <- add_crowdsize(p, in_mult, in_mult_pos, in_weights)
-        }
+        #if (in_logscale) {
+       #   showNotification("Crowdsize not available with log scale")
+       # } else {
+          p <- add_crowdsize(p, 
+                             subdata, 
+                             PopLabel, 
+                             in_mult, 
+                             in_mult_pos, 
+                             in_weights)
+       # }
       }
       print("build_basic_plot ---- 9")
       p <-  build_legend(p, "Cases",
@@ -629,15 +639,13 @@ foo <- build_expmodel(subdata,
                              leg_vals, # Color values
                              leg_brks # Breaks (named lists)
       )
-      m <- foo$m
-      b <- foo$b 
-      Rsqr <- foo$Rsqr
+      
       #output$data_details <- data_details(subdata,
       #                                     "Cases",
       #                                     EqText,
-      #                                     m,
-      #                                     b,
-      #                                     Rsqr)
+      #                                     foo$m,
+      #                                     foo$b,
+      #                                     foo$Rsqr)
       
     return(p)
   }
@@ -648,8 +656,14 @@ foo <- build_expmodel(subdata,
 ######################################################################
 input$logscale <- TRUE
 input$weights <- TRUE
+input$mult <- TRUE
+input$mult_pos <- 2
+input$estmiss <- TRUE
+input$avoid <- TRUE
+input$zoom <- TRUE
       p <- build_basic_plot(subdata,
                             TestingData,
+                            PopLabel,
                             input$modeling,
                             input$fit,
                             input$intercept,
@@ -664,6 +678,205 @@ input$weights <- TRUE
       
           print(p)
 ```
+
+
+## Multiply Cases by constant
+
+
+```{r multiply}
+
+  #---------------------------------------------------    
+  #------------------- Add mult Plot ---------------
+  #---------------------------------------------------    
+  add_mult <- function(p, subdata, in_mult_pos=2, in_weights) {
+    print(":::::::  add_mult")
+    #   Case with estimates of undercount
+    subdata <- subdata %>% # update mult cases in case needed
+      mutate(Estimate=Cases*replace_na(in_mult_pos,0.1))
+    
+    print(subdata)
+    
+    # Build an exponential model
+    #weights <- replicate(nrow(subdata), 1)
+    foo <- build_expmodel(subdata,
+                          indep="Estimate",
+                          in_weights=in_weights,
+                          fit="all")
+    
+    Est_layer <-   geom_line(data=foo$Line[[1]],
+                             aes(x=Date, y=Estimate,
+                                 color="mult"),
+                             size=1,
+                             linetype="dotted")
+    p <- p + Est_layer 
+    
+    return(p)
+  }
+```
+
+
+## Estimate missed cases
+```{r missed cases}
+  #---------------------------------------------------    
+  #------------------- Add Estimate of missed cases --
+  #---------------------------------------------------    
+  # use worldwide slope, derive b from last number of cases
+  add_estmiss <- function(p, subdata) {
+    print(":::::::  add_estmiss")      
+      begin <- data$Date[1] # date of first reported case
+      LastDate <<- data[nrow(data),]$Date
+      lastday <- as.integer(LastDate - begin) + 1  # last day of real data
+      dayseq <- 0:(lastday - 1)
+      dateseq <- as_date(begin:(LastDate))
+      m <- global_slope
+      b <- log10(subdata$Cases[lastday]) - m*(lastday-1)
+      temp <- tibble( Days=dayseq, 
+                      Date=dateseq, 
+                      Cases=10**(m*dayseq + b)
+                        )
+      
+      
+    Est_layer <-   geom_point(data=temp,
+                             aes(x=Date, y=Cases,
+                                 color="est_miss")
+                             )
+    p <- p + Est_layer 
+    
+    return(p)
+  }
+```
+
+
+
+```{r legend}
+  #---------------------------------------------------    
+  #------------------- Build Legend ------------------
+  #---------------------------------------------------    
+  
+  build_legend <- function(p, title, plabs, pvals, pbrks){
+    print(":::::::  build_legend")
+    
+    #   Create list of named characters
+    names(pvals) <- pbrks
+    
+    legend <- theme(legend.position=c( 0.12, 0.5 ))
+      
+    Legend_layer <- scale_color_manual(name = title, 
+                                         values = pvals,
+                                         labels = plabs,
+                                         breaks = pbrks)
+    p <- p + legend + Legend_layer 
+    
+    return(p)
+  }
+
+
+```
+
+
+
+
+## add crowd size
+
+```{r crowd size}
+  #---------------------------------------------------    
+  #------------------- Add crowd size ----------------
+  #---------------------------------------------------    
+  # When is probability of 1% contact reached?
+  add_crowdsize <- function(p, data, PopLabel, 
+                            in_mult, in_mult_pos, in_weights) {
+    print(":::::::  add_crowdsize")
+      begin <- data$Date[1] # date of first reported case
+      LastDate <<- data[nrow(data),]$Date
+      lastday <- as.integer(LastDate - begin) + 1  # last day of real data
+      Population <- PopLabel[2][[1]]
+
+      foo <- build_expmodel(data,
+                            indep="Cases",
+                            in_weights=in_weights,
+                            fit="all")
+      ExpLine <- foo$Line[[1]]
+      print("---------- crowd 1")
+      m <- foo$m
+      b <- foo$b
+      foo <- build_expmodel(data,
+                            indep="Estimate",
+                            in_weights=in_weights,
+                            fit="all")
+      ExpLine_est <- foo$Line[[1]]
+      print("---------- crowd 2")
+      m_est <- foo$m 
+      b_est <- foo$b  
+      
+      TestDays <- as.integer(LastDate 
+                             - begin) + c(0,5,10) + 1
+      TestDates <- LastDate + c(0,5,10)
+      Crowdsize <- signif((0.01*Population)/(10**(TestDays*m+b)), 2)
+      print(paste("--->>> m, b", m, b))
+      Crowdsize_est <- signif((0.01*Population)/(10**(TestDays*m_est+b_est)
+                                                 *replace_na(in_mult_pos,0.1)), 2)
+      
+      dayseq <- 0:(as.integer(LastDate - begin) + 10)
+      dateseq <- as_date(begin:(LastDate + 10))
+      print("---------- crowd 3")
+      Cases <- ExpLine$Cases
+      Cases_est <- ExpLine_est$Estimate
+      print("---------- crowd 4")
+      
+      print("---------- crowd 5")
+      # Build label tibble
+      CrowdLabels <- tibble(Date=TestDates,
+                            Crowd=Crowdsize,
+                            Cases=Cases[TestDays])
+      
+      print("---------- crowd 6")
+      CrowdLabels_est <- tibble(Date=TestDates,
+                                Crowd=Crowdsize_est,
+                                Cases=Cases_est[TestDays])
+      
+      print("---------- crowd 7")
+      CrowdLayer1 <-  geom_point(data=CrowdLabels,
+                                 aes(x=Date, y=Cases)) 
+      CrowdLayer2 <- geom_label(data=CrowdLabels,
+                                aes(x=Date, y=Cases, label=Crowd),
+                                fill="lightcoral",
+                                nudge_x=1,
+                                nudge_y=0) 
+
+      
+      CrowdLayerest1 <-  geom_point(data=CrowdLabels_est,
+                                    aes(x=Date, y=Cases)) 
+      CrowdLayerest2 <- geom_label(data=CrowdLabels_est,
+                                   aes(x=Date, y=Cases, label=Crowd),
+                                   fill="lightcoral",
+                                   nudge_x=1,
+                                   nudge_y=0) 
+
+      
+#   Crowdsize text
+
+CrowdText <- "Sizes of groups to avoid to keep\nchance of meeting a contagious\nperson below 1%"
+
+      p <- p + CrowdLayer1 + 
+               CrowdLayer2 +
+               annotate("label", label=CrowdText, 
+                        x=begin, y=Cases[length(Cases)]*0.9, 
+                        fill="lightcoral", size=4)
+      
+      if (in_mult) { # Add for fit and estimate 
+      print("---------- crowd 8")
+          return(p + CrowdLayerest1 + CrowdLayerest2)  
+      } else { # Add for fit only
+          return(p)
+      }
+  }
+  
+
+
+```
+
+
+
 
 
 
