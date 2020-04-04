@@ -142,6 +142,40 @@ infectious people wandering around, you can create a new curve which is the
 original fit, but where the number of cases is multiplied by a constant.
 Did the lack of testing miss half the cases? Multiply by 2.
 
+## Analysis
+
+This tab will be devoted more to various analysis tabs. Initially there 
+is a tab to look at the death rates, but more tabs are planned.
+
+### Deaths
+
+By default, fitting to cumulative deaths with an unweighted exponential 
+function is done. The usual data selection and plot controls are provided.
+
+A tool to estimate the actual number of cases from the number of 
+deaths is provided. 
+
+CFR is the percent Case Mortality Rate, or the
+mortality rate among diagnosed cases. This will, of course, be a larger
+number than the IFR, or Infection Fatality Rate, which includes all
+infected individuals, including those who are asymptomatic. Practically
+speaking, with the poor status of testing and the rather strict criteria
+being applied before allowing testing, only people who are pretty sick
+are getting tested and diagnosed, so number of case estimates based on
+deaths will be potentially much lower than the actual infection rate.
+In any event, the literature seems to be averaging in the range of
+0.7%-2.5%.
+
+Days to Death is the average time from diagnosis to death. If only 
+people who are already quite ill get tested, then the literature implies 
+this number may be about 13 days. If many people who are not ill get 
+tested, then this number will increase, up to perhaps 20-23 days? 
+
+Basically I take each death, work it back to the number of cases at the
+time that individual was diagnosed/tested, and multiply by the 1/CFR.
+
+For reference, read [this paper](https://cmmid.github.io/topics/covid19/severity/global_cfr_estimates.html)
+
 ## Map
 
 The map is pretty simple. You can color counties by total reported cases,
