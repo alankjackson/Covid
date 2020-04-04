@@ -271,6 +271,16 @@ ui <- basicPage(
                     fluid = TRUE,
                     value = "GraphTab",
                     fluidPage(
+                      tags$head(
+                        tags$style(
+                          HTML(".shiny-notification {
+             position:fixed;
+             top: calc(20%);
+             left: calc(80%);
+             } "
+                          )
+                        )
+                      ),
                         #-------------------- Plot
                         column(
                             9,
@@ -278,7 +288,7 @@ ui <- basicPage(
                             plotOutput("plot_graph",
                                        height = "800px"),
                             h4("Details on displayed data"),
-                            htmlOutput("data_details"),
+                            htmlOutput("data_details")
                         ),
                         # end of column Plot
                         #-------------------- Controls
@@ -315,7 +325,7 @@ ui <- basicPage(
                                         Counties$County,
                                         selected = "Harris"
                                     )
-                                ),
+                                )
                                 # end conditional panel
                             ),
                             # end wellPanel select data to plot
@@ -333,16 +343,16 @@ ui <- basicPage(
                                     label = strong("Expand scale"),
                                     value = FALSE
                                 ),
-                                checkboxInput(
-                                    inputId = "estmiss",
-                                    label = strong("Est missed cases"),
-                                    value = FALSE
-                                ),
+                                #checkboxInput(
+                                #    inputId = "estmiss",
+                                #    label = strong("Est missed cases"),
+                                #    value = FALSE
+                                #),
                                 checkboxInput(
                                     inputId = "logscale",
                                     label = strong("Log Scaling"),
                                     value = FALSE
-                                ),
+                                )
                                 
                             ),
                             # end wellPanel Control plot options
@@ -377,7 +387,7 @@ ui <- basicPage(
                                 checkboxInput(
                                     inputId = "weights",
                                     label = strong("Weight fit"),
-                                    value = TRUE
+                                    value = FALSE
                                 ),
                                 HTML("<hr>"),
                                 checkboxInput(
@@ -388,8 +398,8 @@ ui <- basicPage(
                                 numericInput("mult_pos", label = h5("Factor"), 
                                              min = 1.,
                                              max = 20,
-                                             value = 2),
-                            ),
+                                             value = 2)
+                            )
                             # end wellPanel Modeling parameters
                             
                         ) # end column Controls
@@ -412,27 +422,27 @@ ui <- basicPage(
                     plotOutput("plot_deaths",
                                height = "800px"),
                     h4("Details on displayed data"),
-                    htmlOutput("death_details"),
+                    htmlOutput("death_details")
                   ), # end tab panel Deaths
           tabPanel(
                     "Slope Change",
                     fluid = TRUE,
                     value = "SlopeChange",
-                    HTML("<hr>"),
+                    HTML("<hr>")
                   ), # end tab panel Deaths
           tabPanel(
                     "Missed Tests",
                     fluid = TRUE,
                     value = "Tests",
-                    HTML("<hr>"),
+                    HTML("<hr>")
                   ), # end tab panel Deaths
           tabPanel(
                     "Something",
                     fluid = TRUE,
                     value = "Something",
-                    HTML("<hr>"),
+                    HTML("<hr>")
                   ) # end tab panel Deaths
-               ), # end TabSet panel An_tabs
+               ) # end TabSet panel An_tabs
              ), # end column 
             #-------------------- Data Selection
            column(3, # Controls
@@ -496,7 +506,7 @@ ui <- basicPage(
                             value = 13.00
                         )
                       ),
-                    HTML("<hr>"),
+                    HTML("<hr>")
                     
                   ),
                   # end conditional panel
@@ -509,7 +519,7 @@ ui <- basicPage(
                       Counties$County,
                       selected = "Harris"
                     )
-                  ),
+                  )
                   # end conditional panel
                  ) # end column Controls
          ) # end fluid page
@@ -523,7 +533,7 @@ ui <- basicPage(
                     h3(textOutput("MapTitle")),
                     leafletOutput("TexasMap",
                                   height = "800px"),
-                    HTML("<hr>"),
+                    HTML("<hr>")
             ), # end of column Plot
             #-------------------- Controls
             column(3, # Controls
@@ -537,7 +547,7 @@ ui <- basicPage(
                                                ), 
                                 selected = "casetotal",
                                 width='90%',
-                                inline=FALSE),
+                                inline=FALSE)
                    ) # end column control
          ) # end fluid page
                    
@@ -545,7 +555,7 @@ ui <- basicPage(
     ##########   Documentation Tab
                            tabPanel("Documentation", fluid=TRUE, value="DocumentationTab",
                                     withMathJax(includeMarkdown("Documentation.Rmd")),
-                                    HTML("<hr>"),
+                                    HTML("<hr>")
 
           )  # end tabPanel Documentation
         )  # end tabset 
@@ -553,7 +563,9 @@ ui <- basicPage(
 
 # Define server logic 
 server <- function(input, output) {
-    
+  hideTab(inputId = "An_tabs", target="SlopeChange")   
+  hideTab(inputId = "An_tabs", target="Tests")   
+  hideTab(inputId = "An_tabs", target="Something")   
 #   Global variables are
 #    PopLabel = list(Region, Population, Label)
 #    subdata = tibble of data subsetted 
@@ -568,143 +580,31 @@ server <- function(input, output) {
     # return population, label for graph title and tibble subset
     print(":::::::  prep_data")
     if (in_dataset=="Region") { # work with regions
-        print(paste("prep_data - 1", DefineRegions$List[DefineRegions$Region==in_area]))######################### print
       PopLabel <<- Regions %>% filter(Region==in_area)
       target <- unlist(DefineRegions$List[DefineRegions$Region==in_area])
       subdata <<- DF %>% 
           filter(County %in% target) %>% 
           group_by(Date) %>% 
           summarise(Cases=sum(Cases), Days=mean(Days), Estimate=sum(Estimate))
-print(paste("prep_data - 2", in_area))######################### print
-print(subdata)
       return()
     } else { # select a county
-print(paste("prep_data - 3", in_area))######################### print
       #   Is there any data?
+      print("*******************************************")
+      print(in_area %in% DF$County)
+      print("*******************************************")
       if (! in_area %in% DF$County) {
-        showNotification(paste("No reported cases in", in_area))
+        showNotification(paste("No reported cases in", in_area),
+                         duration=2)
         return()
       }
       
       PopLabel <<- Counties %>% filter(County==in_area) %>% 
                      mutate(Label=paste(in_area, "County"))
       subdata <<- DF %>% filter(County==in_area)
-print(subdata)
       return()
     }
   } # end prep_data
     
-  #---------------------------------------------------    
-  #------------------- Build Model -------------------
-  #---------------------------------------------------    
-  #build_model <- function(subdata, weight_flag){ 
-  #  print(":::::::  build_model")
-  #    # Linear fits to log(cases)
-  #  ##########   Base case with actual data  
-  #  weights <- (1:nrow(subdata))**1.5
-  #  if (weight_flag) {
-  #    LogFits <- lm(log10(Cases)~Days, data=subdata, weights=weights)
-  #  } else {
-  #    LogFits <- lm(log10(Cases)~Days, data=subdata)
-  #  }
-  #  m <- LogFits[["coefficients"]][["Days"]]
-  #  b <- LogFits[["coefficients"]][["(Intercept)"]]
-  #  Rsqr <- summary(LogFits)$adj.r.squared
-  #  std_dev <- sigma(LogFits)
-  #  print(paste("--3--", m, b, Rsqr, std_dev))  ######################### print
-  #  # return a tibble
-  #  tribble(~m, ~b, ~Rsqr, ~std_dev,
-  #           m,  b,  Rsqr,  std_dev)
-  #}
-      
-  #build_est_model <- function(){ 
-  #  print(":::::::  build_est_model")
-      # Linear fits to log(cases)
-    ##########   Case with estimates of undercount
-  #  subdata <<- subdata %>% # update mult cases in case needed
-  #               mutate(Estimate=Cases*replace_na(input$mult_pos,0.1))
-  #  weights <- (1:nrow(subdata))**1.5
-  #  if (input$weights) {
-  #    LogFits <- lm(log10(Estimate)~Days, data=subdata, weights=weights)
-  #  } else {
-  #    LogFits <- lm(log10(Estimate)~Days, data=subdata)
-  #  }
-  #  #LogFits <- lm(log10(Estimate)~Days, data=subdata)
-  #  m <- LogFits[["coefficients"]][["Days"]]
-  #  b <- LogFits[["coefficients"]][["(Intercept)"]]
-  #  Rsqr <- summary(LogFits)$adj.r.squared
-  #  std_dev <- sigma(LogFits)
-  #  print(paste("--3.9--", m, b))  ######################### print
-  #  # return a tibble
-  #  tribble(~m, ~b, ~Rsqr, ~std_dev,
-  #           m,  b,  Rsqr,  std_dev)
-  #}
-  #---------------------------------------------------    
-  #---------------New  Build Model -------------------
-  #---------------------------------------------------    
-  ####################   not used
-  #new_build_model <- function(x, y, my_formula, weights){ 
-  #  print(":::::::  new_build_model")
-  ## Linear fits to log(cases)
-#
-#    LogFits <- lm(my_formula, weights=weights)
-#    m <- LogFits[["coefficients"]][["x"]]
-#    b <- LogFits[["coefficients"]][["(Intercept)"]]
-#    Rsqr <- summary(LogFits)$adj.r.squared
-#    std_dev <- sigma(LogFits)
-#    print(paste("--A3--", m, b, Rsqr, std_dev))  ######################### print
-#    # return a tibble
-#    tribble(~m, ~b, ~Rsqr, ~std_dev,
-#             m,  b,  Rsqr,  std_dev)
-#  }
-    
-  #---------------------------------------------------    
-  #------------------- Build exponential curve -------
-  #---------------------------------------------------    
-    #build_expline <- function(crv=c('real', 'est')){
-    #print(":::::::  build_expline")
-    #  #   Go 10 days into future
-    #  lastday <- as.integer(LastDate - begin) + 1 # last day of real data
-    #  dayseq <- 0:(lastday + 9)
-    #  dateseq <- as_date(begin:(LastDate+10))
-    #  model <- build_model(subdata, input$weights)
-    #  est_model <- build_est_model()
-    #  m <- model$m
-    #  b <- model$b
-    #  Rsqr <- model$Rsqr
-    #  m_est <- est_model$m
-    #  b_est <- est_model$b
-    #  print(paste("----build_expline----", crv, model))
-    #  if (input$modeling=="do fit") {
-    #    Cases <- case_when(
-    #      crv=="real" ~  10**(m*dayseq+b),
-    #      crv=="est"  ~  10**(m_est*dayseq+b_est)
-    #    )
-    #  } else if (input$modeling=="user") {
-    #    m <- input$fit
-    #    b <- input$intercept
-    #    Cases <- case_when (
-    #      crv=="real" ~  10**(m*dayseq+b),
-    #      crv=="est"  ~  10**(m*dayseq+b)*replace_na(input$mult_pos, 0.1)
-    #    )
-    #  } else {
-    #    m <- global_slope
-    #    b <- case_when(
-    #      crv=="real" ~  log10(subdata$Cases[lastday]) - m*(lastday-1),
-    #      crv=="est"  ~  log10(subdata$Estimate[lastday]) - m*(lastday-1)
-    #    )
-    #    Cases <- 10**(m*dayseq+b)
-    #  }
-    #  SD_upper <- Cases+Cases*model$std_dev
-    #  SD_lower <- Cases-Cases*model$std_dev
-    #  ExpLine <- tibble( Days=dayseq, Date=dateseq, Cases=Cases,
-    #                     SD_upper=SD_upper, SD_lower=SD_lower)
-      #print(paste("--5--", ExpLine))######################### print
-      #  return a tibble
-    #  tribble(~Line, ~m, ~b, ~Rsqr,
-    #           ExpLine, m, b, Rsqr)
-    #}  
-  
   #---------------------------------------------------    
   #-----------Build an exponential model -------------
   #---------------------------------------------------    
@@ -713,75 +613,78 @@ print(subdata)
                              in_weights, 
                              fit=c('all', 'none', "b_only", "m_only"),
                              m=1.3,
-                             b=1){
+                             b=1,
+                             projection=10){
     print(":::::::  build_expmodel")
-      #   Go 10 days into future
-      begin <- data$Date[1] # date of first reported case
-      LastDate <- data[nrow(data),]$Date
-      lastday <- as.integer(LastDate - begin) + 1 # last day of real data
-      dayseq <- 0:(lastday + 9)
-      dateseq <- as_date(begin:(LastDate+10))
-      x <- data$Days
-      x <- 0:(lastday-1)
-      y <- data[,indep][[1]]
-      if (in_weights) {
-        weights <- (1:nrow(data))**2.5
-      } else {
-        weights <- replicate(nrow(data), 1)
-      }
-      print(data)
-      my_data <- tibble(x=x, y=y, weights=weights)
-      print("indep, x, y, my_data")
-      print(indep)
-      print(x)
-      print(y)
-      print(my_data)
-        
-      if (fit=="all") { 
-        model <- lm(log10(y)~x, data=my_data, weights=weights)
-        m <- model[["coefficients"]][["x"]]
-        b <- model[["coefficients"]][["(Intercept)"]]
-        Rsqr <- summary(model)$adj.r.squared
-        std_dev <- sigma(model)
-      } else if (fit=="none") {
-        m <- m
-        b <- b
-        Rsqr <- 1
-        std_dev <- 0
-      } else if (fit=="b_only") {
-        #model <- lm(log10(y)-m*x~1, weights=weights)
-        #m <- model[["coefficients"]][["x"]]
-        #b <- model[["coefficients"]][["(Intercept)"]]
-        b <- log10(data$Cases[lastday]) - m*(lastday-1)
-        #Rsqr <- summary(model)$adj.r.squared
-        #std_dev <- sigma(model)
-        Rsqr <- 1
-        std_dev <- 0
-        print(paste("----build_expline-2--", model))
-      } else if (fit=="m_only") {
-        model <- lm(I(x - b) ~ 0 + log10(y), weights=weights)
-        m <- model[["coefficients"]][["x"]]
-        b <- model[["coefficients"]][["(Intercept)"]]
-        Rsqr <- summary(model)$adj.r.squared
-        std_dev <- sigma(model)
-        print(paste("----build_expline-3--", model))
-      }
-  
-      print(paste("m and b",m,b))
-      Cases <- 10**(m*dayseq+b)
-      print(Cases)
-      SD_upper <- Cases+Cases*std_dev
-      SD_lower <- Cases-Cases*std_dev
+    print(data)
+    #  Drop rows that are zero
+    data <- data %>% filter((!!sym(indep))>0) 
+    print("build_expmodel --1--")
+    print(data)
+    #   Go projection days into future
+    begin <- data$Date[1] # date of first reported case
+    LastDate <- data[nrow(data),]$Date
+    lastday <- as.integer(LastDate - begin) + 1 # last day of real data
+    dayseq <- data$Days
+    dayseq <- c(dayseq,(dayseq[length(dayseq)]+1):
+                       (dayseq[length(dayseq)]-1+projection))
+    dateseq <- data$Date
+    dateseq <- as_date(c(dateseq,(dateseq[length(dateseq)]+1): 
+                                 (dateseq[length(dateseq)]-1+projection)))
+    print("build_expmodel --2--")
+    x <- data$Days
+    y <- data[,indep][[1]]
+    print(x)
+    print(y)
+    if (in_weights) {
+      weights <- (1:nrow(data))**2.5
+    } else {
+      weights <- replicate(nrow(data), 1)
+    }
+    my_data <- tibble(x=x, y=y, weights=weights)
       
-      ExpLine <- tibble( Days=dayseq, Date=dateseq,!!indep:=Cases,
-                         SD_upper=SD_upper, SD_lower=SD_lower) 
-      print(paste("--5--"))######################### print
-      print(ExpLine)######################### print
-      #  return a tibble
-      tribble(~Line, ~m, ~b, ~Rsqr,
-               ExpLine, m, b, Rsqr)
-    }  
-  
+    if (fit=="all") { 
+      model <- lm(log10(y)~x, data=my_data, weights=weights)
+      m <- model[["coefficients"]][["x"]]
+      b <- model[["coefficients"]][["(Intercept)"]]
+      Rsqr <- summary(model)$adj.r.squared
+      std_dev <- sigma(model)
+    } else if (fit=="none") {
+      m <- m
+      b <- b
+      Rsqr <- 1
+      std_dev <- 0
+    } else if (fit=="b_only") {
+      #model <- lm(log10(y)-m*x~1, weights=weights)
+      #m <- model[["coefficients"]][["x"]]
+      #b <- model[["coefficients"]][["(Intercept)"]]
+      b <- log10(data$Cases[lastday]) - m*(lastday-1)
+      #Rsqr <- summary(model)$adj.r.squared
+      #std_dev <- sigma(model)
+      Rsqr <- 1
+      std_dev <- 0
+      print(paste("----build_expline-2--"))
+    } else if (fit=="m_only") {
+      model <- lm(I(x - b) ~ 0 + log10(y), weights=weights)
+      m <- model[["coefficients"]][["x"]]
+      b <- model[["coefficients"]][["(Intercept)"]]
+      Rsqr <- summary(model)$adj.r.squared
+      std_dev <- sigma(model)
+      print(paste("----build_expline-3--", model))
+    } else {print("serious error in build_expmodel")}
+
+    Cases <- 10**(m*dayseq+b)
+    SD_upper <- Cases+Cases*std_dev
+    SD_lower <- Cases-Cases*std_dev
+    
+    ExpLine <- tibble( Days=dayseq, Date=dateseq,!!indep:=Cases,
+                       SD_upper=SD_upper, SD_lower=SD_lower) 
+    #  return a tibble
+    tribble(~Line, ~m, ~b, ~Rsqr,
+             ExpLine, m, b, Rsqr)
+
+  }  
+
   #---------------------------------------------------    
   #------------------- Build Basic Plot --------------
   #---------------------------------------------------    
@@ -827,7 +730,6 @@ print(subdata)
             return()
     }
       
-    #foo <- build_expline("real")
     EqText <- paste0("Fit is log(Cases) = ",
                      signif(foo$m,3),"*Days + ",
                      signif(foo$b,3))
@@ -939,20 +841,17 @@ print(subdata)
     #------------------
     #  Estimate missed cases
     #------------------
-      if (in_estmiss) {
-          p <- add_estmiss(p, subdata)
-          leg_labs <- c(leg_labs, "Missed\nCases")
-          leg_vals <- c(leg_vals, "green")
-          leg_brks <- c(leg_brks, "est_miss")
-      } 
+    #  if (in_estmiss) {
+    #      p <- add_estmiss(p, subdata)
+    #      leg_labs <- c(leg_labs, "Missed\nCases")
+    #      leg_vals <- c(leg_vals, "green")
+    #      leg_brks <- c(leg_brks, "est_miss")
+    #  } 
       print("build_basic_plot ---- 8")
     #------------------
     #  Crowdsize
     #------------------
       if (in_avoid) {
-        #if (in_logscale) {
-       #   showNotification("Crowdsize not available with log scale")
-       # } else {
           p <- add_crowdsize(p, 
                              subdata, 
                              PopLabel, 
@@ -960,7 +859,6 @@ print(subdata)
                              in_mult_pos, 
                              in_weights,
                              in_zoom)
-       # }
       }
       print("build_basic_plot ---- 9")
       p <-  build_legend(p, "Cases",
@@ -982,7 +880,7 @@ print(subdata)
   #---------------------------------------------------    
   #------------------- Add mult Plot ---------------
   #---------------------------------------------------    
-  add_mult <- function(p, subdata, in_mult_pos=2, in_weights) {
+  add_mult <- function(p, subdata, in_mult_pos, in_weights) {
     print(":::::::  add_mult")
     #   Case with estimates of undercount
     subdata <- subdata %>% # update mult cases in case needed
@@ -991,7 +889,6 @@ print(subdata)
     print(subdata)
     
     # Build an exponential model
-    #weights <- replicate(nrow(subdata), 1)
     foo <- build_expmodel(subdata,
                           indep="Estimate",
                           in_weights=in_weights,
@@ -1064,18 +961,17 @@ print(subdata)
                             in_mult, in_mult_pos, in_weights, in_zoom) {
     print(":::::::  add_crowdsize")
       begin <- data$Date[1] # date of first reported case
-      begin5 <- begin+5
       LastDate <- data[nrow(data),]$Date
       lastday <- as.integer(LastDate - begin) + 1  # last day of real data
       Population <- PopLabel[2][[1]]
+      data <- data %>% # update mult cases in case needed
+        mutate(Estimate=Cases*replace_na(in_mult_pos,0.1))
 
       foo <- build_expmodel(data,
                             indep="Cases",
                             in_weights=in_weights,
                             fit="all")
       ExpLine <- foo$Line[[1]]
-      print("---------- crowd 1")
-      print(ExpLine)
       m <- foo$m
       b <- foo$b
       foo <- build_expmodel(data,
@@ -1083,48 +979,31 @@ print(subdata)
                             in_weights=in_weights,
                             fit="all")
       ExpLine_est <- foo$Line[[1]]
-      print("---------- crowd 2")
-      print(ExpLine_est)
       m_est <- foo$m 
       b_est <- foo$b  
-      
       TestDays <- as.integer(LastDate 
                              - begin) + c(0,5,10) + 1
       TestDates <- LastDate + c(0,5,10)
       Crowdsize <- signif((0.01*Population)/(10**(TestDays*m+b)), 2)
-      print(paste("--->>> m, b", m, b))
       Crowdsize_est <- signif((0.01*Population)/(10**(TestDays*m_est+b_est)
                                                  *replace_na(in_mult_pos,0.1)), 2)
       
       dayseq <- 0:(as.integer(LastDate - begin) + 10)
       dateseq <- as_date(begin:(LastDate + 10))
-      print("---------- crowd 3")
       Cases <- ExpLine$Cases
       Cases_est <- ExpLine_est$Estimate
       print(Cases)
       print(Cases_est)
-      print("---------- crowd 4")
-      #  Scale cases so similar scaling to days
-      CaseScale <- length(dateseq)/max(Cases)
-      Delta <- (Cases[TestDays] - Cases[TestDays-1])*CaseScale
-      r <-  2 # radius distance
-      x_nudge <- -r*cos((pi/2 -atan(Delta)))- 0.5
-      y_nudge <- r*sin((pi/2 -atan(Delta)))/CaseScale
-      y_extra <- max(ExpLine$Cases)/30
-      y_extra <- 1
       
-      print("---------- crowd 5")
       # Build label tibble
       CrowdLabels <- tibble(Date=TestDates,
                             Crowd=Crowdsize,
                             Cases=Cases[TestDays])
       
-      print("---------- crowd 6")
       CrowdLabels_est <- tibble(Date=TestDates,
                                 Crowd=Crowdsize_est,
                                 Cases=Cases_est[TestDays])
       
-      print("---------- crowd 7")
       print(paste("===Crowds:", CrowdLabels))
       CrowdLayer1 <-  geom_point(data=CrowdLabels,
                                  aes(x=Date, y=Cases)) 
@@ -1147,8 +1026,6 @@ print(subdata)
 #   Crowdsize text
 
 CrowdText <- "Sizes of groups to avoid to keep\nchance of meeting a contagious\nperson below 1%"
-#grob2 <- grid::grid.text(CrowdText, x=0.3,  y=0.8, gp=grid::gpar(col="black", fontsize=16))
-6*max(data$Cases)
 
       y_anno <- 6*max(data$Cases)*0.9
       if (in_zoom) {
@@ -1162,7 +1039,6 @@ CrowdText <- "Sizes of groups to avoid to keep\nchance of meeting a contagious\n
                         fill="lightcoral", size=4)
       
       if (in_mult) { # Add for fit and estimate 
-      print("---------- crowd 8")
           return(p + CrowdLayerest1 + CrowdLayerest2)  
       } else { # Add for fit only
           return(p)
@@ -1176,14 +1052,14 @@ CrowdText <- "Sizes of groups to avoid to keep\nchance of meeting a contagious\n
   #---------------------------------------------------    
   #------------------- Prep Analysis Data ------------
   #---------------------------------------------------    
-  prep_An_data <- function(){ # return population, label for graph title and tibble subset
+  prep_An_data <- function(in_An_dataset="Region", 
+                           in_An_area="Texas"
+                        ) { 
     print(":::::::  prep_An_data")
-    if (input$An_dataset=="Region") { # work with regions
-        print(paste("--A1--", DefineRegions$List[DefineRegions$Region==input$An_region]))######################### print
-      An_PopLabel <<- Regions %>% filter(Region==input$An_region)
-      target <- unlist(DefineRegions$List[DefineRegions$Region==input$An_region])
-      print(DF)
-      #browser()
+    if (in_An_dataset=="Region") { # work with regions
+        print(paste("--A1--", DefineRegions$List[DefineRegions$Region==in_An_area]))
+      An_PopLabel <<- Regions %>% filter(Region==in_An_area)
+      target <- unlist(DefineRegions$List[DefineRegions$Region==in_An_area])
       An_subdata <<- DF %>% 
           filter(County %in% target) %>% 
           group_by(Date) %>% 
@@ -1194,38 +1070,82 @@ CrowdText <- "Sizes of groups to avoid to keep\nchance of meeting a contagious\n
           #filter(Cases>0) %>% 
           mutate(Deaths=na_if(Deaths, 0))
       #An_subdata$Days <- seq(0:(nrow(An_subdata)-1))
-      print(paste("---A1.5---", An_subdata, input$An_region))######################### print
-      An_begin <<- An_subdata$Date[1] # date of first reported case
+      print(paste("---A1.5---"))
+            print(An_subdata) 
+            print(in_An_area)
+      An_begin <- An_subdata$Date[1] # date of first reported case
       return()
     } else {
-        print(paste("--A2--", input$An_county))######################### print
+        print(paste("--A2--", in_An_area))######################### print
       #   Is there any data?
-      if (! input$An_county %in% DF$County) {
-        showNotification(paste("No reported cases in", input$An_county))
+      if (! in_An_area %in% DF$County) {
+        showNotification(paste("No reported cases in", in_An_area))
         return()
       }
       
-      An_PopLabel <<- Counties %>% filter(County==input$An_county) %>% 
-                     mutate(Label=paste(input$An_county, "County"))
-      An_subdata <<- DF %>% filter(County==input$An_county) %>% 
-          filter(Cases>0)
+      An_PopLabel <<- Counties %>% filter(County==in_An_area) %>% 
+                     mutate(Label=paste(in_An_area, "County"))
+      An_subdata <<- DF %>% filter(County==in_An_area) %>% 
+          filter(Deaths>0)
 #      An_subdata$Days <- seq(0:(nrow(An_subdata)-1))
 #      An_begin <<- An_subdata$Date[1] # date of first reported case
       return()
     }
   } # end prep_data
+
+  #---------------------------------------------------    
+  #------------------- Back Estimate Cases -----------
+  #---------------------------------------------------    
+
+backest_cases <- function(in_An_DeathLag, in_An_CFR) {
+  
+    print(":::::::  backest_cases")
+  #  qi = (xi - lag, yi/mortality)
+  
+  # convert cumulative deaths to actual deaths
+  
+  data <- An_subdata %>% 
+    filter(!is.na(Deaths)) %>% 
+    select(Cases, Date, Days, Deaths) %>% 
+    mutate(actual_deaths=Deaths-lag(Deaths, 1, 0)) %>% 
+    mutate(est_cases=actual_deaths/in_An_CFR) %>% 
+    mutate(Date=Date-in_An_DeathLag ) %>% 
+    mutate(est_cases=cumsum(est_cases))
+  
+  foo <- build_expmodel(data, 
+                        indep="est_cases", # independent variable
+                        in_weights=FALSE, 
+                        fit='all',
+                        projection=10+in_An_DeathLag) 
+  return(foo)
+  
+}
     
   #---------------------------------------------------    
   #------------------- Build Death Plot --------------
   #---------------------------------------------------    
   
-  build_deaths_plot <- function(in_weights=FALSE){
+  build_deaths_plot <- function(in_weights=FALSE,
+                                in_Deaths_logscale,
+                                in_Deaths_zoom,
+                                in_An_CFR,
+                                in_An_DeathLag,
+                                in_Deaths_back_est
+                                ){
       # Build exponential line for plot
     print(":::::::  build_death_plot")
     print(An_subdata)
     
-    #   Set no weighting
-    #weights <- replicate(nrow(An_subdata), 1)
+    # Get rid of duplicate cumulative entries.
+    An_subdata <- An_subdata %>% 
+      filter(!is.na(Deaths)) %>% 
+      mutate(actual_deaths=Deaths-lag(Deaths, 1, 0)) %>% 
+      filter(actual_deaths>0) %>% 
+      mutate(Deaths=cumsum(actual_deaths))
+
+    print("build_death_plot --1--")
+    print(An_subdata)
+    
     foo <- build_expmodel(An_subdata,
                           indep="Deaths",
                           in_weights=in_weights,
@@ -1236,6 +1156,8 @@ CrowdText <- "Sizes of groups to avoid to keep\nchance of meeting a contagious\n
                      signif(foo$b,3))
     print("build_deaths_plot --- 2")
     ExpLine <- foo$Line[[1]]
+    m <- foo$m
+    b <- foo$b
     print(summary(ExpLine))
     print("build_deaths_plot --- 3")
     # Build Est Cases from Deaths
@@ -1259,7 +1181,7 @@ CrowdText <- "Sizes of groups to avoid to keep\nchance of meeting a contagious\n
       geom_point(data=ExpLine[(nrow(ExpLine)-9):nrow(ExpLine),],
                     aes(x=Date, y=Deaths),
                  shape=20, size=2, fill="blue") 
-    if (!input$Deaths_logscale) {
+    if (!in_Deaths_logscale) {
         p <- p + geom_col(alpha = 2/3)  +
              geom_label(aes(label=Deaths), 
                             stat='identity',
@@ -1272,70 +1194,40 @@ CrowdText <- "Sizes of groups to avoid to keep\nchance of meeting a contagious\n
       p <- p + geom_label(data=ExpLine[(nrow(ExpLine)-9):nrow(ExpLine),],
                   aes(label=as.integer(Deaths+.5)),
                   hjust=1, vjust=0) +
-          #geom_line(data=ExpLine,
-          #          aes(x=Date-13, y=Deaths*60,
-          #              color="tests"),
-          #          size=1,
-          #          linetype="dashed") +
-          #geom_point(data=TestingData,
-          #              aes(x=Date, y=Total/xform, color="tests"),
-          #           size=3, shape=23, fill="black") +
-          #geom_text(data=TestingData,
-          #          aes(x=Date, y=Total/xform, label=Total),
-          #          nudge_x=-1.00, nudge_y=0.0) +
+
           theme(text = element_text(size=20)) +
           labs(title=paste0("COVID-19 Deaths in ",PopLabel$Label), 
                subtitle=paste0(" as of ", lastdate))
       
-      #p <- p + annotate("label", 
-      #                  x=(LastDate - begin + 10)/1.5+begin, 
-      #                  #y=An_subdata$Deaths[nrow(An_subdata)]/5, 
-      #                  y=0,
-      #                  label=EqText)
-      
-      #if (!is.nan(ExpLine$SD_lower[1]) & input$modeling=="do fit"){
-      #     p <- p + geom_errorbar(data=ExpLine[(nrow(ExpLine)-9):nrow(ExpLine),],
-      #                  aes(x=Date, y=Deaths, ymin=SD_lower, ymax=SD_upper)) 
-      #}
-      
-     # if (input$Deaths_logscale) {
-     #   trans_value <- "log10"
-     #   min_limit <- min(ExpLine$Deaths[1], 2)
-     # } else {
-     #   trans_value <- "identity"
-     #   min_limit <- 0
-     # }
-     # if (input$Deaths_zoom) {
-     #     # limit height of modeled fit
-     #   p <- p + scale_y_continuous(limits=c(min_limit, 6*max(ExpLine$Deaths)),
-     #                               #sec.axis = sec_axis(~.*xform, 
-     #                               #name = "Statewide Test Total"),
-     #                               trans=trans_value)
-     # } else {
-     #   p <- p + scale_y_continuous(limits=c(min_limit, max(ExpLine$Deaths)),
-     #                               #sec.axis = sec_axis(~.*xform, 
-     #                               #name = "Statewide Test Total"),
-     #                               trans=trans_value)
-     # }
-  
-    
     #-------------------------------- back estimate?
     print("build_deaths_plot --- 5")
-    if (input$Deaths_back_est) {#  Build a model for the number of cases from deaths
-      print(ExpLine)
-      begin <- min(which(as.logical(An_subdata$Deaths)))
-      dateseq <- as_date((An_subdata$Date[begin]-input$An_DeathLag):(LastDate+10))
-      dayseq <- 0:(length(dateseq)-1)
-      est_cases <- 10**(m*dayseq+b)/(input$An_CFR/100)
-      ExpLine <- tibble( Days=dayseq, Date=dateseq, est_cases=est_cases)
-      #ExpLine <- ExpLine %>% 
-       # mutate(est_cases=Deaths/(input$An_CFR/100))
-      print(ExpLine)
-      p <- p + geom_line(data=ExpLine,
+    ymax <- max(ExpLine$Deaths)
+    if (in_Deaths_back_est) {#  Build a model for the number of cases from deaths
+      foo <- backest_cases(in_An_DeathLag, in_An_CFR)
+      ExpLine_est <- foo$Line[[1]]
+      m_est <- foo$m
+      b_est <- foo$b
+
+      ymax <- max(ExpLine_est$est_cases)
+      p <- p + geom_line(data=ExpLine_est,
                     aes(x=Date, y=est_cases,
                         color="est"),
                     size=1,
                     linetype="dashed") 
+    print("build_deaths_plot --- 7")
+    
+      this_day <- An_subdata$Days[length(An_subdata$Days)] # day seq of today
+      indx <- match(today()-1, ExpLine_est$Date)
+      p <- p + geom_point(aes(x = ExpLine_est$Date[indx] , 
+                              y = ExpLine_est$est_cases[indx]), 
+                          color = "black", size = 2) +
+        geom_label(data = data.frame(x = ExpLine_est$Date[indx], 
+                                     y = ExpLine_est$est_cases[indx]), 
+                                     nudge_x=1,
+                                     nudge_y=0, 
+                                     aes(x, y, 
+                                         label = signif(ExpLine_est$est_cases[indx], 3) ))
+      
       p <-  build_legend(p, "Deaths",
                              c("Data", "Fit", "Est Cases"), # Labels for legend
                              c("black", "blue", "red"), # Color values
@@ -1348,24 +1240,21 @@ CrowdText <- "Sizes of groups to avoid to keep\nchance of meeting a contagious\n
                              c("data", "fit") # Breaks (named lists)
                              )
     }      
+    print("build_deaths_plot --- 8")
     #-------------------------------- Log scaling?
-      if (input$Deaths_logscale) {
+      if (in_Deaths_logscale) {
         trans_value <- "log10"
         min_limit <- min(ExpLine$Deaths[1], 2)
       } else {
         trans_value <- "identity"
         min_limit <- 0
       }
-      if (input$Deaths_zoom) {
+      if (in_Deaths_zoom) {
           # limit height of modeled fit
-        p <- p + scale_y_continuous(limits=c(min_limit, 6*max(ExpLine$Deaths)),
-                                    #sec.axis = sec_axis(~.*xform, 
-                                    #name = "Statewide Test Total"),
+        p <- p + scale_y_continuous(limits=c(min_limit, 6*ymax),
                                     trans=trans_value)
       } else {
-        p <- p + scale_y_continuous(limits=c(min_limit, max(ExpLine$Deaths)),
-                                    #sec.axis = sec_axis(~.*xform, 
-                                    #name = "Statewide Test Total"),
+        p <- p + scale_y_continuous(limits=c(min_limit, ymax),
                                     trans=trans_value)
       }
   
@@ -1394,8 +1283,8 @@ CrowdText <- "Sizes of groups to avoid to keep\nchance of meeting a contagious\n
       str3 <- paste("           Doubling Time =", signif(log10(2)/m,2), "days",
                     "<br> ", EqText)
       
-      if (!is.nan(Rsqr)){
-        if (Rsqr>.8) {
+      if (!is.nan(rsqr)){
+        if (rsqr>.8) {
           str2 <- paste("R<sup>2</sup> value for fit =", signif(rsqr,4))
         } else {
           str2 <- paste("<font color=\"red\">R<sup>2</sup> value for fit =", 
@@ -1540,15 +1429,18 @@ CrowdText <- "Sizes of groups to avoid to keep\nchance of meeting a contagious\n
     print("Map --7--")
   } 
    
+  #-------------------------------------------------------    
   #------------------- Reactive bits ---------------------
+  #-------------------------------------------------------    
 
   observeEvent(input$tabs, { # do stuff when tab changes
     print(paste("tab:", input$tabs))  
-    if (input$tabs=="MapTab") { ##  Graph Tab ##
-      draw_map()
-    }
+    #if (input$tabs=="MapTab") { ##  Graph Tab ##
+    #  draw_map()
+    #}
     if (input$tabs=="AnalysisTab") { ## Analysis Tab ##
-      prep_An_data()
+      #prep_An_data(input$An_dataset, 
+      #             input$An_area)
     }
   })
     
@@ -1567,14 +1459,6 @@ CrowdText <- "Sizes of groups to avoid to keep\nchance of meeting a contagious\n
     prep_data(input$dataset,
               in_area
               )
-      #print(preps)
-      #subdata <- preps[1][[1]]
-      #print("++++++   subdata")
-      #print(subdata)
-      #PopLabel <- preps[2][[1]]
-      #print("++++++   PopLabel")
-      #print(PopLabel)
-      #foo <- build_expline("real")
       p <- build_basic_plot(input$modeling,
                             input$fit,
                             input$intercept,
@@ -1590,6 +1474,7 @@ CrowdText <- "Sizes of groups to avoid to keep\nchance of meeting a contagious\n
           print(p)
           })
       #displayed_data(foo$m, foo$Rsqr)
+      print("============== end select data ==================")
   })
    
   #---------------------------------------------------    
@@ -1603,12 +1488,25 @@ CrowdText <- "Sizes of groups to avoid to keep\nchance of meeting a contagious\n
                 1}, { # Change data selection
     print(":::::::  observe_event Analysis Data")
                   
-      prep_An_data()
+    in_An_area <- case_when(
+      input$An_dataset == "Region" ~ input$An_region,
+      input$An_dataset == "County" ~ input$An_county
+    )
+      prep_An_data(input$An_dataset, 
+                   in_An_area)
+      print("----- prep An event")
       
       if (input$An_tabs == "Deaths") {
         if ((sum(!is.na(An_subdata$Deaths))>2) &
             (span(An_subdata$Deaths)>0)) {
-          p <- build_deaths_plot(in_weights=FALSE)
+          print("-------  make new plot -------")
+          p <- build_deaths_plot(input$weights,
+                                 input$Deaths_logscale,
+                                 input$Deaths_zoom,
+                                 input$An_CFR,
+                                 input$An_DeathLag,
+                                 input$Deaths_back_est
+                                 )
           output$plot_deaths <- renderPlot({print(p)})
         } else {
           showNotification("Too little death data")
@@ -1624,7 +1522,8 @@ CrowdText <- "Sizes of groups to avoid to keep\nchance of meeting a contagious\n
          # p <- build_something()
       }
       
-     # displayed_data(foo$m, foo$Rsqr)
+      #displayed_data(foo$m, foo$Rsqr)
+      print("============== end select An data ==================")
   })
    
   #---------------------------------------------------    
@@ -1639,15 +1538,27 @@ CrowdText <- "Sizes of groups to avoid to keep\nchance of meeting a contagious\n
                 input$Deaths_back_est
                 input$An_CFR
                 input$An_DeathLag
+                input$An_tabs
                 1}, { # Change data selection
     print(":::::::  observe_event Analysis Data")
                   
-      prep_An_data()
+    in_An_area <- case_when(
+      input$An_dataset == "Region" ~ input$An_region,
+      input$An_dataset == "County" ~ input$An_county
+    )
+      prep_An_data(input$An_dataset, 
+                   in_An_area)
       
       if (input$An_tabs == "Deaths") {
         if ((sum(!is.na(An_subdata$Deaths))>2) &
             (span(An_subdata$Deaths)>0)) {
-          p <- build_deaths_plot()
+          p <- build_deaths_plot(input$weights,
+                                 input$Deaths_logscale,
+                                 input$Deaths_zoom,
+                                 input$An_CFR,
+                                 input$An_DeathLag,
+                                 input$Deaths_back_est
+                                 )
           output$plot_deaths <- renderPlot({print(p)})
         } else {
           showNotification("Too little death data")
@@ -1663,7 +1574,8 @@ CrowdText <- "Sizes of groups to avoid to keep\nchance of meeting a contagious\n
          # p <- build_something()
       }
       
-     # displayed_data(foo$m, foo$Rsqr)
+     #displayed_data(foo$m, foo$Rsqr)
+      print("============== end Analysis ==================")
   })
 
   #---------------------------------------------------    
@@ -1699,6 +1611,7 @@ CrowdText <- "Sizes of groups to avoid to keep\nchance of meeting a contagious\n
           print(p)
           })
       #displayed_data(foo$m, foo$Rsqr)
+      print("============== end Fiddle ==================")
   })
     
   #---------------------------------------------------    
