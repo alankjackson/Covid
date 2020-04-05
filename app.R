@@ -263,252 +263,210 @@ span <- function(vector){
 # Define UI for displaying data for Texas
 ##################################################
 ui <- basicPage(
-    #    Graph, Map, Documentation
-    tabsetPanel(id = "tabs",
-                ##########   Graph Tab
-                tabPanel(
-                    "Graph",
-                    fluid = TRUE,
-                    value = "GraphTab",
-                    fluidPage(
-                      tags$head(
-                        tags$style(
-                          HTML(".shiny-notification {
-             position:fixed;
-             top: calc(20%);
-             left: calc(80%);
-             } "
-                          )
-                        )
-                      ),
-                        #-------------------- Plot
-                        column(
-                            9,
-                            # Plot
-                            plotOutput("plot_graph",
-                                       height = "800px"),
-                            h4("Details on displayed data"),
-                            htmlOutput("data_details")
-                        ),
-                        # end of column Plot
-                        #-------------------- Controls
-                        column(
-                            3,
-                            # Controls
-                            #-------------------- Select Data
-                            wellPanel(
-                                # Select data to plot
-                                h4("Choose the data"),
-                                radioButtons(
-                                    "dataset",
-                                    label = strong("Which Data?"),
-                                    choices = list("Region" = "Region",
-                                                   "County" = "County"),
-                                    selected = "Region",
-                                    width = '90%',
-                                    inline = TRUE
-                                ),
-                                conditionalPanel(
-                                    #    Select Region
-                                    condition = "input.dataset == 'Region'",
-                                    selectInput("region", "Choose a Region:",
-                                                Regions$Region,
-                                                selected = "Texas")
-                                ),
-                                # end conditional panel
-                                conditionalPanel(
-                                    #    Select County
-                                    condition = "input.dataset == 'County'",
-                                    selectInput(
-                                        "county",
-                                        label = "Choose a County:",
-                                        Counties$County,
-                                        selected = "Harris"
-                                    )
-                                )
-                                # end conditional panel
-                            ),
-                            # end wellPanel select data to plot
-                            #-------------------- Plot controls
-                            wellPanel(
-                                # Control plot options
-                                h4("Plotting options"),
-                                checkboxInput(
-                                    inputId = "avoid",
-                                    label = strong("Crowd sizes to avoid"),
-                                    value = FALSE
-                                ),
-                                checkboxInput(
-                                    inputId = "zoom",
-                                    label = strong("Expand scale"),
-                                    value = FALSE
-                                ),
-                                #checkboxInput(
-                                #    inputId = "estmiss",
-                                #    label = strong("Est missed cases"),
-                                #    value = FALSE
-                                #),
-                                checkboxInput(
-                                    inputId = "logscale",
-                                    label = strong("Log Scaling"),
-                                    value = FALSE
-                                )
-                                
-                            ),
-                            # end wellPanel Control plot options
-                            #-------------------- Modeling parameters
-                            wellPanel(
-                                # Modeling parameters
-                                h4("Data Fits"),
-                                radioButtons(
-                                    "modeling",
-                                    label = h5("Exponential Fit"),
-                                    choices = list(
-                                        "Fit data" = "do fit",
-                                        "Worldwide (0.13)" = "standard",
-                                        "User entry" = "user"
-                                    ),
-                                    selected = "do fit"
-                                ),
-                                splitLayout(
-                                  numericInput(
-                                      "fit",
-                                      label = h5("Slope"),
-                                      step = 0.005,
-                                      value = global_slope
-                                  ),
-                                  numericInput(
-                                      "intercept",
-                                      label = h5("Intercept"),
-                                      step = 0.10,
-                                      value = 1.00
-                                  )
-                                ),
-                                checkboxInput(
-                                    inputId = "weights",
-                                    label = strong("Weight fit"),
-                                    value = FALSE
-                                ),
-                                HTML("<hr>"),
-                                checkboxInput(
-                                    inputId = "mult",
-                                    label = strong("Multiply Cases"),
-                                    value = FALSE
-                                ),
-                                numericInput("mult_pos", label = h5("Factor"), 
-                                             min = 1.,
-                                             max = 20,
-                                             value = 2)
-                            )
-                            # end wellPanel Modeling parameters
-                            
-                        ) # end column Controls
-                    )
-                    
-                ),
-                # end tabPanel Graph
+    #    Cases, Map, Documentation
+  tabsetPanel(id = "tabs",
     ##########   Analysis Tab
     tabPanel( "Analysis", fluid = TRUE, value = "AnalysisTab",
         HTML("<hr>"),
         fluidPage(#-------------------- Analysis Tabs
-        column( 9, # Tabs
-     tabsetPanel(id = "An_tabs",
-                ##########   Graph Tab
-          tabPanel(
-                    "Deaths",
-                    fluid = TRUE,
-                    value = "Deaths",
-                    HTML("<hr>"),
-                    plotOutput("plot_deaths",
-                               height = "800px"),
-                    h4("Details on displayed data"),
-                    htmlOutput("death_details")
-                  ), # end tab panel Deaths
-          tabPanel(
-                    "Slope Change",
-                    fluid = TRUE,
-                    value = "SlopeChange",
-                    HTML("<hr>")
-                  ), # end tab panel Deaths
-          tabPanel(
-                    "Missed Tests",
-                    fluid = TRUE,
-                    value = "Tests",
-                    HTML("<hr>")
-                  ), # end tab panel Deaths
-          tabPanel(
-                    "Something",
-                    fluid = TRUE,
-                    value = "Something",
-                    HTML("<hr>")
-                  ) # end tab panel Deaths
-               ) # end TabSet panel An_tabs
-             ), # end column 
+          tags$head(
+            tags$style(
+              HTML(".shiny-notification {
+                   position:fixed;
+                   top: calc(20%);
+                   left: calc(80%);
+                   } "
+              ) 
+            ) 
+          ),
+    column( 9, # Tabs
+      tabsetPanel(id = "An_tabs",          
+         tabPanel( ##########   Cases Tab
+           "Cases",
+           fluid = TRUE,
+           value = "Cases",
+           HTML("<hr>"),
+           plotOutput("plot_cases",
+                      height = "800px"),
+           h4("Details on displayed data"),
+           htmlOutput("data_details")
+         ), # end tab panel Deaths
+         tabPanel( ##########   Deaths Tab
+                   "Deaths",
+                   fluid = TRUE,
+                   value = "Deaths",
+                   HTML("<hr>"),
+                   plotOutput("plot_deaths",
+                              height = "800px"),
+                   h4("Details on displayed data"),
+                   htmlOutput("death_details")
+         ), # end tab panel Deaths
+         tabPanel( ##########   Slope Change
+                   "Slope Change",
+                   fluid = TRUE,
+                   value = "SlopeChange",
+                   HTML("<hr>")
+         ), # end tab panel Deaths
+         tabPanel( ##########   Missed Tests
+                   "Missed Tests",
+                   fluid = TRUE,
+                   value = "Tests",
+                   HTML("<hr>")
+         ), # end tab panel Deaths
+         tabPanel(
+                   "Something",
+                   fluid = TRUE,
+                   value = "Something",
+                   HTML("<hr>")
+          ) # end tab panel Deaths
+        ) # end TabSet panel An_tabs
+      ), # end column 
             #-------------------- Data Selection
-           column(3, # Controls
-                   # Select data to plot
-                   h4("Choose the data"),
-                   radioButtons(
-                     "An_dataset",
-                     label = strong("Which Data?"),
-                     choices = list("Region" = "Region",
-                                    "County" = "County"),
-                     selected = "Region",
-                     width = '90%'
-                   ),
-                   conditionalPanel(
-                     #    Select Region
-                     condition = "input.An_dataset == 'Region'",
-                     selectInput("An_region", "Choose a Region:",
-                                 Regions$Region,
-                                 selected = "Texas")
-                   ), # end conditional panel
-                   conditionalPanel(
-                     #    Select County
-                     condition = "input.An_dataset == 'County'",
-                     selectInput(
-                       "An_county",
-                       label = "Choose a County:",
-                       Counties$County,
-                       selected = "Harris"
-                     )
-                   ), # end conditional panel
-                  conditionalPanel(
+         column(3, # Controls
+              wellPanel( # Data Select
+                 h4("Choose the data"),
+                 radioButtons(
+                   "dataset",
+                   label = strong("Which Data?"),
+                   choices = list("Region" = "Region",
+                                  "County" = "County"),
+                   selected = "Region",
+                   width = '90%'
+                 ),
+                 conditionalPanel(
+                   #    Select Region
+                   condition = "input.dataset == 'Region'",
+                   selectInput("region", "Choose a Region:",
+                               Regions$Region,
+                               selected = "Texas")
+                 ), # end conditional panel
+                 conditionalPanel(
+                   #    Select County
+                   condition = "input.dataset == 'County'",
+                   selectInput(
+                     "county",
+                     label = "Choose a County:",
+                     Counties$County,
+                     selected = "Harris"
+                   )
+                 )
+               ), # end Data select
+
+              #-------------------- Modeling parameters
+                  conditionalPanel( # Deaths Plot controls
+                    #    Cases Tab
+                    condition = "input.An_tabs == 'Cases'",               
+                    #-------------------- Plot controls
+              wellPanel(
+                # Control plot options
+                h4("Plotting options"),
+                checkboxInput(
+                  inputId = "avoid",
+                  label = strong("Crowd sizes to avoid"),
+                  value = FALSE
+                ),
+                checkboxInput(
+                  inputId = "zoom",
+                  label = strong("Expand scale"),
+                  value = FALSE
+                ),
+                #checkboxInput(
+                #    inputId = "estmiss",
+                #    label = strong("Est missed cases"),
+                #    value = FALSE
+                #),
+                checkboxInput(
+                  inputId = "logscale",
+                  label = strong("Log Scaling"),
+                  value = FALSE
+                )
+                
+              ),
+              # end wellPanel Control plot options
+                  wellPanel(
+                    # Modeling parameters
+                    h4("Data Fits"),
+                    radioButtons(
+                      "modeling",
+                      label = h5("Exponential Fit"),
+                      choices = list(
+                        "Fit data" = "do fit",
+                        "Worldwide (0.13)" = "standard",
+                        "User entry" = "user"
+                      ),
+                      selected = "do fit"
+                    ),
+                    splitLayout(
+                      numericInput(
+                        "fit",
+                        label = h5("Slope"),
+                        step = 0.005,
+                        value = global_slope
+                      ),
+                      numericInput(
+                        "intercept",
+                        label = h5("Intercept"),
+                        step = 0.10,
+                        value = 1.00
+                      )
+                    ),
+                    checkboxInput(
+                      inputId = "weights",
+                      label = strong("Weight fit"),
+                      value = FALSE
+                    ),
+                    HTML("<hr>"),
+                    checkboxInput(
+                      inputId = "mult",
+                      label = strong("Multiply Cases"),
+                      value = FALSE
+                    ),
+                    numericInput("mult_pos", label = h5("Factor"), 
+                                 min = 1.,
+                                 max = 20,
+                                 value = 2)
+                    )
+                  ),
+                  # end wellPanel Modeling parameters
+                
+                  conditionalPanel( # Deaths Plot controls
                     #    Deaths Tab
                     condition = "input.An_tabs == 'Deaths'",
-                      checkboxInput(
-                        inputId = "Deaths_logscale",
-                        label = strong("Log Scaling"),
-                        value = FALSE
-                    ),
-                      checkboxInput(
-                        inputId = "Deaths_zoom",
-                        label = strong("Expand Scale"),
-                        value = FALSE
-                    ),
-                    HTML("<hr>"),
-                      checkboxInput(
-                        inputId = "Deaths_back_est",
-                        label = strong("Est Cases from Deaths"),
-                        value = FALSE
-                    ),
-                      splitLayout(
-                        numericInput(
-                            "An_CFR",
-                            label = h5("CFR (%)"),
-                            step = 0.1,
-                            value = 1.0
+                      wellPanel(
+                        checkboxInput(
+                          inputId = "Deaths_logscale",
+                          label = strong("Log Scaling"),
+                          value = FALSE
                         ),
-                        numericInput(
-                            "An_DeathLag",
-                            label = h5("Days to Death"),
-                            step = 1.0,
-                            value = 13.00
-                        )
-                      ),
+                        checkboxInput(
+                          inputId = "Deaths_zoom",
+                          label = strong("Expand Scale"),
+                          value = FALSE
+                        ),
+                        HTML("<hr>"),
+                        checkboxInput(
+                          inputId = "Deaths_back_est",
+                          label = strong("Est Cases from Deaths"),
+                          value = FALSE
+                        ),
+                        splitLayout(
+                          cellWidths = c("35%", "65%"),
+                          numericInput(
+                              "An_CFR",
+                              label = h5("CFR (%)"),
+                              step = 0.1,
+                              value = 1.0
+                          ),
+                          numericInput(
+                              "An_DeathLag",
+                              label = h5("Days to Death"),
+                              step = 1.0,
+                              value = 13.00
+                          )
+                        ),
                     HTML("<hr>")
                     
-                  ),
+                  ), # End Deaths Plot controls
                   # end conditional panel
                   conditionalPanel(
                     #    Slope Change Tab
@@ -520,10 +478,11 @@ ui <- basicPage(
                       selected = "Harris"
                     )
                   )
+                  )# end wellPanel
                   # end conditional panel
                  ) # end column Controls
          ) # end fluid page
-                   
+                
      ), # end tabPanel Analysis
     ##########   Map Tab
     tabPanel( "Map", fluid = TRUE, value = "MapTab",
@@ -537,25 +496,25 @@ ui <- basicPage(
             ), # end of column Plot
             #-------------------- Controls
             column(3, # Controls
-                   #    Select quantity to color counties with
-                   radioButtons("county_color", 
-                                label = strong("Display which variable?"),
-                                choices = list( "Total Cases" = "casetotal", 
-                                               "Cases per 100,000 population" = "percapita",
-                                               "Deaths" = "deaths",
-                                               "Deaths/Cases" = "deathpercase"
-                                               ), 
-                                selected = "casetotal",
-                                width='90%',
-                                inline=FALSE)
-                   ) # end column control
+               #    Select quantity to color counties with
+               radioButtons("county_color", 
+                  label = strong("Display which variable?"),
+                  choices = list( "Total Cases" = "casetotal", 
+                                 "Cases per 100,000 population" = "percapita",
+                                 "Deaths" = "deaths",
+                                 "Deaths/Cases" = "deathpercase"
+                                 ), 
+                  selected = "casetotal",
+                  width='90%',
+                  inline=FALSE)
+               ) # end column control
          ) # end fluid page
                    
      ), # end tabPanel Map
     ##########   Documentation Tab
-                           tabPanel("Documentation", fluid=TRUE, value="DocumentationTab",
-                                    withMathJax(includeMarkdown("Documentation.Rmd")),
-                                    HTML("<hr>")
+         tabPanel("Documentation", fluid=TRUE, value="DocumentationTab",
+                  withMathJax(includeMarkdown("Documentation.Rmd")),
+                  HTML("<hr>")
 
           )  # end tabPanel Documentation
         )  # end tabset 
@@ -577,7 +536,6 @@ server <- function(input, output) {
   prep_data <- function(in_dataset="Region", 
                         in_area="Texas"
                         ) { 
-    # return population, label for graph title and tibble subset
     print(":::::::  prep_data")
     if (in_dataset=="Region") { # work with regions
       PopLabel <<- Regions %>% filter(Region==in_area)
@@ -585,13 +543,15 @@ server <- function(input, output) {
       subdata <<- DF %>% 
           filter(County %in% target) %>% 
           group_by(Date) %>% 
-          summarise(Cases=sum(Cases), Days=mean(Days), Estimate=sum(Estimate))
+          summarise(Cases=sum(Cases), 
+                    Days=mean(Days), 
+                    Estimate=sum(Estimate),
+                    Deaths=sum(Deaths, na.rm=TRUE)) %>% 
+          mutate(Deaths=na_if(Deaths, 0))
       return()
+      
     } else { # select a county
       #   Is there any data?
-      print("*******************************************")
-      print(in_area %in% DF$County)
-      print("*******************************************")
       if (! in_area %in% DF$County) {
         showNotification(paste("No reported cases in", in_area),
                          duration=2)
@@ -619,8 +579,6 @@ server <- function(input, output) {
     print(data)
     #  Drop rows that are zero
     data <- data %>% filter((!!sym(indep))>0) 
-    print("build_expmodel --1--")
-    print(data)
     #   Go projection days into future
     begin <- data$Date[1] # date of first reported case
     LastDate <- data[nrow(data),]$Date
@@ -631,11 +589,8 @@ server <- function(input, output) {
     dateseq <- data$Date
     dateseq <- as_date(c(dateseq,(dateseq[length(dateseq)]+1): 
                                  (dateseq[length(dateseq)]-1+projection)))
-    print("build_expmodel --2--")
     x <- data$Days
     y <- data[,indep][[1]]
-    print(x)
-    print(y)
     if (in_weights) {
       weights <- (1:nrow(data))**2.5
     } else {
@@ -663,14 +618,12 @@ server <- function(input, output) {
       #std_dev <- sigma(model)
       Rsqr <- 1
       std_dev <- 0
-      print(paste("----build_expline-2--"))
     } else if (fit=="m_only") {
       model <- lm(I(x - b) ~ 0 + log10(y), weights=weights)
       m <- model[["coefficients"]][["x"]]
       b <- model[["coefficients"]][["(Intercept)"]]
       Rsqr <- summary(model)$adj.r.squared
       std_dev <- sigma(model)
-      print(paste("----build_expline-3--", model))
     } else {print("serious error in build_expmodel")}
 
     Cases <- 10**(m*dayseq+b)
@@ -737,7 +690,6 @@ server <- function(input, output) {
     print("ExpLine")
     print(ExpLine)
     xform <- 2*signif(max(TestingData$Total)/(6*max(subdata$Cases)),2)
-      print("build_basic_plot ---- 2")
  
     #  Basic canvas     
     p <- subdata %>% 
@@ -785,7 +737,6 @@ server <- function(input, output) {
                            nudge_x=-0.50, nudge_y=0.0)
      }       
 
-      print("build_basic_plot ---- 3")
     #------------------
     #  Error bars
     #------------------
@@ -793,7 +744,6 @@ server <- function(input, output) {
            p <- p + geom_errorbar(data=ExpLine[(nrow(ExpLine)-9):nrow(ExpLine),],
                         aes(x=Date, y=Cases, ymin=SD_lower, ymax=SD_upper)) 
       }
-      print("build_basic_plot ---- 4")
       
     #------------------
     #  Log scaling
@@ -805,7 +755,6 @@ server <- function(input, output) {
         trans_value <- "identity"
         min_limit <- 0
       }
-      print("build_basic_plot ---- 5")
     #------------------
     #  Zoom
     #------------------
@@ -821,7 +770,6 @@ server <- function(input, output) {
                                     name = "Statewide Test Total"),
                                     trans=trans_value)
       }
-      print("build_basic_plot ---- 6")
     #------------------
     #  Legend
     #------------------
@@ -837,7 +785,6 @@ server <- function(input, output) {
           leg_vals <- c(leg_vals, "red")
           leg_brks <- c(leg_brks, "mult")
       } 
-      print("build_basic_plot ---- 7")
     #------------------
     #  Estimate missed cases
     #------------------
@@ -847,7 +794,6 @@ server <- function(input, output) {
     #      leg_vals <- c(leg_vals, "green")
     #      leg_brks <- c(leg_brks, "est_miss")
     #  } 
-      print("build_basic_plot ---- 8")
     #------------------
     #  Crowdsize
     #------------------
@@ -860,7 +806,6 @@ server <- function(input, output) {
                              in_weights,
                              in_zoom)
       }
-      print("build_basic_plot ---- 9")
       p <-  build_legend(p, "Cases",
                              leg_labs, # Labels for legend
                              leg_vals, # Color values
@@ -886,7 +831,6 @@ server <- function(input, output) {
     subdata <- subdata %>% # update mult cases in case needed
       mutate(Estimate=Cases*replace_na(in_mult_pos,0.1))
     
-    print(subdata)
     
     # Build an exponential model
     foo <- build_expmodel(subdata,
@@ -992,8 +936,6 @@ server <- function(input, output) {
       dateseq <- as_date(begin:(LastDate + 10))
       Cases <- ExpLine$Cases
       Cases_est <- ExpLine_est$Estimate
-      print(Cases)
-      print(Cases_est)
       
       # Build label tibble
       CrowdLabels <- tibble(Date=TestDates,
@@ -1004,7 +946,6 @@ server <- function(input, output) {
                                 Crowd=Crowdsize_est,
                                 Cases=Cases_est[TestDays])
       
-      print(paste("===Crowds:", CrowdLabels))
       CrowdLayer1 <-  geom_point(data=CrowdLabels,
                                  aes(x=Date, y=Cases)) 
       CrowdLayer2 <- geom_label(data=CrowdLabels,
@@ -1052,46 +993,37 @@ CrowdText <- "Sizes of groups to avoid to keep\nchance of meeting a contagious\n
   #---------------------------------------------------    
   #------------------- Prep Analysis Data ------------
   #---------------------------------------------------    
-  prep_An_data <- function(in_An_dataset="Region", 
-                           in_An_area="Texas"
-                        ) { 
-    print(":::::::  prep_An_data")
-    if (in_An_dataset=="Region") { # work with regions
-        print(paste("--A1--", DefineRegions$List[DefineRegions$Region==in_An_area]))
-      An_PopLabel <<- Regions %>% filter(Region==in_An_area)
-      target <- unlist(DefineRegions$List[DefineRegions$Region==in_An_area])
-      An_subdata <<- DF %>% 
-          filter(County %in% target) %>% 
-          group_by(Date) %>% 
-          summarise(Cases=sum(Cases), 
-                    Days=mean(Days), 
-                    Estimate=sum(Estimate),
-                    Deaths=sum(Deaths, na.rm=TRUE)) %>% 
-          #filter(Cases>0) %>% 
-          mutate(Deaths=na_if(Deaths, 0))
-      #An_subdata$Days <- seq(0:(nrow(An_subdata)-1))
-      print(paste("---A1.5---"))
-            print(An_subdata) 
-            print(in_An_area)
-      An_begin <- An_subdata$Date[1] # date of first reported case
-      return()
-    } else {
-        print(paste("--A2--", in_An_area))######################### print
-      #   Is there any data?
-      if (! in_An_area %in% DF$County) {
-        showNotification(paste("No reported cases in", in_An_area))
-        return()
-      }
-      
-      An_PopLabel <<- Counties %>% filter(County==in_An_area) %>% 
-                     mutate(Label=paste(in_An_area, "County"))
-      An_subdata <<- DF %>% filter(County==in_An_area) %>% 
-          filter(Deaths>0)
-#      An_subdata$Days <- seq(0:(nrow(An_subdata)-1))
-#      An_begin <<- An_subdata$Date[1] # date of first reported case
-      return()
-    }
-  } # end prep_data
+  #prep_An_data <- function(in_An_dataset="Region", 
+  #                         in_An_area="Texas"
+  #                      ) { 
+  #  print(":::::::  prep_An_data")
+  #  if (in_An_dataset=="Region") { # work with regions
+  #    An_PopLabel <<- Regions %>% filter(Region==in_An_area)
+  #    target <- unlist(DefineRegions$List[DefineRegions$Region==in_An_area])
+  #    An_subdata <<- DF %>% 
+  #        filter(County %in% target) %>% 
+  #        group_by(Date) %>% 
+  #        summarise(Cases=sum(Cases), 
+  #                  Days=mean(Days), 
+  #                  Estimate=sum(Estimate),
+  #                  Deaths=sum(Deaths, na.rm=TRUE)) %>% 
+  #        mutate(Deaths=na_if(Deaths, 0))
+  #    An_begin <- An_subdata$Date[1] # date of first reported case
+  #    return()
+  #  } else {
+  #    #   Is there any data?
+  #    if (! in_An_area %in% DF$County) {
+  #      showNotification(paste("No reported cases in", in_An_area))
+  #      return()
+  #    }
+  #    
+  #    An_PopLabel <<- Counties %>% filter(County==in_An_area) %>% 
+  #                   mutate(Label=paste(in_An_area, "County"))
+  #    An_subdata <<- DF %>% filter(County==in_An_area) %>% 
+  #        filter(Deaths>0)
+  #    return()
+  #  }
+  #} # end prep_data
 
   #---------------------------------------------------    
   #------------------- Back Estimate Cases -----------
@@ -1104,7 +1036,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR) {
   
   # convert cumulative deaths to actual deaths
   
-  data <- An_subdata %>% 
+  data <- subdata %>% 
     filter(!is.na(Deaths)) %>% 
     select(Cases, Date, Days, Deaths) %>% 
     mutate(actual_deaths=Deaths-lag(Deaths, 1, 0)) %>% 
@@ -1134,36 +1066,30 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR) {
                                 ){
       # Build exponential line for plot
     print(":::::::  build_death_plot")
-    print(An_subdata)
-    
     # Get rid of duplicate cumulative entries.
-    An_subdata <- An_subdata %>% 
+    subdata <- subdata %>% 
+      filter(Deaths>0) %>% 
       filter(!is.na(Deaths)) %>% 
       mutate(actual_deaths=Deaths-lag(Deaths, 1, 0)) %>% 
       filter(actual_deaths>0) %>% 
       mutate(Deaths=cumsum(actual_deaths))
 
-    print("build_death_plot --1--")
-    print(An_subdata)
+    print(subdata)
     
-    foo <- build_expmodel(An_subdata,
+    foo <- build_expmodel(subdata,
                           indep="Deaths",
                           in_weights=in_weights,
                           fit="all")
-    print("build_deaths_plot --- 1")
     EqText <- paste0("Fit is log(Cumulative Deaths) = ",
                      signif(foo$m,3),"*Days + ",
                      signif(foo$b,3))
-    print("build_deaths_plot --- 2")
     ExpLine <- foo$Line[[1]]
     m <- foo$m
     b <- foo$b
-    print(summary(ExpLine))
-    print("build_deaths_plot --- 3")
     # Build Est Cases from Deaths
     
     
-    p <- An_subdata %>% 
+    p <- subdata %>% 
         ggplot(aes(x=Date, y=Deaths)) 
     
     p <- p + 
@@ -1190,7 +1116,6 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR) {
         
         p <- p + geom_point(aes(color="data"), size=2) 
      } 
-    print("build_deaths_plot --- 4")
       p <- p + geom_label(data=ExpLine[(nrow(ExpLine)-9):nrow(ExpLine),],
                   aes(label=as.integer(Deaths+.5)),
                   hjust=1, vjust=0) +
@@ -1200,7 +1125,6 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR) {
                subtitle=paste0(" as of ", lastdate))
       
     #-------------------------------- back estimate?
-    print("build_deaths_plot --- 5")
     ymax <- max(ExpLine$Deaths)
     if (in_Deaths_back_est) {#  Build a model for the number of cases from deaths
       foo <- backest_cases(in_An_DeathLag, in_An_CFR)
@@ -1214,9 +1138,8 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR) {
                         color="est"),
                     size=1,
                     linetype="dashed") 
-    print("build_deaths_plot --- 7")
     
-      this_day <- An_subdata$Days[length(An_subdata$Days)] # day seq of today
+      this_day <- subdata$Days[length(subdata$Days)] # day seq of today
       indx <- match(today()-1, ExpLine_est$Date)
       p <- p + geom_point(aes(x = ExpLine_est$Date[indx] , 
                               y = ExpLine_est$est_cases[indx]), 
@@ -1240,7 +1163,6 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR) {
                              c("data", "fit") # Breaks (named lists)
                              )
     }      
-    print("build_deaths_plot --- 8")
     #-------------------------------- Log scaling?
       if (in_Deaths_logscale) {
         trans_value <- "log10"
@@ -1263,7 +1185,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR) {
     m <- foo$m
     b <- foo$b 
     Rsqr <- foo$Rsqr
-    output$death_details <- data_details(An_subdata,
+    output$death_details <- data_details(subdata,
                                          "Deaths",
                                          EqText,
                                          m,
@@ -1435,7 +1357,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR) {
 
   observeEvent(input$tabs, { # do stuff when tab changes
     print(paste("tab:", input$tabs))  
-    #if (input$tabs=="MapTab") { ##  Graph Tab ##
+    #if (input$tabs=="MapTab") { ##  Map Tab ##
     #  draw_map()
     #}
     if (input$tabs=="AnalysisTab") { ## Analysis Tab ##
@@ -1470,10 +1392,9 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR) {
                             input$estmiss,
                             input$avoid)
 
-      output$plot_graph <- renderPlot({
+      output$plot_cases <- renderPlot({
           print(p)
           })
-      #displayed_data(foo$m, foo$Rsqr)
       print("============== end select data ==================")
   })
    
@@ -1481,25 +1402,23 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR) {
   #------------------- Select Analysis Data ----------
   #---------------------------------------------------    
   observeEvent({
-                input$An_dataset
-                input$An_region
-                input$An_county
+                input$dataset
+                input$region
+                input$county
                 input$An_tabs
                 1}, { # Change data selection
     print(":::::::  observe_event Analysis Data")
                   
     in_An_area <- case_when(
-      input$An_dataset == "Region" ~ input$An_region,
-      input$An_dataset == "County" ~ input$An_county
+      input$dataset == "Region" ~ input$region,
+      input$dataset == "County" ~ input$county
     )
-      prep_An_data(input$An_dataset, 
+      prep_data(input$dataset, 
                    in_An_area)
-      print("----- prep An event")
       
       if (input$An_tabs == "Deaths") {
-        if ((sum(!is.na(An_subdata$Deaths))>2) &
-            (span(An_subdata$Deaths)>0)) {
-          print("-------  make new plot -------")
+        if ((sum(!is.na(subdata$Deaths))>2) &
+            (span(subdata$Deaths)>0)) {
           p <- build_deaths_plot(input$weights,
                                  input$Deaths_logscale,
                                  input$Deaths_zoom,
@@ -1522,7 +1441,6 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR) {
          # p <- build_something()
       }
       
-      #displayed_data(foo$m, foo$Rsqr)
       print("============== end select An data ==================")
   })
    
@@ -1530,9 +1448,9 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR) {
   #------------------- Analysis ----------------------
   #---------------------------------------------------    
   observeEvent({
-                input$An_dataset
-                input$An_region
-                input$An_county
+                input$dataset
+                input$region
+                input$county
                 input$Deaths_logscale
                 input$Deaths_zoom
                 input$Deaths_back_est
@@ -1543,15 +1461,15 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR) {
     print(":::::::  observe_event Analysis Data")
                   
     in_An_area <- case_when(
-      input$An_dataset == "Region" ~ input$An_region,
-      input$An_dataset == "County" ~ input$An_county
+      input$dataset == "Region" ~ input$region,
+      input$dataset == "County" ~ input$county
     )
-      prep_An_data(input$An_dataset, 
+      prep_data(input$dataset, 
                    in_An_area)
       
       if (input$An_tabs == "Deaths") {
-        if ((sum(!is.na(An_subdata$Deaths))>2) &
-            (span(An_subdata$Deaths)>0)) {
+        if ((sum(!is.na(subdata$Deaths))>2) &
+            (span(subdata$Deaths)>0)) {
           p <- build_deaths_plot(input$weights,
                                  input$Deaths_logscale,
                                  input$Deaths_zoom,
@@ -1574,7 +1492,6 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR) {
          # p <- build_something()
       }
       
-     #displayed_data(foo$m, foo$Rsqr)
       print("============== end Analysis ==================")
   })
 
@@ -1594,7 +1511,6 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR) {
                 1} , { # 
                   
     print(":::::::  observe_event 2")
-      #foo <- build_expline("real")
                   
       p <- build_basic_plot(input$modeling,
                             input$fit,
@@ -1607,10 +1523,9 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR) {
                             input$estmiss,
                             input$avoid)
       
-      output$plot_graph <- renderPlot({
+      output$plot_cases <- renderPlot({
           print(p)
           })
-      #displayed_data(foo$m, foo$Rsqr)
       print("============== end Fiddle ==================")
   })
     
