@@ -673,6 +673,42 @@ leaflet(TodayData) %>%
 
 ```
 
+## fit issues
+
+
+```{r reprex2}
+
+foo <- tribble(
+    ~Days, ~Cases, ~Deaths,
+     1,     1,     NA,
+     2,     3,     NA,
+     3,     3,     NA,
+     4,     3,     NA,
+     5,     4,     NA,
+     6,     6,     NA,
+     7,    12,     NA,
+     8,    22,     NA,
+     9,    24,     NA,
+    10,    24,      1,
+    11,    32,      1,
+    12,    69,      1,
+    13,    84,      1,
+    14,   113,      5,
+    15,   125,      5,
+    16,   125,      5,
+    17,   157,      5,
+    18,   168,      5
+)
+
+my_formula <- as.formula("log10(y) ~ x")
+weights <- replicate(nrow(foo), 1)
+x <- foo$Days
+y <- foo$Deaths
+
+LogFits <- lm(my_formula, weights=weights)
+
+```
+
 ## look at daily differences.
 
 Is there an inflection point? Is the daily increase slowing?
@@ -682,6 +718,18 @@ Also compare different metro areas and counties.
 ```{r deltas}
 
 ```
+
+```{r read excel}
+#library(readxl)
+
+url <- "https://dshs.texas.gov/coronavirus/TexasCOVID19DailyCountyCaseCountData.xlsx"
+library(RCurl)
+myfile <- getBinaryURL(url, ssl.verifyhost=FALSE, ssl.verifypeer=FALSE)
+path <- "/home/ajackson/Dropbox/Rprojects/Covid/TexasDataXcel/"
+writeBin(myfile, paste0(path, lubridate::today(),".xlsx"))
+
+```
+
 
 
 
