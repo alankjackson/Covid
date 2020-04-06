@@ -3,6 +3,7 @@
 print(paste("Starting run ---------------------", lubridate::now()))
 library(tidyverse)
 library(stringr)
+library(RCurl)
 library(rvest)
 library(httr)
 library(xml2)
@@ -71,7 +72,7 @@ url <- "https://opendata.arcgis.com/datasets/bc83058386d2434ca8cf90b26dc6b580_0.
 mytable <- read_csv(url) %>% 
   replace_na(list(Count_ = 0, Deaths=0)) %>% 
   select(County, Cases=Count_, Deaths, LastUpdate) %>% 
-  mutate(Date=lubridate::today()) %>% # Add today's date
+  mutate(Date=lubridate::today()-1) %>% # Add today's date
   select(County, Cases, Date, Deaths, LastUpdate) # reorder columns
 
 mytable$LastUpdate <- as.character(mytable$LastUpdate)
@@ -124,7 +125,7 @@ testing_status <- tribble(
 
 print("--1--")
 
-testing_status <- testing_status %>% mutate(Date=lubridate::today())
+testing_status <- testing_status %>% mutate(Date=lubridate::today()-1)
 
 print("--2--")
 #---------------------------------------------------------------------
@@ -144,10 +145,23 @@ deaths=as.numeric(deaths[[1]][2])
 print("--4--")
 deaths_today <- tribble(
   ~Date, ~Cum_Deaths,
-  lubridate::today(), deaths
+  lubridate::today()-1, deaths
 )
 
 print("--5--")
+
+#---------------------------------------------------------------------
+#   Read in excel file from state
+#---------------------------------------------------------------------
+
+url <- "https://dshs.texas.gov/coronavirus/TexasCOVID19CaseCountData.xlsx"
+myfile <- getBinaryURL(url, ssl.verifyhost=FALSE, ssl.verifypeer=FALSE)
+
+path <- "/home/ajackson/Dropbox/Rprojects/Covid/TexasDataXcel/"
+writeBin(myfile, paste0(path, "Cases_by_County_", lubridate::today(),".xlsx"))
+
+
+
 #---------------------------------------------------------------------
 #   Read in old data, append new data, and save
 #---------------------------------------------------------------------
