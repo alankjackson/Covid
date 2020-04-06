@@ -52,6 +52,21 @@ probability that the exposure becomes an infection.
 Counter measures include "social distancing", which reduces E, and hygiene
 measures like hand washing, which reduces p. 
 
+A Logistic fit starts out exponential, but then as the epidemic peaks,
+it flattens and asymptotically approaches the final epidemic size.
+The simple logistic equation I will use for modeling is
+$$N_{d}=\frac{K}{1+e^{N_{0}+rd}}$$ where: 
+* $N_{d}=$ number of cases on day d
+* $K =$ final epidemic size
+* $N_{0} =$ initial number of cases
+* $r =$ the early growth rate (about 0.24 in China)
+* $d =$ day number
+
+A logistic has its inflection point - where it starts to flatten - at
+halfway to the maximum value. So if it looks like the growth curve 
+is starting to flatten, then we can expect the number of cases to
+double before the epidemic ends.
+
 ### Choose the data
 
 Data may be selected by Region (metro area or the whole state) or by individual county.
@@ -114,6 +129,12 @@ probably not very good. To weight them, I arbitrarily use a function
 $w = d^{1.5}$, which should represent $\frac{1}{\sigma^{2}}$. In practice, 
 this rather arbitrary weighting seems to help the fit approach the global
 average fit. Note that you can turn off the weighting if you wish.
+
+#### Logistic
+
+This option fits a logistic curve (see explanation above). The predicted
+maximum number of cases and the date of the inferred inflection point
+are also displayed.
 
 #### Worldwide
 
