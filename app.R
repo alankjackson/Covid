@@ -287,7 +287,7 @@ ui <- basicPage(
            value = "Cases",
            HTML("<hr>"),
            plotOutput("plot_cases",
-                      height = "800px"),
+                      height = "700px"),
            h4("Details on displayed data"),
            htmlOutput("data_details")
          ), # end tab panel Deaths
@@ -297,7 +297,7 @@ ui <- basicPage(
                    value = "Deaths",
                    HTML("<hr>"),
                    plotOutput("plot_deaths",
-                              height = "800px"),
+                              height = "700px"),
                    h4("Details on displayed data"),
                    htmlOutput("death_details")
          ), # end tab panel Deaths
@@ -391,6 +391,7 @@ ui <- basicPage(
                       label = h5("Exponential Fit"),
                       choices = list(
                         "Fit data" = "do fit",
+                        "Logistic" = "logistic",
                         "Worldwide (0.13)" = "standard",
                         "User entry" = "user"
                       ),
@@ -639,10 +640,73 @@ server <- function(input, output) {
   }  
 
   #---------------------------------------------------    
+  #------------------- Fit Logistic function ---------
+  #---------------------------------------------------    
+  logistic <- function(data, 
+                        indep="Cases", # independent variable
+                        r=0.24,
+                        projection=10){
+    
+    print(":::::::  logistic")
+    print(data)
+    Asym <- max(data$Cases)*5
+    xmid <- max(data$Days)*2
+    scal <- 1/r
+    
+    print("----1----")
+    print(paste(Asym, xmid, scal))
+    
+    ## using a selfStart model
+    sigmoid <- nls(Cases ~ SSlogis(Days, Asym, xmid, scal), 
+                   data=data)
+    print("----2----")
+    print(sigmoid)
+    coeffs <- coef(sigmoid)
+    print("----2----")
+    print(coeffs)
+    
+    dayseq <- data$Days
+    dayseq <- c(dayseq,(dayseq[length(dayseq)]+1):
+                       (dayseq[length(dayseq)]-1+projection))
+    dateseq <- data$Date
+    dateseq <- as_date(c(dateseq,(dateseq[length(dateseq)]+1): 
+                                 (dateseq[length(dateseq)]-1+projection)))
+    foo <- tibble(Days=dayseq)
+    #predict2 <- function(x) {predict(x, data.frame(Days=dayseq))}
+    predict2 <- function(x) {predict(x, foo)}
+    print("---------------")
+    f.boot <- car::Boot(sigmoid,f=predict2)
+
+    Cases <- predict(sigmoid, data.frame(Days=dayseq))
+    print(paste("Cases",length(Cases)))
+    print(paste("dayseq",length(dayseq)))
+    print(paste("dateseq",length(dateseq)))
+    print(paste("confint(f.boot)",length(confint(f.boot))))
+    print(f.boot)
+    confidence <- confint(f.boot)
+    print(confint(f.boot))
+    preds <- tibble(dayseq, dateseq,
+                        Cases,
+                        #predict(sigmoid, data.frame(Days=dayseq)),
+                        confidence["2.5 %"],
+                        confidence["97.5 %"])
+    names(preds) <- c("Days", "Date","Cases","SD_upper","SD_lower")
+    
+    print(preds)
+    #  return a tibble
+    tribble(~Line, ~r, ~K, ~xmid,
+             preds, 1/coeffs[["scal"]], coeffs[["Asym"]], coeffs[["xmid"]])
+    
+  }
+  
+  #---------------------------------------------------    
   #------------------- Build Basic Plot --------------
   #---------------------------------------------------    
   
-  build_basic_plot <- function(in_modeling=c("do fit", "standard", "user"), 
+  build_basic_plot <- function(in_modeling=c("do fit", 
+                                             "standard", 
+                                             "user",
+                                             "logistic"), 
                                in_fit,
                                in_intercept,
                                in_weights,
@@ -679,13 +743,25 @@ server <- function(input, output) {
                             fit="none",
                             m=in_fit,
                             b=in_intercept)
+    } else if (in_modeling == "logistic") {
+      foo <- logistic(subdata, 
+                      indep="Cases", # independent variable
+                      r=0.24,
+                      projection=10)
     } else {print("Something bad happened in basic_plot with in_modeling")
             return()
     }
       
-    EqText <- paste0("Fit is log(Cases) = ",
-                     signif(foo$m,3),"*Days + ",
-                     signif(foo$b,3))
+    if (in_modeling == "logistic") {
+      EqText <- paste0("Fit is Cases = ",
+                       signif(foo$K,2), "/( 1 + e^(",
+                       signif(foo$r*foo$xmid,2)," + ", 
+                       signif(foo$r,2),"*Days))")
+    } else {
+      EqText <- paste0("Fit is log(Cases) = ",
+                       signif(foo$m,3),"*Days + ",
+                       signif(foo$b,3))
+    }
     ExpLine <- foo$Line[[1]]
     print("ExpLine")
     print(ExpLine)
@@ -708,16 +784,17 @@ server <- function(input, output) {
                     aes(x=Date, y=Cases,
                         color="fit" ),
                     size=1,
-                    linetype="solid") +
+                    linetype="solid",
+                    fill="blue") +
           geom_point(data=ExpLine[(nrow(ExpLine)-9):nrow(ExpLine),],
                         aes(x=Date, y=Cases),
                      shape=20, size=2, fill="blue") +
           geom_point(data=TestingData,
                         aes(x=Date, y=Total/xform, color="tests"),
-                     size=3, shape=23, fill="black") +
+                     size=3, shape=21, fill="white") +
           geom_text(data=TestingData,
                     aes(x=Date, y=Total/xform, label=Total),
-                    nudge_x=-1.00, nudge_y=0.0) +
+                    nudge_x=-1.50, nudge_y=0.0) +
           theme(text = element_text(size=20)) +
           labs(title=paste0("COVID-19 Cases in ",PopLabel$Label), 
                subtitle=paste0(" as of ", lastdate))
@@ -734,13 +811,13 @@ server <- function(input, output) {
         
         p <- p + geom_point(aes(color="data"), size=2) +
                  geom_text(aes(label=Cases),
-                           nudge_x=-0.50, nudge_y=0.0)
+                           nudge_x=-1.50, nudge_y=0.0)
      }       
 
     #------------------
     #  Error bars
     #------------------
-      if (!is.nan(ExpLine$SD_lower[1]) & in_modeling=="do fit"){
+      if (in_modeling=="do fit" & !is.nan(ExpLine$SD_lower[1])){
            p <- p + geom_errorbar(data=ExpLine[(nrow(ExpLine)-9):nrow(ExpLine),],
                         aes(x=Date, y=Cases, ymin=SD_lower, ymax=SD_upper)) 
       }
@@ -811,12 +888,22 @@ server <- function(input, output) {
                              leg_vals, # Color values
                              leg_brks # Breaks (named lists)
       )
-      output$data_details <- data_details(subdata,
-                                           "Cases",
-                                           EqText,
-                                           foo$m,
-                                           foo$b,
-                                           foo$Rsqr)
+      
+      if (in_modeling=="logistic") {
+        output$data_details <- data_details_l(subdata, 
+                                              "Cases", 
+                                              EqText, 
+                                              foo$K, 
+                                              foo$xmid, 
+                                              foo$r)
+      } else {
+        output$data_details <- data_details(subdata,
+                                             "Cases",
+                                             EqText,
+                                             foo$m,
+                                             foo$b,
+                                             foo$Rsqr)
+      }
       
     return(p)
   }
@@ -888,10 +975,14 @@ server <- function(input, output) {
     
     legend <- theme(legend.position=c( 0.12, 0.5 ))
       
+    print(pvals)
+    print(plabs)
+    print(pbrks)
     Legend_layer <- scale_color_manual(name = title, 
                                          values = pvals,
                                          labels = plabs,
-                                         breaks = pbrks)
+                                         breaks = pbrks
+                                         )
     p <- p + legend + Legend_layer 
     
     return(p)
@@ -988,43 +1079,7 @@ CrowdText <- "Sizes of groups to avoid to keep\nchance of meeting a contagious\n
   
 
   ################################## Analysis
-  
        
-  #---------------------------------------------------    
-  #------------------- Prep Analysis Data ------------
-  #---------------------------------------------------    
-  #prep_An_data <- function(in_An_dataset="Region", 
-  #                         in_An_area="Texas"
-  #                      ) { 
-  #  print(":::::::  prep_An_data")
-  #  if (in_An_dataset=="Region") { # work with regions
-  #    An_PopLabel <<- Regions %>% filter(Region==in_An_area)
-  #    target <- unlist(DefineRegions$List[DefineRegions$Region==in_An_area])
-  #    An_subdata <<- DF %>% 
-  #        filter(County %in% target) %>% 
-  #        group_by(Date) %>% 
-  #        summarise(Cases=sum(Cases), 
-  #                  Days=mean(Days), 
-  #                  Estimate=sum(Estimate),
-  #                  Deaths=sum(Deaths, na.rm=TRUE)) %>% 
-  #        mutate(Deaths=na_if(Deaths, 0))
-  #    An_begin <- An_subdata$Date[1] # date of first reported case
-  #    return()
-  #  } else {
-  #    #   Is there any data?
-  #    if (! in_An_area %in% DF$County) {
-  #      showNotification(paste("No reported cases in", in_An_area))
-  #      return()
-  #    }
-  #    
-  #    An_PopLabel <<- Counties %>% filter(County==in_An_area) %>% 
-  #                   mutate(Label=paste(in_An_area, "County"))
-  #    An_subdata <<- DF %>% filter(County==in_An_area) %>% 
-  #        filter(Deaths>0)
-  #    return()
-  #  }
-  #} # end prep_data
-
   #---------------------------------------------------    
   #------------------- Back Estimate Cases -----------
   #---------------------------------------------------    
@@ -1217,6 +1272,20 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR) {
       } else {
         HTML(paste(str1, str3, sep = '<br/>'))
       }
+    })
+  }  
+  
+  #---------------------------------------------------    
+  #------------------- Build Data Details Panel for Logistic
+  #---------------------------------------------------    
+  data_details_l <- function(data, variable, EqText, K, xmid, r) {
+    renderUI({
+      str1 <- paste("Most recent value, on",data$Date[nrow(data)],
+                    "was<b>", data[nrow(data), variable],"</b>",variable)
+      str3 <- paste("Asymptote for fit is",signif(K,3),"cases",
+                    "<br> ", EqText)
+      str2 <- paste("Growth rate =", signif(r,3))
+      HTML(paste(str1, str3, str2, sep = '<br/>'))
     })
   }
   
