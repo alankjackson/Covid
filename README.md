@@ -1,3 +1,4 @@
+
 # Documentation
 
 The purpose of this website is to allow easy access and analysis of 
@@ -22,6 +23,13 @@ On March 25, the following message appeared on the state website:
 _Why did the case counts reported by DSHS increase suddenly?_
 
 _DSHS updated the method of reporting COVID-19 cases in Texas to provide the public with more timely information. The DSHS daily case count now includes all cases reported publicly by local health departments around the state. With the change, Texas is now reporting an additional 305 cases of COVID-19._
+
+Because the state website only gave deaths by county for a single day,
+the death by county numbers are now scraped off the state emergency
+response website at https://opendata.arcgis.com/datasets/bc83058386d2434ca8cf90b26dc6b580_0.csv
+
+To infill the missing death by date by county data, the New York Times
+has helpfully provided a nice datafile at https://github.com/nytimes/covid-19-data
 
 ## Graph
 
