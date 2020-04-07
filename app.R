@@ -1116,7 +1116,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR) {
   #------------------- Build Death Plot --------------
   #---------------------------------------------------    
   
-  build_deaths_plot <- function(in_weights=FALSE,
+  build_deaths_plot <- function(in_weights=FALSE, 
                                 in_Deaths_logscale,
                                 in_Deaths_zoom,
                                 in_An_CFR,
