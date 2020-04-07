@@ -12,6 +12,7 @@ library(leafpop) # for popup on map
 library(ggplot2)
 library(stringr)
 library(lubridate)
+library(car)
 
 
 ###################################
@@ -586,10 +587,10 @@ server <- function(input, output) {
     lastday <- as.integer(LastDate - begin) + 1 # last day of real data
     dayseq <- data$Days
     dayseq <- c(dayseq,(dayseq[length(dayseq)]+1):
-                       (dayseq[length(dayseq)]-1+projection))
+                       (dayseq[length(dayseq)]+projection))
     dateseq <- data$Date
     dateseq <- as_date(c(dateseq,(dateseq[length(dateseq)]+1): 
-                                 (dateseq[length(dateseq)]-1+projection)))
+                                 (dateseq[length(dateseq)]+projection)))
     x <- data$Days
     y <- data[,indep][[1]]
     if (in_weights) {
@@ -657,40 +658,41 @@ server <- function(input, output) {
     print(paste(Asym, xmid, scal))
     
     ## using a selfStart model
-    sigmoid <- nls(Cases ~ SSlogis(Days, Asym, xmid, scal), 
+    sigmo   <- nls(Cases ~ SSlogis(Days, Asym, xmid, scal), 
                    data=data)
     print("----2----")
-    print(sigmoid)
-    coeffs <- coef(sigmoid)
+    print(sigmo)
+    coeffs <- coef(sigmo)
     print("----2----")
     print(coeffs)
     
     dayseq <- data$Days
     dayseq <- c(dayseq,(dayseq[length(dayseq)]+1):
-                       (dayseq[length(dayseq)]-1+projection))
+                       (dayseq[length(dayseq)]+projection))
     dateseq <- data$Date
     dateseq <- as_date(c(dateseq,(dateseq[length(dateseq)]+1): 
-                                 (dateseq[length(dateseq)]-1+projection)))
+                                 (dateseq[length(dateseq)]+projection)))
     foo <- tibble(Days=dayseq)
-    #predict2 <- function(x) {predict(x, data.frame(Days=dayseq))}
     predict2 <- function(x) {predict(x, foo)}
+    #browser()
     print("---------------")
-    f.boot <- car::Boot(sigmoid,f=predict2)
+    ##f.boot <- car::Boot(sigmo,f=predict2)
 
-    Cases <- predict(sigmoid, data.frame(Days=dayseq))
+    Cases <- predict(sigmo, data.frame(Days=dayseq))
     print(paste("Cases",length(Cases)))
     print(paste("dayseq",length(dayseq)))
     print(paste("dateseq",length(dateseq)))
-    print(paste("confint(f.boot)",length(confint(f.boot))))
-    print(f.boot)
-    confidence <- confint(f.boot)
-    print(confint(f.boot))
+    ##print(paste("confint(f.boot)",length(confint(f.boot))))
+    ##print(f.boot)
+    ##confidence <- confint(f.boot)
+    ##print(confint(f.boot))
     preds <- tibble(dayseq, dateseq,
                         Cases,
                         #predict(sigmoid, data.frame(Days=dayseq)),
-                        confidence["2.5 %"],
-                        confidence["97.5 %"])
-    names(preds) <- c("Days", "Date","Cases","SD_upper","SD_lower")
+                        #confidence["2.5 %"],
+                        #confidence["97.5 %"]
+                    )
+    names(preds) <- c("Days", "Date","Cases")
     
     print(preds)
     #  return a tibble
@@ -817,9 +819,11 @@ server <- function(input, output) {
     #------------------
     #  Error bars
     #------------------
-      if (in_modeling=="do fit" & !is.nan(ExpLine$SD_lower[1])){
-           p <- p + geom_errorbar(data=ExpLine[(nrow(ExpLine)-9):nrow(ExpLine),],
+      if (in_modeling=="do fit") {
+          if (!is.nan(ExpLine$SD_lower[1])){
+            p <- p + geom_errorbar(data=ExpLine[(nrow(ExpLine)-9):nrow(ExpLine),],
                         aes(x=Date, y=Cases, ymin=SD_lower, ymax=SD_upper)) 
+        }
       }
       
     #------------------
@@ -1450,6 +1454,8 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR) {
     prep_data(input$dataset,
               in_area
               )
+    if ((sum(!is.na(subdata$Cases))>3))
+         {
       p <- build_basic_plot(input$modeling,
                             input$fit,
                             input$intercept,
@@ -1464,6 +1470,9 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR) {
       output$plot_cases <- renderPlot({
           print(p)
           })
+    } else {
+          showNotification("Too few Cases for fitting")
+    }
       print("============== end select data ==================")
   })
    
