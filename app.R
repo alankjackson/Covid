@@ -87,8 +87,8 @@ DF <- DF %>%
 
 # Add dummy Estimate field
 
-DF <- DF %>% 
-    mutate(Estimate=Cases)
+#DF <- DF %>% 
+#    mutate(Estimate=Cases)
 
 
 #   Last date in dataset formatted for plotting
@@ -400,7 +400,7 @@ ui <- basicPage(
                     ),
                     splitLayout(
                       numericInput(
-                        "fit",
+                        "slope",
                         label = h5("Slope"),
                         step = 0.005,
                         value = global_slope
@@ -528,9 +528,14 @@ server <- function(input, output) {
   hideTab(inputId = "An_tabs", target="Tests")   
   hideTab(inputId = "An_tabs", target="Something")   
 #   Global variables are
-#    PopLabel = list(Region, Population, Label)
-#    subdata = tibble of data subsetted 
-#    begin = date of first reported case
+#   DF = original data
+#   PopLabel = list(Region, Population, Label)
+#   subdata = tibble of data subsetted 
+#   death_fit, case_fit, case_est_fit = Day, Date, 'value',
+  #                                     upper_conf, lower_conf
+#   death_params, case_params, case_est_params =
+  #                     named arrays of m, b, Rsq or
+  #                                     r, K, xmid
        
   #---------------------------------------------------    
   #------------------- Prep Data ---------------------
@@ -1461,44 +1466,6 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR) {
     }
   })
     
-  #---------------------------------------------------    
-  #------------------- Select Data -------------------
-  #---------------------------------------------------    
-  observeEvent({input$dataset
-                input$region
-                input$county
-                1}, { # Change data selection
-    print(":::::::  observe_event 1")
-    in_area <- case_when(
-      input$dataset == "Region" ~ input$region,
-      input$dataset == "County" ~ input$county
-    )
-    prep_data(input$dataset,
-              in_area
-              )
-    if ((sum(!is.na(subdata$Cases))>3))
-         {
-      p <- build_basic_plot(input$modeling,
-                            input$fit,
-                            input$intercept,
-   #                         input$weights,
-                            input$logscale,
-                            input$zoom,
-#                            input$mult,
-#                            input$mult_pos,
-                            input$estmiss,
-                            input$avoid)
-
-      if(!is.null(p)){
-        output$plot_cases <- renderPlot({
-            print(p)
-            })
-      }
-    } else {
-          showNotification("Too few Cases for fitting")
-    }
-      print("============== end select data ==================")
-  })
    
   #---------------------------------------------------    
   #------------------- Select Analysis Data ----------
@@ -1507,21 +1474,55 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR) {
                 input$dataset
                 input$region
                 input$county
-                input$An_tabs
                 1}, { # Change data selection
     print(":::::::  observe_event Analysis Data")
                   
-    in_An_area <- case_when(
+#  Set up geographic area desired and create data selection
+    in_area <- case_when(
       input$dataset == "Region" ~ input$region,
       input$dataset == "County" ~ input$county
     )
-      prep_data(input$dataset, 
-                   in_An_area)
-      
+    # ===============================
+    prep_data(input$dataset,
+              in_area
+    )           
+    # ===============================
+    
+  # fit a model to the data
+  #fit_data(input$modeling, 
+  #         input$slope,
+  #         input$intercept)
+    
+  #---------------------------------
+  #-------------Cases tab this is here for initial state
+  #---------------------------------
+      if (input$An_tabs == "Cases") {
+        if ((sum(!is.na(subdata$Cases))>3))
+        {
+          p <- build_basic_plot(input$modeling, 
+                                input$slope,
+                                input$intercept,
+                                input$logscale,
+                                input$zoom,
+                                input$estmiss,
+                                input$avoid)
+          
+          if(!is.null(p)){
+            output$plot_cases <- renderPlot({
+              print(p)
+            })
+          }
+        } else {
+          showNotification("Too few Cases for fitting")
+        }        
+      }
+  #---------------------------------
+  #-------------Deaths tab
+  #---------------------------------
       if (input$An_tabs == "Deaths") {
         if ((sum(!is.na(subdata$Deaths))>2) &
             (span(subdata$Deaths)>0)) {
-          p <- build_deaths_plot(#input$weights,
+          p <- build_deaths_plot(
                                  input$Deaths_logscale,
                                  input$Deaths_zoom,
                                  input$An_CFR,
@@ -1544,35 +1545,58 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR) {
       }
       
       print("============== end select An data ==================")
-  })
+  }) 
    
   #---------------------------------------------------    
-  #------------------- Analysis ----------------------
+  #------------------- Rerun fitting -----------------
+  #---------------------------------------------------    
+  
+  observeEvent({ #  fit cases
+                input$modeling #do fit,  standard,  user, logistic
+                input$slope
+                input$intercept
+                1}, { # change display
+                  
+    # fit a model to the data
+    if (input$modeling=="logistic") {
+      fit_logistic()
+    } else {
+      fit_exponential(input$modeling, input$slope, input$intercept)
+    }
+                  
+                  
+                  
+    #fit_data(input$modeling, 
+    #         input$slope,
+    #         input$intercept)
+  
+  })
+  
+  observeEvent({  #  fit deaths back estimate
+                input$Deaths_back_est
+                input$An_CFR
+                input$An_DeathLag 
+                1},{
+                  
+  })
+  
+  #---------------------------------------------------    
+  #------------------- Deaths changes ----------------
   #---------------------------------------------------    
   observeEvent({
-                input$dataset
-                input$region
-                input$county
                 input$Deaths_logscale
                 input$Deaths_zoom
                 input$Deaths_back_est
                 input$An_CFR
                 input$An_DeathLag
                 input$An_tabs
-                1}, { # Change data selection
+                1}, { # change display
     print(":::::::  observe_event Analysis Data")
                   
-    in_An_area <- case_when(
-      input$dataset == "Region" ~ input$region,
-      input$dataset == "County" ~ input$county
-    )
-      prep_data(input$dataset, 
-                   in_An_area)
-      
       if (input$An_tabs == "Deaths") {
         if ((sum(!is.na(subdata$Deaths))>2) &
             (span(subdata$Deaths)>0)) {
-          p <- build_deaths_plot(#input$weights,
+          p <- build_deaths_plot(
                                  input$Deaths_logscale,
                                  input$Deaths_zoom,
                                  input$An_CFR,
@@ -1583,7 +1607,8 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR) {
         } else {
           showNotification("Too little death data")
         }
-      }
+      } 
+                  #   move the following stuff when implementing
       if (input$An_tabs == "SlopeChange") {
          # p <- build_slope_plot()
       } 
@@ -1593,35 +1618,29 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR) {
       if (input$An_tabs == "Something") {
          # p <- build_something()
       }
-      
-      print("============== end Analysis ==================")
   })
 
   #---------------------------------------------------    
-  #------------------- Fiddle with Model -------------
+  #------------------- Cases changes -----------------
   #---------------------------------------------------    
   observeEvent({input$modeling
-                input$fit
+                input$slope
                 input$intercept
-#                input$mult
-#                input$mult_pos
                 input$zoom
                 input$avoid
                 input$estmiss
                 input$logscale
- #               input$weights
+                input$An_tabs
                 1} , { # 
                   
     print(":::::::  observe_event 2")
                   
+    if (input$An_tabs == "Cases") {
       p <- build_basic_plot(input$modeling,
-                            input$fit,
+                            input$slope,
                             input$intercept,
-#                            input$weights,
                             input$logscale,
                             input$zoom,
-#                            input$mult,
-#                            input$mult_pos,
                             input$estmiss,
                             input$avoid)
       
@@ -1630,7 +1649,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR) {
             print(p)
             })
       }
-      print("============== end Fiddle ==================")
+    }
   })
     
   #---------------------------------------------------    
