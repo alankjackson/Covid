@@ -220,6 +220,24 @@ saveRDS(foo,"/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
 saveRDS(foo,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Covid.rds")
 ```
 
+## Make cases monotonic
+
+```{r monotonic}
+
+# if number of cases drop per county, reduce preceeding numbers
+
+path <- "/home/ajackson/Dropbox/Rprojects/Covid/"
+
+foo <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
+
+foo2 <- foo %>% 
+  group_by(County) %>% 
+  mutate(delta=Cases-lag(Cases))
+
+
+```
+
+
 
 
 
