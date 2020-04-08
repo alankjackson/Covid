@@ -54,9 +54,9 @@ global_slope <- 0.13
 
 DF$County <- str_replace(DF$County, "\\d", "")
 
-# drop rows with zero cases
+# drop rows with zero or NA cases
 
-DF <- DF %>% filter(Cases>0)
+DF <- DF %>% filter(Cases>0, !is.na(Cases))
 
 # Add Statewide Totals per day
 
@@ -412,22 +412,22 @@ ui <- basicPage(
                         value = 1.00
                       )
                     ),
-                    checkboxInput(
-                      inputId = "weights",
-                      label = strong("Weight fit"),
-                      value = FALSE
-                    ),
-                    HTML("<hr>"),
-                    checkboxInput(
-                      inputId = "mult",
-                      label = strong("Multiply Cases"),
-                      value = FALSE
-                    ),
-                    numericInput("mult_pos", label = h5("Factor"), 
-                                 min = 1.,
-                                 max = 20,
-                                 value = 2)
-                    )
+ #                   checkboxInput(
+ #                     inputId = "weights",
+ #                     label = strong("Weight fit"),
+ #                     value = FALSE
+ #                   ),
+                    HTML("<hr>")
+                   # checkboxInput(
+                   #   inputId = "mult",
+                   #   label = strong("Multiply Cases"),
+                   #   value = FALSE
+                   # ),
+                   # numericInput("mult_pos", label = h5("Factor"), 
+                   #              min = 1.,
+                   #              max = 20,
+                   #              value = 2)
+                    ) 
                   ),
                   # end wellPanel Modeling parameters
                 
@@ -572,7 +572,7 @@ server <- function(input, output) {
   #---------------------------------------------------    
   build_expmodel <- function(data, 
                              indep="Cases", # independent variable
-                             in_weights, 
+ #                            in_weights, 
                              fit=c('all', 'none', "b_only", "m_only"),
                              m=1.3,
                              b=1,
@@ -593,11 +593,11 @@ server <- function(input, output) {
                                  (dateseq[length(dateseq)]+projection)))
     x <- data$Days
     y <- data[,indep][[1]]
-    if (in_weights) {
-      weights <- (1:nrow(data))**2.5
-    } else {
+#    if (in_weights) {
+#      weights <- (1:nrow(data))**2.5
+#    } else {
       weights <- replicate(nrow(data), 1)
-    }
+#    }
     my_data <- tibble(x=x, y=y, weights=weights)
       
     if (fit=="all") { 
@@ -658,8 +658,17 @@ server <- function(input, output) {
     print(paste(Asym, xmid, scal))
     
     ## using a selfStart model
-    sigmo   <- nls(Cases ~ SSlogis(Days, Asym, xmid, scal), 
-                   data=data)
+      
+      sigmo <- NULL
+      try(sigmo   <- nls(Cases ~ SSlogis(Days, Asym, xmid, scal), 
+                         data=data)); # does not stop in the case of error
+      
+      if(is.null(sigmo)) {
+        return(NULL)
+      }
+      
+    #sigmo   <- nls(Cases ~ SSlogis(Days, Asym, xmid, scal), 
+     #              data=data)
     print("----2----")
     print(sigmo)
     coeffs <- coef(sigmo)
@@ -711,11 +720,11 @@ server <- function(input, output) {
                                              "logistic"), 
                                in_fit,
                                in_intercept,
-                               in_weights,
+#                               in_weights,
                                in_logscale,
                                in_zoom,
-                               in_mult,
-                               in_mult_pos,
+   #                            in_mult,
+   #                            in_mult_pos,
                                in_estmiss,
                                in_avoid
     ){
@@ -730,18 +739,18 @@ server <- function(input, output) {
     if (in_modeling == "do fit") { # full fit
       foo <- build_expmodel(subdata,
                             indep="Cases",
-                            in_weights=in_weights,
+#                            in_weights=in_weights,
                             fit="all")
     } else if (in_modeling == "standard") { # global standard
       foo <- build_expmodel(subdata,
                             indep="Cases",
-                            in_weights=in_weights,
+ #                           in_weights=in_weights,
                             fit="b_only",
                             m=global_slope)
     } else if (in_modeling == "user") { # user
       foo <- build_expmodel(subdata,
                             indep="Cases",
-                            in_weights=in_weights,
+ #                           in_weights=in_weights,
                             fit="none",
                             m=in_fit,
                             b=in_intercept)
@@ -755,6 +764,10 @@ server <- function(input, output) {
     }
       
     if (in_modeling == "logistic") {
+      if (is.null(foo)){
+        showNotification("Failure to fit data")
+        return(NULL)
+      }
       EqText <- paste0("Fit is Cases = ",
                        signif(foo$K,2), "/( 1 + e^(",
                        signif(foo$r*foo$xmid,2)," + ", 
@@ -839,9 +852,12 @@ server <- function(input, output) {
     #------------------
     #  Zoom
     #------------------
+    zoom_factor <- 6
+    if (in_modeling=="logistic") {zoom_factor <- 2}
       if (!in_zoom) {
           # limit height of modeled fit
-        p <- p + scale_y_continuous(limits=c(min_limit, 6*max(subdata$Cases)),
+        p <- p + scale_y_continuous(limits=c(min_limit, 
+                                             zoom_factor*max(subdata$Cases)),
                                     sec.axis = sec_axis(~.*xform, 
                                     name = "Statewide Test Total"),
                                     trans=trans_value)
@@ -860,12 +876,12 @@ server <- function(input, output) {
     #------------------
     #  Multiply cases
     #------------------
-      if (in_mult) {
-          p <- add_mult(p, subdata, in_mult_pos=in_mult_pos, in_weights = in_weights)
-          leg_labs <- c(leg_labs, "Multiplied")
-          leg_vals <- c(leg_vals, "red")
-          leg_brks <- c(leg_brks, "mult")
-      } 
+ #     if (in_mult) {
+ #         p <- add_mult(p, subdata, in_mult_pos=in_mult_pos, in_weights = in_weights)
+ #         leg_labs <- c(leg_labs, "Multiplied")
+ #         leg_vals <- c(leg_vals, "red")
+ #         leg_brks <- c(leg_brks, "mult")
+ #     } 
     #------------------
     #  Estimate missed cases
     #------------------
@@ -882,9 +898,9 @@ server <- function(input, output) {
           p <- add_crowdsize(p, 
                              subdata, 
                              PopLabel, 
-                             in_mult, 
-                             in_mult_pos, 
-                             in_weights,
+   #                          in_mult, 
+   #                          in_mult_pos, 
+   #                          in_weights,
                              in_zoom)
       }
       p <-  build_legend(p, "Cases",
@@ -916,28 +932,28 @@ server <- function(input, output) {
   #---------------------------------------------------    
   #------------------- Add mult Plot ---------------
   #---------------------------------------------------    
-  add_mult <- function(p, subdata, in_mult_pos, in_weights) {
-    print(":::::::  add_mult")
-    #   Case with estimates of undercount
-    subdata <- subdata %>% # update mult cases in case needed
-      mutate(Estimate=Cases*replace_na(in_mult_pos,0.1))
-    
-    
-    # Build an exponential model
-    foo <- build_expmodel(subdata,
-                          indep="Estimate",
-                          in_weights=in_weights,
-                          fit="all")
-    
-    Est_layer <-   geom_line(data=foo$Line[[1]],
-                             aes(x=Date, y=Estimate,
-                                 color="mult"),
-                             size=1,
-                             linetype="dotted")
-    p <- p + Est_layer 
-    
-    return(p)
-  }
+ # add_mult <- function(p, subdata, in_mult_pos, in_weights) {
+ #   print(":::::::  add_mult")
+ #   #   Case with estimates of undercount
+ #   subdata <- subdata %>% # update mult cases in case needed
+ #     mutate(Estimate=Cases*replace_na(in_mult_pos,0.1))
+ #   
+ #   
+ #   # Build an exponential model
+ #   foo <- build_expmodel(subdata,
+ #                         indep="Estimate",
+ #                         in_weights=in_weights,
+ #                         fit="all")
+ #   
+ #   Est_layer <-   geom_line(data=foo$Line[[1]],
+ #                            aes(x=Date, y=Estimate,
+ #                                color="mult"),
+ #                            size=1,
+ #                            linetype="dotted")
+ #   p <- p + Est_layer 
+ #   
+ #   return(p)
+ # }
   
   #---------------------------------------------------    
   #------------------- Add Estimate of missed cases --
@@ -997,25 +1013,25 @@ server <- function(input, output) {
   #---------------------------------------------------    
   # When is probability of 1% contact reached?
   add_crowdsize <- function(p, data, PopLabel, 
-                            in_mult, in_mult_pos, in_weights, in_zoom) {
+                            in_zoom) {
     print(":::::::  add_crowdsize")
       begin <- data$Date[1] # date of first reported case
       LastDate <- data[nrow(data),]$Date
       lastday <- as.integer(LastDate - begin) + 1  # last day of real data
       Population <- PopLabel[2][[1]]
-      data <- data %>% # update mult cases in case needed
-        mutate(Estimate=Cases*replace_na(in_mult_pos,0.1))
+      #data <- data %>% # update mult cases in case needed
+      #  mutate(Estimate=Cases*replace_na(in_mult_pos,0.1))
 
       foo <- build_expmodel(data,
                             indep="Cases",
-                            in_weights=in_weights,
+ #                           in_weights=in_weights,
                             fit="all")
       ExpLine <- foo$Line[[1]]
       m <- foo$m
       b <- foo$b
       foo <- build_expmodel(data,
                             indep="Estimate",
-                            in_weights=in_weights,
+ #                           in_weights=in_weights,
                             fit="all")
       ExpLine_est <- foo$Line[[1]]
       m_est <- foo$m 
@@ -1024,22 +1040,22 @@ server <- function(input, output) {
                              - begin) + c(0,5,10) + 1
       TestDates <- LastDate + c(0,5,10)
       Crowdsize <- signif((0.01*Population)/(10**(TestDays*m+b)), 2)
-      Crowdsize_est <- signif((0.01*Population)/(10**(TestDays*m_est+b_est)
-                                                 *replace_na(in_mult_pos,0.1)), 2)
+      #Crowdsize_est <- signif((0.01*Population)/(10**(TestDays*m_est+b_est)
+      #                                           *replace_na(in_mult_pos,0.1)), 2)
       
       dayseq <- 0:(as.integer(LastDate - begin) + 10)
       dateseq <- as_date(begin:(LastDate + 10))
       Cases <- ExpLine$Cases
-      Cases_est <- ExpLine_est$Estimate
+      #Cases_est <- ExpLine_est$Estimate
       
       # Build label tibble
       CrowdLabels <- tibble(Date=TestDates,
                             Crowd=Crowdsize,
                             Cases=Cases[TestDays])
       
-      CrowdLabels_est <- tibble(Date=TestDates,
-                                Crowd=Crowdsize_est,
-                                Cases=Cases_est[TestDays])
+      #CrowdLabels_est <- tibble(Date=TestDates,
+      #                          Crowd=Crowdsize_est,
+      #                          Cases=Cases_est[TestDays])
       
       CrowdLayer1 <-  geom_point(data=CrowdLabels,
                                  aes(x=Date, y=Cases)) 
@@ -1050,13 +1066,13 @@ server <- function(input, output) {
                                 nudge_y=0) 
 
       
-      CrowdLayerest1 <-  geom_point(data=CrowdLabels_est,
-                                    aes(x=Date, y=Cases)) 
-      CrowdLayerest2 <- geom_label(data=CrowdLabels_est,
-                                   aes(x=Date, y=Cases, label=Crowd),
-                                   fill="lightcoral",
-                                   nudge_x=1,
-                                   nudge_y=0) 
+      #CrowdLayerest1 <-  geom_point(data=CrowdLabels_est,
+      #                              aes(x=Date, y=Cases)) 
+      #CrowdLayerest2 <- geom_label(data=CrowdLabels_est,
+      #                             aes(x=Date, y=Cases, label=Crowd),
+      #                             fill="lightcoral",
+      #                             nudge_x=1,
+      #                             nudge_y=0) 
 
       
 #   Crowdsize text
@@ -1074,11 +1090,11 @@ CrowdText <- "Sizes of groups to avoid to keep\nchance of meeting a contagious\n
                         x=begin+5, y=y_anno, 
                         fill="lightcoral", size=4)
       
-      if (in_mult) { # Add for fit and estimate 
-          return(p + CrowdLayerest1 + CrowdLayerest2)  
-      } else { # Add for fit only
+    #  if (in_mult) { # Add for fit and estimate 
+    #      return(p + CrowdLayerest1 + CrowdLayerest2)  
+    #  } else { # Add for fit only
           return(p)
-      }
+    #  }
   }
   
 
@@ -1105,7 +1121,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR) {
   
   foo <- build_expmodel(data, 
                         indep="est_cases", # independent variable
-                        in_weights=FALSE, 
+#                        in_weights=FALSE, 
                         fit='all',
                         projection=10+in_An_DeathLag) 
   return(foo)
@@ -1116,7 +1132,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR) {
   #------------------- Build Death Plot --------------
   #---------------------------------------------------    
   
-  build_deaths_plot <- function(in_weights=FALSE, 
+  build_deaths_plot <- function(
                                 in_Deaths_logscale,
                                 in_Deaths_zoom,
                                 in_An_CFR,
@@ -1126,18 +1142,18 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR) {
       # Build exponential line for plot
     print(":::::::  build_death_plot")
     # Get rid of duplicate cumulative entries.
-    subdata <- subdata %>% 
+    data <- subdata %>% 
       filter(Deaths>0) %>% 
       filter(!is.na(Deaths)) %>% 
       mutate(actual_deaths=Deaths-lag(Deaths, 1, 0)) %>% 
       filter(actual_deaths>0) %>% 
       mutate(Deaths=cumsum(actual_deaths))
 
-    print(subdata)
+    print(data)
     
-    foo <- build_expmodel(subdata,
+    foo <- build_expmodel(data,
                           indep="Deaths",
-                          in_weights=in_weights,
+  #                        in_weights=in_weights,
                           fit="all")
     EqText <- paste0("Fit is log(Cumulative Deaths) = ",
                      signif(foo$m,3),"*Days + ",
@@ -1148,7 +1164,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR) {
     # Build Est Cases from Deaths
     
     
-    p <- subdata %>% 
+    p <- data %>% 
         ggplot(aes(x=Date, y=Deaths)) 
     
     p <- p + 
@@ -1198,7 +1214,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR) {
                     size=1,
                     linetype="dashed") 
     
-      this_day <- subdata$Days[length(subdata$Days)] # day seq of today
+      this_day <- data$Days[length(data$Days)] # day seq of today
       indx <- match(today()-1, ExpLine_est$Date)
       p <- p + geom_point(aes(x = ExpLine_est$Date[indx] , 
                               y = ExpLine_est$est_cases[indx]), 
@@ -1209,6 +1225,10 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR) {
                                      nudge_y=0, 
                                      aes(x, y, 
                                          label = signif(ExpLine_est$est_cases[indx], 3) ))
+      #     Add actual cases
+      p <- p + geom_point(data=subdata, aes(y=Cases, x=Date, color="data"), size=2) +
+               geom_text(data=subdata, aes(y=Cases, x=Date, label=Cases),
+                         nudge_x=-1.50, nudge_y=0.0)
       
       p <-  build_legend(p, "Deaths",
                              c("Data", "Fit", "Est Cases"), # Labels for legend
@@ -1244,7 +1264,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR) {
     m <- foo$m
     b <- foo$b 
     Rsqr <- foo$Rsqr
-    output$death_details <- data_details(subdata,
+    output$death_details <- data_details(data,
                                          "Deaths",
                                          EqText,
                                          m,
@@ -1288,7 +1308,9 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR) {
                     "was<b>", data[nrow(data), variable],"</b>",variable)
       str3 <- paste("Asymptote for fit is",signif(K,3),"cases",
                     "<br> ", EqText)
-      str2 <- paste("Growth rate =", signif(r,3))
+      str2 <- paste("Growth rate =", signif(r,3), 
+                    "&nbsp; &nbsp; &nbsp; &nbsp; Date of inflection is",
+                    data$Date[1]+as.integer(xmid+0.5))
       HTML(paste(str1, str3, str2, sep = '<br/>'))
     })
   }
@@ -1459,17 +1481,19 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR) {
       p <- build_basic_plot(input$modeling,
                             input$fit,
                             input$intercept,
-                            input$weights,
+   #                         input$weights,
                             input$logscale,
                             input$zoom,
-                            input$mult,
-                            input$mult_pos,
+#                            input$mult,
+#                            input$mult_pos,
                             input$estmiss,
                             input$avoid)
 
-      output$plot_cases <- renderPlot({
-          print(p)
-          })
+      if(!is.null(p)){
+        output$plot_cases <- renderPlot({
+            print(p)
+            })
+      }
     } else {
           showNotification("Too few Cases for fitting")
     }
@@ -1497,7 +1521,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR) {
       if (input$An_tabs == "Deaths") {
         if ((sum(!is.na(subdata$Deaths))>2) &
             (span(subdata$Deaths)>0)) {
-          p <- build_deaths_plot(input$weights,
+          p <- build_deaths_plot(#input$weights,
                                  input$Deaths_logscale,
                                  input$Deaths_zoom,
                                  input$An_CFR,
@@ -1548,7 +1572,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR) {
       if (input$An_tabs == "Deaths") {
         if ((sum(!is.na(subdata$Deaths))>2) &
             (span(subdata$Deaths)>0)) {
-          p <- build_deaths_plot(input$weights,
+          p <- build_deaths_plot(#input$weights,
                                  input$Deaths_logscale,
                                  input$Deaths_zoom,
                                  input$An_CFR,
@@ -1579,13 +1603,13 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR) {
   observeEvent({input$modeling
                 input$fit
                 input$intercept
-                input$mult
-                input$mult_pos
+#                input$mult
+#                input$mult_pos
                 input$zoom
                 input$avoid
                 input$estmiss
                 input$logscale
-                input$weights
+ #               input$weights
                 1} , { # 
                   
     print(":::::::  observe_event 2")
@@ -1593,17 +1617,19 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR) {
       p <- build_basic_plot(input$modeling,
                             input$fit,
                             input$intercept,
-                            input$weights,
+#                            input$weights,
                             input$logscale,
                             input$zoom,
-                            input$mult,
-                            input$mult_pos,
+#                            input$mult,
+#                            input$mult_pos,
                             input$estmiss,
                             input$avoid)
       
-      output$plot_cases <- renderPlot({
-          print(p)
-          })
+      if(!is.null(p)){
+        output$plot_cases <- renderPlot({
+            print(p)
+            })
+      }
       print("============== end Fiddle ==================")
   })
     
