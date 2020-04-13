@@ -1159,7 +1159,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
    dateseq <- dateseq - in_An_DeathLag
    
    Cases <- 10**(death_params[["m"]]*dayseq+death_params[["b"]])
-   Cases <- Cases / in_An_CFR
+   Cases <- 100 * Cases / in_An_CFR
   
    return( tibble(Date=dateseq,
                  Days=dayseq,
