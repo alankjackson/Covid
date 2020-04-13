@@ -657,7 +657,7 @@ server <- function(input, output) {
                          lower_conf=10**pred.int$lwr,
                          upper_conf=10**pred.int$upr)
      params <- list(m=m, b=b, Rsqr=Rsqr)
-     
+        
      if (indep=="Cases") {
        case_fit <<- fits
        case_params <<- params
