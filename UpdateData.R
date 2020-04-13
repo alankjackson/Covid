@@ -160,6 +160,11 @@ myfile <- getBinaryURL(url, ssl.verifyhost=FALSE, ssl.verifypeer=FALSE)
 path <- "/home/ajackson/Dropbox/Rprojects/Covid/TexasDataXcel/"
 writeBin(myfile, paste0(path, "Cases_by_County_", lubridate::today(),".xlsx"))
 
+url <- "https://www.dshs.texas.gov/chs/data/COVID-19CumulativeTestTotalsbyCounty.xlsx"
+myfile <- getBinaryURL(url, ssl.verifyhost=FALSE, ssl.verifypeer=FALSE)
+
+path <- "/home/ajackson/Dropbox/Rprojects/Covid/TexasDataXcel/"
+writeBin(myfile, paste0(path, "Tests_by_County_", lubridate::today(),".xlsx"))
 
 
 #---------------------------------------------------------------------
