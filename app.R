@@ -12,7 +12,6 @@ library(leafpop) # for popup on map
 library(ggplot2)
 library(stringr)
 library(lubridate)
-#library(car)
 library(rsample)
 library(broom)
 library(purrr)
@@ -375,7 +374,7 @@ ui <- basicPage(
                   value = FALSE
                 ),
                 #checkboxInput(
-                #    inputId = "estmiss",
+                #    inputId = "recovery",
                 #    label = strong("Est missed cases"),
                 #    value = FALSE
                 #),
@@ -383,8 +382,13 @@ ui <- basicPage(
                   inputId = "logscale",
                   label = strong("Log Scaling"),
                   value = TRUE
+                ),
+                numericInput(
+                  "recover_days",
+                  label = strong("Days to Recover"),
+                  step = 1,
+                  value = 14
                 )
-                
               ),
               # end wellPanel Control plot options
                   wellPanel(
@@ -414,13 +418,13 @@ ui <- basicPage(
                         step = 0.10,
                         value = 1.00
                       )
-                    ),
+                    )
  #                   checkboxInput(
  #                     inputId = "weights",
  #                     label = strong("Weight fit"),
  #                     value = FALSE
  #                   ),
-                    HTML("<hr>")
+                    #HTML("<hr>")
                    # checkboxInput(
                    #   inputId = "mult",
                    #   label = strong("Multiply Cases"),
@@ -800,7 +804,8 @@ server <- function(input, output) {
                                in_logscale,
                                in_zoom,
                                in_estmiss,
-                               in_avoid
+                               in_avoid,
+                               in_recover
     ){
       # Build exponential line for plot
     print(":::::::  build_basic_plot")
@@ -871,6 +876,16 @@ server <- function(input, output) {
           theme(text = element_text(size=20)) +
           labs(title=paste0("COVID-19 Cases in ",PopLabel$Label), 
                subtitle=paste0(" as of ", lastdate))
+    #------------------
+    #  Plot recovered estimate
+    #------------------
+    p <- p +
+      geom_line(data=case_fit[1:(nrow(case_fit)-in_recover),],
+                aes(x=Date+in_recover, y=Cases*0.98,
+                    color="recovered"),
+                size=1,
+                linetype="dotted")
+    
     #------------------
     #  if logistic fit, show inflection and uncertainty
     #------------------
@@ -956,9 +971,9 @@ server <- function(input, output) {
     #------------------
     #  Legend
     #------------------
-      leg_labs <- c("Data", "Fit", "Tests") # Labels for legend
-      leg_vals <- c("black", "blue", "black") # Color values
-      leg_brks <- c("data", "fit", "tests") # Breaks (named lists)
+      leg_labs <- c("Data", "Fit", "Tests", "Recovered") # Labels for legend
+      leg_vals <- c("black", "blue", "black", "red") # Color values
+      leg_brks <- c("data", "fit", "tests", "recovered") # Breaks (named lists)
     #------------------
     #  Multiply cases
     #------------------
@@ -1564,7 +1579,8 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                                 input$logscale,
                                 input$zoom,
                                 input$estmiss,
-                                input$avoid)
+                                input$avoid,
+                                input$recover_days)
           
           if(!is.null(p)){
             output$plot_cases <- renderPlot({
@@ -1645,7 +1661,8 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                             input$logscale,
                             input$zoom,
                             input$estmiss,
-                            input$avoid)
+                            input$avoid,
+                            input$recover_days)
       
       if(!is.null(p)){
         output$plot_cases <- renderPlot({
@@ -1720,6 +1737,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                 input$avoid
                 input$logscale
                 input$An_tabs
+                input$recover_days
                 1} , { # 
                   
     print(":::::::  observe_event 2")
@@ -1731,7 +1749,8 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                             input$logscale,
                             input$zoom,
                             input$estmiss,
-                            input$avoid)
+                            input$avoid,
+                            input$recover_days)
       
       if(!is.null(p)){
         output$plot_cases <- renderPlot({
