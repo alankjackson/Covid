@@ -393,12 +393,12 @@ ui <- basicPage(
               # end wellPanel Control plot options
                   wellPanel(
                     # Modeling parameters
-                    h4("Data Fits"),
+                    #h4("Data Fits"),
                     radioButtons(
                       "modeling",
-                      label = h5("Exponential Fit"),
+                      label = h4("Fitting"),
                       choices = list(
-                        "Fit data" = "do fit",
+                        "Exponential" = "do fit",
                         "Logistic" = "logistic",
                         "Worldwide (0.13)" = "standard",
                         "User entry" = "user"
@@ -445,13 +445,22 @@ ui <- basicPage(
                         checkboxInput(
                           inputId = "Deaths_logscale",
                           label = strong("Log Scaling"),
-                          value = FALSE
+                          value = TRUE
                         ),
                         checkboxInput(
                           inputId = "Deaths_zoom",
                           label = strong("Expand Scale"),
                           value = FALSE
                         ),
+                    radioButtons(
+                      "death_modeling",
+                      label = h4("Fitting"),
+                      choices = list(
+                        "Exponential" = "death_exp",
+                        "Logistic" = "death_logistic"
+                      ),
+                      selected = "death_exp"
+                    ),
                         HTML("<hr>"),
                         checkboxInput(
                           inputId = "Deaths_back_est",
@@ -592,7 +601,7 @@ server <- function(input, output) {
                              projection=10,
                              calc_conf=TRUE) {
    
-    print(":::::::  fit_exponential")
+    print(paste(":::::::  fit_exponential", indep))
    #  Drop rows that are zero
    data <- subdata %>% filter((!!sym(indep))>0) 
    #  Drop rows that are equal to previous row
@@ -603,11 +612,25 @@ server <- function(input, output) {
      filter(actual>0) %>% 
      mutate(!!indep:=cumsum(actual))
    
+   ##############################
+   #browser()
+   ##############################
    #    Too few cases to do a fit
-   
-        if (sum(!is.na(subdata[,indep][[1]]))<3) {
+  if ((sum(!is.na(data[,indep][[1]]))<2) ||
+      (nrow(unique(data[,indep]))<2)) {
+      print(paste(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>", data$County[1]))
+     if (indep=="Cases") {
+          case_fit <<- tibble( Days=NA, Date=NA,!!indep:=NA,
+                               upper_conf=NA, lower_conf=NA) 
+          case_params <<- list(m=NA, b=NA, Rsqr=NA)
           return()
-        }
+      } else {
+          death_fit <<- tibble( Days=NA, Date=NA,!!indep:=NA,
+                               upper_conf=NA, lower_conf=NA) 
+          death_params <<- list(m=NA, b=NA, Rsqr=NA)
+          return()
+      }
+   }
    #   Go projection days into future
    begin <- data$Date[1] # date of first reported case
    LastDate <- data[nrow(data),]$Date
@@ -648,7 +671,7 @@ server <- function(input, output) {
    } else {print("serious error in fit_exponential")}
    
    #  Estimate confidence bands 
-   if(calc_conf & (fit_type=="all" | fit_type=="m_only")) {
+   if(calc_conf & (fit_type=="all" || fit_type=="m_only")) {
      DayFrame <- data.frame(x=dayseq)
      pred.int <- cbind(DayFrame, 
                        predict(model, 
@@ -704,7 +727,8 @@ server <- function(input, output) {
     ## using a selfStart model
       
       logistic_model <- NULL
-      try(logistic_model <- nls(Cases ~ SSlogis(Days, Asym, xmid, scal), 
+      #try(logistic_model <- nls(indep ~ SSlogis(Days, Asym, xmid, scal), 
+      try(logistic_model <- nls(my_formula, 
                                 data=df)); # does not stop in the case of error
       
       if(is.null(logistic_model)) {
@@ -779,6 +803,7 @@ server <- function(input, output) {
     print(paste("dayseq",length(dayseq)))
     print(paste("dateseq",length(dateseq)))
      #####   set global
+    if (indep=="Cases") {
      case_fit <<- tibble(Days=dayseq, 
                          Date=dateseq,
                         !!indep:=Cases,
@@ -789,6 +814,20 @@ server <- function(input, output) {
                           r=1/coeffs[["scal"]], 
                           xmid=coeffs[["xmid"]],
                           xmid_se=xmid_sigma)
+    } else {
+     death_fit <<- tibble(Days=dayseq, 
+                         Date=dateseq,
+                        !!indep:=Cases,
+                        lower_conf=df2$lower_conf,
+                        upper_conf=df2$upper_conf)
+     
+     death_params <<- list(K=coeffs[["Asym"]], 
+                          r=1/coeffs[["scal"]], 
+                          xmid=coeffs[["xmid"]],
+                          xmid_se=xmid_sigma)
+      
+    print(death_params)
+    }
   }
   
   #---------------------------------------------------    
@@ -813,7 +852,7 @@ server <- function(input, output) {
     begin <- subdata$Date[1] # date of first reported case
     
     if (in_modeling == "logistic") { 
-      if (is.null(case_params$r) | is.na(case_params$r)){# if nonlinear fit failed
+      if (is.null(case_params[["r"]]) || is.na(case_params[["r"]])){# if nonlinear fit failed
         showNotification("Failure to fit data")
         return(NULL)
       }
@@ -822,6 +861,10 @@ server <- function(input, output) {
                        signif(case_params[["r"]]*case_params[["xmid"]],2)," + ", 
                        signif(case_params[["r"]],2),"*Days))")
     } else {
+      if ((is.null(case_params[["m"]])) || (is.na(case_params[["m"]]))){# if fit failed
+        showNotification("Failure to fit data")
+        return(NULL)
+      }
       EqText <- paste0("Fit is log(Cases) = ",
                        signif(case_params[["m"]],3),"*Days + ",
                        signif(case_params[["b"]],3))
@@ -839,7 +882,7 @@ server <- function(input, output) {
     #------------------
     #  Error bars
     #------------------
-      if (in_modeling=="do fit" | in_modeling=="logistic") {
+      if (in_modeling=="do fit" || in_modeling=="logistic") {
           if (!is.nan(case_fit$upper_conf[1])){
             print("------- ribbon 1 -------")
             p <- p + geom_ribbon(data=case_fit,
@@ -890,15 +933,15 @@ server <- function(input, output) {
     #  if logistic fit, show inflection and uncertainty
     #------------------
     if (in_modeling=="logistic") {
-      x_infl <- case_params$xmid 
-      x_se <- case_params$xmid_se 
+      x_infl <- case_params[["xmid"]] 
+      x_se <- case_params[["xmid_se"]] 
       y <- case_fit$Cases
       x <- case_fit$Days
       i <- as.integer(x_infl + 2) 
       y_infl <- y[i-1] + (y[i]-y[i-1])*(x[i]-x_infl)/(x[i]-x[i-1])
       print("--------------  arrow")
       print(paste(x_infl, i, y[i-1], y[i], x[i],x[i-1], y_infl))
-      x_infl <- as_date(case_params$xmid + begin)
+      x_infl <- as_date(case_params[["xmid"]] + begin)
       p <- p +
            geom_segment(data=tibble(x1=x_infl-x_se, x2=x_infl+x_se, 
                                   y1=y_infl, y2=y_infl),
@@ -1009,16 +1052,16 @@ server <- function(input, output) {
         output$data_details <- data_details_l(subdata, 
                                               "Cases", 
                                               EqText, 
-                                              case_params$K, 
-                                              case_params$xmid, 
-                                              case_params$r)
+                                              case_params[["K"]], 
+                                              case_params[["xmid"]], 
+                                              case_params[["r"]])
       } else {
         output$data_details <- data_details(subdata,
                                              "Cases",
                                              EqText,
-                                             case_params$m,
-                                             case_params$b,
-                                             case_params$Rsqr)
+                                             case_params[["m"]],
+                                             case_params[["b"]],
+                                             case_params[["Rsqr"]])
       }
       
     return(p)
@@ -1167,14 +1210,26 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
 
    dayseq <- death_fit$Days
    dayseq <- c(dayseq,(dayseq[length(dayseq)]+1):
-                 (dayseq[length(dayseq)]+projection+in_An_DeathLag))
+                 (dayseq[length(dayseq)] + in_An_DeathLag))
    dateseq <- death_fit$Date
    dateseq <- as_date(c(dateseq,(dateseq[length(dateseq)]+1): 
-                          (dateseq[length(dateseq)]+projection + in_An_DeathLag)))
+                          (dateseq[length(dateseq)] + in_An_DeathLag)))
    dateseq <- dateseq - in_An_DeathLag
    
-   Cases <- 10**(death_params[["m"]]*dayseq+death_params[["b"]])
-   Cases <- 100 * Cases / in_An_CFR
+   print("---- backest 1 -----")
+   if (is.null(death_params[["K"]])) { # did an exponential fit
+   print("---- backest 3 -----")
+     Cases <- 10**(death_params[["m"]]*dayseq+death_params[["b"]])
+     Cases <- 100 * Cases / in_An_CFR
+   } else { # logistic fit
+   print("---- backest 2 -----")
+     ################################
+     #browser()
+     ################################
+     Co <- death_params[["r"]]*death_params[["xmid"]]
+     Cases <- death_params[["K"]]/(1  + exp(Co - death_params[["r"]]*dayseq))
+     Cases <- 100 * Cases / in_An_CFR
+   }
   
    return( tibble(Date=dateseq,
                  Days=dayseq,
@@ -1191,7 +1246,8 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                                 in_Deaths_zoom,
                                 in_An_CFR,
                                 in_An_DeathLag,
-                                in_Deaths_back_est
+                                in_Deaths_back_est,
+                                in_death_modeling
                                 ){
       # Build exponential line for plot
     print(":::::::  build_death_plot")
@@ -1204,10 +1260,27 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
       mutate(Deaths=cumsum(actual_deaths))
 
     print(data)
-    
-    EqText <- paste0("Fit is log(Cumulative Deaths) = ",
-                     signif(death_params[["m"]],3),"*Days + ",
-                     signif(death_params[["b"]],3))
+    print(in_death_modeling)
+    if (in_death_modeling == "death_logistic") { 
+    if (!is.null(death_params[["r"]])){print(death_params)}
+      if (is.null(death_params[["r"]]) || is.na(death_params[["r"]])){# if nonlinear fit failed
+        showNotification("Failure to fit data")
+        return(NULL)
+      } 
+      EqText <- paste0("Fit is Deaths = ",
+                       signif(death_params[["K"]],2), "/( 1 + e^(",
+                       signif(death_params[["r"]]*death_params[["xmid"]],2)," + ", 
+                       signif(death_params[["r"]],2),"*Days))")
+    } else {
+      if (is.null(death_params[["m"]]) || is.na(death_params[["m"]])){# if nonlinear fit failed
+        showNotification("Failure to fit data")
+        return(NULL)
+      } 
+      EqText <- paste0("Fit is log(Cumulative Deaths) = ",
+                       signif(death_params[["m"]],3),"*Days + ",
+                       signif(death_params[["b"]],3))
+    }  
+
     # Build Est Cases from Deaths
     
     print("---- build_death_plot 1 ------")
@@ -1310,15 +1383,31 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
   
     
     print(":::::::  displayed_data")
-    m <- death_params[["m"]]
-    b <- death_params[["b"]] 
-    Rsqr <- death_params[["Rsqr"]]
-    output$death_details <- data_details(data,
-                                         "Deaths",
-                                         EqText,
-                                         m,
-                                         b,
-                                         Rsqr)
+    if (in_death_modeling=="death_logistic") {
+      output$death_details <- data_details_l(subdata, 
+                                            "Deaths", 
+                                            EqText, 
+                                            death_params[["K"]], 
+                                            death_params[["xmid"]], 
+                                            death_params[["r"]])
+    } else {
+      output$death_details <- data_details(subdata,
+                                          "Deaths",
+                                          EqText,
+                                          death_params[["m"]],
+                                          death_params[["b"]],
+                                          death_params[["Rsqr"]])
+    }
+    
+    #m <- death_params[["m"]]
+    #b <- death_params[["b"]] 
+    #Rsqr <- death_params[["Rsqr"]]
+    #output$death_details <- data_details(data,
+    #                                     "Deaths",
+    #                                     EqText,
+    #                                     m,
+    #                                     b,
+    #                                     Rsqr)
 
     return(p)
   }
@@ -1555,17 +1644,21 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                       cutoff=1,
                       projection=10)
     }
-    #############   fit deaths
+    #############   fit deaths      
+    if (input$death_modeling=="death_exp") {
       fit_exponential(indep="Deaths",
                       fit_type="all", 
                       m, 
                       b,
                       cutoff=1,
                       projection=10)
+     } else {
+      fit_logistic(indep="Deaths")
+     }
     
-    if (input$Deaths_back_est) { # optional
-      backest_cases(input$An_CFR, input$An_DeathLag, projection=10)
-    }
+    #if (input$Deaths_back_est) { # optional
+    #  backest_cases(input$An_CFR, input$An_DeathLag, projection=10)
+    #}
       
   #---------------------------------
   #-------------Cases tab this is here for initial state
@@ -1602,7 +1695,8 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                                  input$Deaths_zoom,
                                  input$An_CFR,
                                  input$An_DeathLag,
-                                 input$Deaths_back_est
+                                 input$Deaths_back_est,
+                                 input$death_modeling
                                  )
           output$plot_deaths <- renderPlot({print(p)})
         } else {
@@ -1680,11 +1774,38 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                 input$Deaths_back_est
                 input$An_CFR
                 input$An_DeathLag 
+                input$death_modeling
                 1},{
-    if (input$Deaths_back_est) { # optional
-      #backest_cases(input$An_CFR, input$An_DeathLag)
+    if (input$death_modeling=="death_exp") {
+      fit_exponential(indep="Deaths",
+                      fit_type="all", 
+                      m, 
+                      b,
+                      cutoff=1,
+                      projection=10)
+    } else {
+      fit_logistic(indep="Deaths")
     }
-                  
+    
+    #if (input$Deaths_back_est) { # optional
+    #  backest_cases(input$An_CFR, input$An_DeathLag, projection=10)
+    #}
+    if (input$An_tabs == "Deaths") {
+      if ((sum(!is.na(subdata$Deaths))>2) &
+          (span(subdata$Deaths)>0)) {
+        p <- build_deaths_plot(
+          input$Deaths_logscale,
+          input$Deaths_zoom,
+          input$An_CFR,
+          input$An_DeathLag,
+          input$Deaths_back_est,
+          input$death_modeling
+        )
+        output$plot_deaths <- renderPlot({print(p)})
+      } else {
+        showNotification("Too little death data")
+      }
+    }              
   })
   
   #---------------------------------------------------    
@@ -1708,7 +1829,8 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                                  input$Deaths_zoom,
                                  input$An_CFR,
                                  input$An_DeathLag,
-                                 input$Deaths_back_est
+                                 input$Deaths_back_est,
+                                 input$death_modeling
                                  )
           output$plot_deaths <- renderPlot({print(p)})
         } else {
