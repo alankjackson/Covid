@@ -930,6 +930,21 @@ server <- function(input, output) {
                 linetype="dotted")
     
     #------------------
+    #  Plot active cases estimate
+    #------------------
+    active <- tibble(Date=case_fit$Date[in_recover+1:(nrow(case_fit)-in_recover)],
+                     Cases=case_fit$Cases[in_recover+1:(nrow(case_fit)-in_recover)] -
+                           case_fit$Cases[1:(nrow(case_fit)-in_recover)]*0.98)
+    print(active)
+    p <- p +
+      geom_line(data=active,
+                aes(x=Date, y=Cases,
+                    color="active"),
+                size=1,
+                linetype="solid")
+    
+    
+    #------------------
     #  if logistic fit, show inflection and uncertainty
     #------------------
     if (in_modeling=="logistic") {
@@ -1014,9 +1029,9 @@ server <- function(input, output) {
     #------------------
     #  Legend
     #------------------
-      leg_labs <- c("Data", "Fit", "Tests", "Recovered") # Labels for legend
-      leg_vals <- c("black", "blue", "black", "red") # Color values
-      leg_brks <- c("data", "fit", "tests", "recovered") # Breaks (named lists)
+      leg_labs <- c("Data", "Fit", "Tests", "Recovered", "Active Cases") # Labels for legend
+      leg_vals <- c("black", "blue", "black", "red", "green") # Color values
+      leg_brks <- c("data", "fit", "tests", "recovered", "active") # Breaks (named lists)
     #------------------
     #  Multiply cases
     #------------------
