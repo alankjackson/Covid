@@ -78,6 +78,17 @@ The metro areas follow the standard definition, and consist of counties:
 *  San Antonio: Atascosa, Bandera, Bexar, Comal, Guadalupe, Kendall, Medina, and Wilson
 *  Austin: Bastrop, Caldwell, Hays, Travis, and Williamson
 
+When looking at counties, I helpfully display the latest cumulative case
+count for that county.
+
+## Analysis
+
+This tab will be devoted to various analysis tabs. 
+
+## Cases Tab
+
+This tab is designed to analyze aspects of the confirmed cases.
+
 ### Plotting options
 
 Under Plotting Options are several toggles that will add things to the plot, or adjust the appearance of the plot.
@@ -96,13 +107,6 @@ By default, I chop off the Y scale so that the actual data is easily seen.
 The toogle will expand (or sometimes reduce) the scale so that all 
 plotted objects are visible.
 
-#### Est Missed cases
-
-Trying to get a handle on how many cases have been missed due to lack of testing, 
-I assume the global average fit (see below) and force that to fit at the latest 
-data point. I should probably allow the user to input an estimate of current
-missed cases and fit to that.
-
 #### Log Scaling
 
 The actual fit is done to the logarithm of the number of cases (as can be
@@ -110,6 +114,14 @@ seen in the displayed fit equation), because that makes the exponential a
 linear function. A key aspect of the epidemic will be to see a change in the
 slope of the fit, indicating that the growth rate is slowing. That will be
 easier to see on a Log plot.
+
+### Days to Recover
+
+Given a nominal length of infection, which seems to be around 14 days,
+I estimate the number recovered, just the number of cases moved forwards
+by that many days, minus the 1% who died. At the same time I subtract
+the recovered from the number of cases to get an estimate of the active
+cases - which is what actually matters for disease transmission.
 
 ### Data Fits
 
@@ -122,13 +134,6 @@ This option does a linear regression on $log(N) = md + b$ to find $m$
 and $b$, the slope and intercept. The error bars derive from that fit
 and represent one standard deviation. Additionally, at the bottom of the page, 
 the $R^{2}$ value also derives from that fit.
-
-By default, I weight the fitting, to bias the fit towards the newer data,
-assuming that because of the slow ramp-up of testing, the early numbers are
-probably not very good. To weight them, I arbitrarily use a function
-$w = d^{1.5}$, which should represent $\frac{1}{\sigma^{2}}$. In practice, 
-this rather arbitrary weighting seems to help the fit approach the global
-average fit. Note that you can turn off the weighting if you wish.
 
 #### Logistic
 
@@ -156,22 +161,12 @@ The doubling time depends only on the slope of the fit, and tells you how many
 days it will take for the number of cases to double. Usually a pretty 
 frightening number.
 
-#### Multiply cases
-
-In yet another attempt to get a handle on the effect of undetected
-infectious people wandering around, you can create a new curve which is the
-original fit, but where the number of cases is multiplied by a constant.
-Did the lack of testing miss half the cases? Multiply by 2.
-
-## Analysis
-
-This tab will be devoted more to various analysis tabs. Initially there 
-is a tab to look at the death rates, but more tabs are planned.
-
-### Deaths
+## Deaths
 
 By default, fitting to cumulative deaths with an unweighted exponential 
 function is done. The usual data selection and plot controls are provided.
+
+A logistic fit is also provided. Note that it requires about 5 datapoints.
 
 A tool to estimate the actual number of cases from the number of 
 deaths is provided. 
@@ -197,12 +192,36 @@ time that individual was diagnosed/tested, and multiply by the 1/CFR.
 
 For reference, read [this paper](https://cmmid.github.io/topics/covid19/severity/global_cfr_estimates.html)
 
+## Slope Change
+
+Basically, I fit a line in a sliding window to the cumulative case points,
+and display the slope of that fit. This illustrates how the number of cases
+may be growing on a day-to-day basis and should show when "the curve is
+flattening". Of course the goal is for this number to go to zero.
+
+A also provide the doubling time, measured from fitting a line in a moving
+window to the logarithm of the cunmulative caseload. I like this number better, because it more sensitively demonstrates progress. I also provide a 
+3-point median smoothing filter to help clean up spikes in the data due
+to reporting issues that occurred in the early days.
+
 ## Map
 
-The map is pretty simple. You can color counties by total reported cases,
-or by cases per 100,000 population. Note that the "Pending County Assignment"
-problem means that there can be a significant lag in a case being tied to
-a county.
+The map is pretty simple. You can color counties by:
+* total reported cases
+* cases per 100,000 population
+* deaths
+* deaths per 100,000 population
+* deaths/cases
+
+The last item, deaths divided by number of cases, should expose testing issues.
+We know the mortality rate is on the order of 1%, so even allowing for 
+a 2-3 week lag from infection to death, the deaths/cases should be less
+than or around 1%. Really quite a bit less. 
+
+
+
+
+
 
 
 
