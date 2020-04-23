@@ -15,6 +15,7 @@ library(lubridate)
 library(rsample)
 library(broom)
 library(purrr)
+library(slider)
 
 
 ###################################
@@ -317,20 +318,23 @@ ui <- basicPage(
                    "Slope Change",
                    fluid = TRUE,
                    value = "SlopeChange",
-                   HTML("<hr>")
-         ), # end tab panel Deaths
+                   plotOutput("plot_slopes",
+                              height = "700px")#,
+                  # h4("Details on displayed data"),
+                  # htmlOutput("death_details")
+         ), # end tab panel Slope Change
          tabPanel( ##########   Missed Tests
                    "Missed Tests",
                    fluid = TRUE,
                    value = "Tests",
                    HTML("<hr>")
-         ), # end tab panel Deaths
+         ), # end tab panel MIssed Tests
          tabPanel(
                    "Something",
                    fluid = TRUE,
                    value = "Something",
                    HTML("<hr>")
-          ) # end tab panel Deaths
+          ) # end tab panel Something
         ) # end TabSet panel An_tabs
       ), # end column 
             #-------------------- Data Selection
@@ -365,7 +369,7 @@ ui <- basicPage(
                ), # end Data select
 
               #-------------------- Modeling parameters
-                  conditionalPanel( # Deaths Plot controls
+                  conditionalPanel( # Cases Plot controls
                     #    Cases Tab
                     condition = "input.An_tabs == 'Cases'",               
                     #-------------------- Plot controls
@@ -495,18 +499,38 @@ ui <- basicPage(
                     
                   ), # End Deaths Plot controls
                   # end conditional panel
-                  conditionalPanel(
+                  ),# end wellPanel
+                  # end conditional panel
+                  conditionalPanel( 
                     #    Slope Change Tab
                     condition = "input.An_tabs == 'SlopeChange'",
-                    selectInput(
-                      "county",
-                      label = "Choose a County:",
-                      Counties$County,
-                      selected = "Harris"
-                    )
+                      wellPanel(
+                          numericInput(
+                              "window",
+                              label = h5("Days to fit over"),
+                              step = 2,
+                              value = 3,
+                              min=3,
+                              max=15
+                          )
+                      ),
+                      wellPanel(
+                        radioButtons(
+                          "slopetype",
+                          label = h4("Y-Axis"),
+                          choices = list(
+                            "Cum Cases" = "cases",
+                            "Doubling Time" = "doubling"
+                          ),
+                      selected = "cases"
+                        ), 
+                        checkboxInput(
+                          inputId = "smooth",
+                          label = strong("Smooth?"),
+                          value = FALSE
+                        ),
+                      )
                   )
-                  )# end wellPanel
-                  # end conditional panel
                  ) # end column Controls
          ) # end fluid page
                 
@@ -550,7 +574,7 @@ ui <- basicPage(
 
 # Define server logic 
 server <- function(input, output) {
-  hideTab(inputId = "An_tabs", target="SlopeChange")   
+  #hideTab(inputId = "An_tabs", target="SlopeChange")   
   hideTab(inputId = "An_tabs", target="Tests")   
   hideTab(inputId = "An_tabs", target="Something")   
 #   Global variables are
@@ -1479,6 +1503,72 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     })
   }
   
+  #---------------------------------------------------    
+  #------------------- Build Slope Plot --------------
+  #---------------------------------------------------    
+  
+  build_slope_plot <- function(
+                                in_window,
+                                in_slopetype,
+                                in_smooth
+                                ){
+    halfwidth <- as.integer(in_window/2)
+    
+    if (in_slopetype=="cases") {
+      foo <- subdata %>% 
+        mutate(log_cases=Cases)
+      my_title <- "Slope of Cum Case Count in "
+      my_ylab <- "Slope: Change in Cum num cases / number of days"
+    } else {
+      foo <- subdata %>% 
+        mutate(log_cases=log10(Cases))
+      my_title <- "Doubling Time for "
+      my_ylab <- "Doubling Time in Days"
+    }
+    
+    foo <- foo %>%
+      mutate(
+        model = slide(
+          .x = tibble(Days = Days, log_cases = log_cases), 
+          .f = ~lm(log_cases ~ Days, .x), 
+          .before = halfwidth, 
+          .after = halfwidth,
+          .complete = TRUE
+        ),
+        tidied=map(model, tidy)
+      ) %>% 
+      unnest(tidied) %>% 
+      filter(term=="Days") %>% 
+      select(-log_cases, -model, -term) %>% 
+      rename(sd=std.error, m=estimate) %>% 
+      filter(m>0.0)
+    
+    #   calculate doubling time
+    if (in_slopetype=="doubling") {
+      foo <- foo %>% 
+        mutate(m=signif(log10(2)/m,2),
+               sd=signif(log10(2)/(m-sd),2)) %>% 
+        filter(m<200)
+    }
+    if (in_smooth) {
+      foo$m <- fractal::medianFilter(foo$m,3)
+    }
+    
+    foo %>% 
+      ggplot(aes(x=Date, y=m)) +
+      geom_point() +
+      geom_errorbar(aes(ymax=m+sd, ymin=m-sd)) +
+      geom_line() +
+      theme(text = element_text(size=20)) +
+      labs(title=paste0(my_title
+                        ,PopLabel$Label),
+           subtitle=paste0("Fit over ",in_window," days"),
+           y=my_ylab)
+    
+    
+  }
+  
+  
   ######################  Map ########################
   #---------------------------------------------------    
   #------------------- Build Model -------------------
@@ -1774,8 +1864,20 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
           showNotification("Too little death data")
         }
       }
+  #---------------------------------
+  #------------- Slope Change tab
+  #---------------------------------
       if (input$An_tabs == "SlopeChange") {
-         # p <- build_slope_plot()
+        if (sum(!is.na(subdata$Cases))>15) {
+          p <- build_slope_plot(
+                                 input$window,
+                                 input$slopetype,
+                                 input$smooth
+                                 )
+          output$plot_slopes <- renderPlot({print(p)})
+        } else {
+          showNotification("Too little case data")
+        }
       } 
       if (input$An_tabs == "Tests") {
          # p <- build_tests_plot()
@@ -1785,7 +1887,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
       }
       
       print("============== end select An data ==================")
-  }) 
+  }) #   end of respond to data change
    
   #---------------------------------------------------    
   #------------------- Rerun fitting -----------------
@@ -1953,6 +2055,28 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     }
   })
     
+  #---------------------------------------------------    
+  #------------------- Slope changes -----------------
+  #---------------------------------------------------    
+  observeEvent({
+                input$window
+                input$slopetype
+                input$smooth
+                input$An_tabs
+                1} , { # 
+      if (input$An_tabs == "SlopeChange") {
+          if (sum(!is.na(subdata$Cases))>15) {
+            p <- build_slope_plot(
+              input$window,
+              input$slopetype,
+              input$smooth
+            )
+            output$plot_slopes <- renderPlot({print(p)})
+          } else {
+            showNotification("Too little case data")
+          }
+      }
+  }) 
   #---------------------------------------------------    
   #------------------- Analysis Tab ------------------
   #---------------------------------------------------    
