@@ -77,6 +77,8 @@ The metro areas follow the standard definition, and consist of counties:
 *  Dallas: Collin, Dallas, Denton, Ellis, Hood, Hunt, Johnson, Kaufman, Parker, Rockwall, Somervell, Tarrant and Wise
 *  San Antonio: Atascosa, Bandera, Bexar, Comal, Guadalupe, Kendall, Medina, and Wilson
 *  Austin: Bastrop, Caldwell, Hays, Travis, and Williamson
+*  Lubbock: Crosby, Lubbock, and Lynn
+*  Amarillo: Armstrong, Carson, Potter, Randall, and Oldham
 
 When looking at counties, I helpfully display the latest cumulative case
 count for that county.
@@ -201,8 +203,14 @@ flattening". Of course the goal is for this number to go to zero.
 
 A also provide the doubling time, measured from fitting a line in a moving
 window to the logarithm of the cunmulative caseload. I like this number better, because it more sensitively demonstrates progress. I also provide a 
-3-point median smoothing filter to help clean up spikes in the data due
+median smoothing filter to help clean up spikes in the data due
 to reporting issues that occurred in the early days.
+
+You can view the simple daily percent change, this is not windowed,
+but is the daily percent change in number of cases.
+
+Finally, because testing started so slowly, the data prior to
+March 25 is pretty dodgy, so you can exclude that if you wish. 
 
 ## Map
 
@@ -212,8 +220,10 @@ The map is pretty simple. You can color counties by:
 * deaths
 * deaths per 100,000 population
 * deaths/cases
+* doubling time in the last 5 days
+* average percent change in case numbers, from the last 5 days
 
-The last item, deaths divided by number of cases, should expose testing issues.
+The item, deaths divided by number of cases, should expose testing issues.
 We know the mortality rate is on the order of 1%, so even allowing for 
 a 2-3 week lag from infection to death, the deaths/cases should be less
 than or around 1%. Really quite a bit less. 
