@@ -205,7 +205,9 @@ Regions <- tribble(
             "Houston-Galv", 6779104, "Houston/Galveston Metro Region",
             "Dallas-Fort Worth", 4938225, "Dallas/Fort Worth Metro Region",
             "San Antonio", 2426204, "San Antonio Metro Region",
-            "Austin", 2058351, "Austin Metro Region")
+            "Austin", 2058351, "Austin Metro Region",
+            "Lubbock", 290805, "Lubbock Metro Region",
+            "Amarillo", 249881, "Amarillo Metro Region")
 
 DefineRegions <- tribble(
     ~Region, ~List,
@@ -213,7 +215,9 @@ DefineRegions <- tribble(
     "Houston-Galv", c("Harris", "Fort Bend", "Galveston", "Waller", "Montgomery", "Liberty", "Brazoria", "Chambers", "Austin"),
     "Dallas-Fort Worth", c("Collin", "Dallas", "Denton", "Ellis", "Hood", "Hunt", "Johnson", "Kaufman", "Parker", "Rockwall", "Somervell", "Tarrant", "Wise"),
     "San Antonio", c("Atascosa", "Bandera", "Bexar", "Comal", "Guadalupe", "Kendall", "Medina", "Wilson"), 
-    "Austin", c("Bastrop", "Caldwell", "Hays", "Travis", "Williamson")
+    "Austin", c("Bastrop", "Caldwell", "Hays", "Travis", "Williamson"),
+    "Lubbock", c("Crosby", "Lubbock", "Lynn"),
+    "Amarillo", c("Armstrong", "Carson", "Potter", "Randall", "Oldham")
 )
 
 # https://docs.google.com/document/d/1ETeXAfYOvArfLvlxExE0_xrO5M4ITC0_Am38CRusCko/edit#
@@ -237,6 +241,40 @@ TodayData <- DF %>% filter(Date==LastDate) %>%
   left_join(., Counties, by="County") %>% 
   mutate(percapita=Cases/Population*100000)
 
+# Calc doubling and slope for last 5 days
+GetSlope <- function(x, y){
+  if(length(y)<5) {return(NA)}
+  if(y[5]<5) {return(NA)}
+  model <- lm(y~x )
+  model[["coefficients"]][["x"]]
+}
+GetDouble <- function(x, y){
+  if(length(y)<5) {return(NA)}
+  if(y[5]<5) {return(NA)}
+  model <- lm(log10(y)~x )
+  m <- model[["coefficients"]][["x"]]
+  if (m<.0001) {return(NA)}
+  signif(log10(2)/m,2) # doubling time
+}
+GetPercent <- function(x, y){
+  if(length(y)<5) {return(NA)}
+  if(y[5]<5) {return(NA)}
+  m <- (100*(y-lag(y))/lag(y))
+  m <- mean(m, na.rm = TRUE)
+  signif(m,2) # average percent change
+}
+
+Slopes <- DF %>% 
+  filter(County!="Pending County Assignment") %>% 
+  group_by(County) %>% 
+  slice(tail(row_number(), 5)) %>% 
+  mutate(m=GetSlope(Days, Cases)) %>% 
+  mutate(double=GetDouble(Days, Cases)) %>% 
+  mutate(avgpct=GetPercent(Days, Cases)) %>% 
+  slice(1) %>% 
+  ungroup %>% 
+  select(County, m, double, avgpct)
+
 # Add current cases to county for labeling selector
 
 Counties <- left_join(Counties, TodayData, by="County") %>% 
@@ -247,9 +285,13 @@ MappingData <-  merge(Texas, TodayData,
                       by.x = c("County"), by.y = c("County"),
                       all.x = TRUE) 
 
+MappingData <- left_join(MappingData, Slopes, by="County")
+
 # Build labels for map
 
+
 MappingData <- MappingData %>%
+  mutate(m=signif(100000*m/Population,3)) %>% 
   mutate(percapita=signif(percapita,3)) %>% 
   mutate(Deaths=na_if(Deaths, 0)) %>% 
   mutate(DPerC=na_if(signif(Deaths/Cases,2),0)) %>% 
@@ -263,7 +305,11 @@ MapLabels <- lapply(seq(nrow(MappingData)), function(i) {
               MappingData[i,]$percapita, " per 100,000<br>",
               MappingData[i,]$Deaths, " Deaths<br>",
               MappingData[i,]$DPerC, " Deaths per Case<br>",
-              MappingData[i,]$DPerCap, " Deaths per 100,000"),
+              MappingData[i,]$DPerCap, " Deaths per 100,000<br>",
+              MappingData[i,]$m, " Cum Slope per capita<br>",
+              MappingData[i,]$double, " Doubling Time<br>",
+              MappingData[i,]$avgpct, " Avg Pct Chg"
+              ),
       "NA", "Zero"))
 })
 
@@ -520,7 +566,8 @@ ui <- basicPage(
                           label = h4("Y-Axis"),
                           choices = list(
                             "Cum Cases" = "cases",
-                            "Doubling Time" = "doubling"
+                            "Doubling Time" = "doubling",
+                            "Percent change" = "percent"
                           ),
                       selected = "cases"
                         ), 
@@ -529,6 +576,19 @@ ui <- basicPage(
                           label = strong("Smooth?"),
                           value = FALSE
                         ),
+                        numericInput(
+                            "smthlength",
+                            label = h5("Smoothing Length"),
+                            step = 2,
+                            value = 3,
+                            min=3,
+                            max=15
+                        ),
+                        checkboxInput(
+                          inputId = "truncate",
+                          label = strong("Start on March 25"),
+                          value = FALSE
+                        )
                       )
                   )
                  ) # end column Controls
@@ -554,7 +614,10 @@ ui <- basicPage(
                                  "Cases per 100,000 population" = "percapita",
                                  "Deaths" = "deaths",
                                  "Deaths per 100,000" = "deathspercap",
-                                 "Deaths/Cases" = "deathpercase"
+                                 "Deaths/Cases" = "deathpercase",
+                                 #"Slope per 100,000" = "case_slope",
+                                 "Doubling Time" = "double",
+                                 "Avg Recent Pct Change" = "avg_chg"
                                  ), 
                   selected = "casetotal",
                   width='90%',
@@ -1089,7 +1152,7 @@ server <- function(input, output) {
     #  Crowdsize
     #------------------
       if (in_avoid) {
-          p <- add_crowdsize(p, in_zoom)
+          p <- add_crowdsize(p, in_zoom, in_recover)
       }
       
       p <-  build_legend(p, "Cases",
@@ -1201,7 +1264,7 @@ server <- function(input, output) {
   #------------------- Add crowd size ----------------
   #---------------------------------------------------    
   # When is probability of 1% contact reached?
-  add_crowdsize <- function(p, in_zoom) {
+  add_crowdsize <- function(p, in_zoom, in_recover) {
     print(":::::::  add_crowdsize")
       begin <- subdata$Date[1] # date of first reported case
       LastDate <- subdata[nrow(subdata),]$Date
@@ -1209,10 +1272,14 @@ server <- function(input, output) {
       Population <- PopLabel[2][[1]]
       dayseq <- 0:(as.integer(LastDate - begin) + 10)
       dateseq <- as_date(begin:(LastDate + 10))
-      Cases <- case_fit$Cases
+      ###Cases <- case_fit$Cases
+      active <- tibble(Date=case_fit$Date[in_recover+1:(nrow(case_fit)-in_recover)],
+                     Cases=case_fit$Cases[in_recover+1:(nrow(case_fit)-in_recover)] -
+                           case_fit$Cases[1:(nrow(case_fit)-in_recover)]*0.98)
+      Cases <- active$Cases
 
       TestDays <- as.integer(LastDate 
-                             - begin) + c(0,5,10) + 1
+                             - begin) + c(0,5,10) + 1 - in_recover
       TestDates <- LastDate + c(0,5,10)
       Crowdsize <- signif((0.01*Population)/(Cases[TestDays]), 2)
       
@@ -1510,39 +1577,58 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
   build_slope_plot <- function(
                                 in_window,
                                 in_slopetype,
-                                in_smooth
+                                in_smooth,
+                                in_smthlength=3,
+                                in_truncate
                                 ){
     halfwidth <- as.integer(in_window/2)
     
-    if (in_slopetype=="cases") {
+    # truncate
+    foo <- subdata
+    if (in_truncate) {
       foo <- subdata %>% 
+        filter(Date>"2020-03-24")
+    }
+    
+    if (in_slopetype=="cases") {
+      foo <- foo %>% 
         mutate(log_cases=Cases)
       my_title <- "Slope of Cum Case Count in "
       my_ylab <- "Slope: Change in Cum num cases / number of days"
+    } else if (in_slopetype=="percent") {
+      foo <- foo %>% 
+        mutate(m=100*(Cases-lag(Cases))/lag(Cases)) %>% 
+        mutate(sd=0)
+      my_title <- "Percent Change of Cases in "
+      my_ylab <- "Daily Percent Change"
     } else {
-      foo <- subdata %>% 
+      foo <- foo %>% 
         mutate(log_cases=log10(Cases))
       my_title <- "Doubling Time for "
       my_ylab <- "Doubling Time in Days"
     }
     
-    foo <- foo %>%
-      mutate(
-        model = slide(
-          .x = tibble(Days = Days, log_cases = log_cases), 
-          .f = ~lm(log_cases ~ Days, .x), 
-          .before = halfwidth, 
-          .after = halfwidth,
-          .complete = TRUE
-        ),
-        tidied=map(model, tidy)
-      ) %>% 
-      unnest(tidied) %>% 
-      filter(term=="Days") %>% 
-      select(-log_cases, -model, -term) %>% 
-      rename(sd=std.error, m=estimate) %>% 
-      filter(m>0.0)
-    
+    if (in_slopetype!="percent") {
+      foo <- foo %>%
+        mutate(
+          model = slide(
+            .x = tibble(Days = Days, log_cases = log_cases), 
+            .f = ~lm(log_cases ~ Days, .x), 
+            .before = halfwidth, 
+            .after = halfwidth,
+            .complete = TRUE
+          ),
+          tidied=map(model, tidy)
+        ) %>% 
+        unnest(tidied) %>% 
+        filter(term=="Days") %>% 
+        select(-log_cases, -model, -term) %>% 
+        rename(sd=std.error, m=estimate) #%>% 
+        #filter(m>0.0)
+    }
+    if (!grepl("percent", in_slopetype)) {
+      foo <- foo %>% filter(m>0.0)
+    }
     #   calculate doubling time
     if (in_slopetype=="doubling") {
       foo <- foo %>% 
@@ -1551,24 +1637,27 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
         filter(m<200)
     }
     if (in_smooth) {
-      foo$m <- fractal::medianFilter(foo$m,3)
+      foo$m <- fractal::medianFilter(foo$m,in_smthlength)
     }
     
-    foo %>% 
+    p <- foo %>% 
       ggplot(aes(x=Date, y=m)) +
       geom_point() +
-      geom_errorbar(aes(ymax=m+sd, ymin=m-sd)) +
       geom_line() +
       theme(text = element_text(size=20)) +
+      geom_smooth() +
       labs(title=paste0(my_title
                         ,PopLabel$Label),
-           subtitle=paste0("Fit over ",in_window," days"),
            y=my_ylab)
     
-    
+    if (!grepl("percent", in_slopetype)) {
+      p <- p +
+      geom_errorbar(aes(ymax=m+sd, ymin=m-sd)) +
+        labs(subtitle=paste0("Fit over ",in_window," days"))
+    }
+  return(p)
   }
-  
-  
+   
   ######################  Map ########################
   #---------------------------------------------------    
   #------------------- Build Model -------------------
@@ -1582,12 +1671,17 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     DPerCapRange <- range(MappingData$DPerCap, na.rm=TRUE)
     CaseRange <- range(MappingData$Cases, na.rm=TRUE)
     DeathRange <- range(MappingData$Deaths, na.rm=TRUE)
+    SlopeRange <- range(MappingData$m, na.rm=TRUE)
+    DoubleRange <- range(MappingData$double, na.rm=TRUE)
+    avgpctRange <- range(MappingData$avgpct, na.rm=TRUE)
     print(as.character(seq(DPerCRange[1], DPerCRange[2], length.out = 5)))
     
     print("Map --2--")
     #   Calculate proper number of quantile cuts
-    nCase <- as.integer(sum(MappingData$Cases>0, na.rm=TRUE)/sum(MappingData$Cases==1, na.rm=TRUE))
-    nDeath <- as.integer(sum(MappingData$Deaths>0, na.rm=TRUE)/sum(MappingData$Deaths==1, na.rm=TRUE))
+    nCase <- as.integer(sum(MappingData$Cases>0, na.rm=TRUE)/
+                          sum(MappingData$Cases==1, na.rm=TRUE))
+    nDeath <- as.integer(sum(MappingData$Deaths>0, na.rm=TRUE)/
+                           sum(MappingData$Deaths==1, na.rm=TRUE))
     
     palcap <-colorQuantile(palette = heat.colors(8), 
                            domain = MappingData$percapita, 
@@ -1613,6 +1707,20 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                             reverse=TRUE,
                             domain = MappingData$Deaths)
     
+    palslope <- colorNumeric(
+                            na.color = "transparent",
+                            palette = heat.colors(8),
+                            reverse=TRUE,
+                            domain = MappingData$m)
+    
+    paldouble <- colorQuantile(
+                            na.color = "transparent",
+                            palette = heat.colors(8),
+                            #reverse=TRUE,
+                            n = 8, 
+                            right = FALSE,
+                            domain = MappingData$double)
+    
     paldeathpercap <- colorQuantile(
                             na.color = "transparent",
                             palette = heat.colors(8),
@@ -1620,6 +1728,13 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                             reverse=TRUE,
                             right = FALSE,
                             domain = MappingData$DPerCap)
+    palavgpct <- colorQuantile(
+                            na.color = "transparent",
+                            palette = heat.colors(5),
+                            n = 5, 
+                            reverse=TRUE,
+                            right = FALSE,
+                            domain = MappingData$avgpct)
     
     paldeathpercase <- colorQuantile(
                             na.color = "transparent",
@@ -1694,6 +1809,47 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                     title = "Total Deaths",
                     opacity = 1)
       }) 
+    } else if (input$county_color=="case_slope")  { #############  Slope
+      output$TexasMap <- renderLeaflet({
+        #   Basemap
+        leaflet(MappingData) %>% 
+          setView(lng = MapCenter[1] , lat = MapCenter[2], zoom = init_zoom ) %>%   
+          addTiles() %>%
+          addPolygons(data = MappingData, 
+                      group="slope",
+                      stroke = TRUE,
+                      weight = 1,
+                      smoothFactor = 0.2, 
+                      fillOpacity = 0.7,
+                      label = MapLabels,
+                      fillColor = ~palslope(MappingData$m)) %>% 
+          addLegend("bottomleft", pal = palslope, values = ~m, 
+                    title = "Slope of cases per capita",
+                    opacity = 1)
+      }) 
+    } else if (input$county_color=="double")  { #############  Doubling
+      output$TexasMap <- renderLeaflet({
+        #   Basemap
+        leaflet(MappingData) %>% 
+          setView(lng = MapCenter[1] , lat = MapCenter[2], zoom = init_zoom ) %>%   
+          addTiles() %>%
+          addPolygons(data = MappingData, 
+                      group="double",
+                      stroke = TRUE,
+                      weight = 1,
+                      smoothFactor = 0.2, 
+                      fillOpacity = 0.7,
+                      label = MapLabels,
+                      fillColor = ~paldouble(MappingData$double)) %>% 
+          addLegend("bottomleft", pal = paldouble, values = ~double, 
+                    title = "Doubling Time",
+                    labels= as.character(seq(DoubleRange[1], DoubleRange[2], length.out = 8)),
+                    labFormat = function(type, cuts, p) {
+                      n = length(cuts)
+                      paste0(signif(cuts[-n],2), " &ndash; ", signif(cuts[-1],2))
+                    },
+                    opacity = 1)
+      }) 
     } else if (input$county_color=="deathspercap")  { #############  Deaths per 100k
       output$TexasMap <- renderLeaflet({
         #   Basemap
@@ -1711,6 +1867,29 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
           addLegend("bottomleft", pal = paldeathpercap, values = ~DPerCap, 
                     title = "Deaths per 100,000",
                     labels= as.character(seq(DPerCapRange[1], DPerCapRange[2], length.out = 8)),
+                    labFormat = function(type, cuts, p) {
+                      n = length(cuts)
+                      paste0(signif(cuts[-n],2), " &ndash; ", signif(cuts[-1],2))
+                    },
+                    opacity = 1)
+      }) 
+    } else if (input$county_color=="avg_chg")  { #############  Avg Pct Chg
+      output$TexasMap <- renderLeaflet({
+        #   Basemap
+        leaflet(MappingData) %>% 
+          setView(lng = MapCenter[1] , lat = MapCenter[2], zoom = init_zoom ) %>%   
+          addTiles() %>%
+          addPolygons(data = MappingData, 
+                      group="avgpctchg",
+                      stroke = TRUE,
+                      weight = 1,
+                      smoothFactor = 0.2, 
+                      fillOpacity = 0.7,
+                      label = MapLabels,
+                      fillColor = ~palavgpct(MappingData$avgpct)) %>% 
+          addLegend("bottomleft", pal = palavgpct, values = ~avgpct, 
+                    title = "Recent Avg Pct Change",
+                    labels= as.character(seq(avgpctRange[1], avgpctRange[2], length.out = 8)),
                     labFormat = function(type, cuts, p) {
                       n = length(cuts)
                       paste0(signif(cuts[-n],2), " &ndash; ", signif(cuts[-1],2))
@@ -1872,7 +2051,9 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
           p <- build_slope_plot(
                                  input$window,
                                  input$slopetype,
-                                 input$smooth
+                                 input$smooth,
+                                 input$smthlength,
+                                 input$truncate
                                  )
           output$plot_slopes <- renderPlot({print(p)})
         } else {
@@ -2062,6 +2243,8 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                 input$window
                 input$slopetype
                 input$smooth
+                input$smthlength
+                input$truncate
                 input$An_tabs
                 1} , { # 
       if (input$An_tabs == "SlopeChange") {
@@ -2069,7 +2252,9 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
             p <- build_slope_plot(
               input$window,
               input$slopetype,
-              input$smooth
+              input$smooth,
+              input$smthlength,
+              input$truncate
             )
             output$plot_slopes <- renderPlot({print(p)})
           } else {
