@@ -151,6 +151,51 @@ deaths_today <- tribble(
 print("--5--")
 
 #---------------------------------------------------------------------
+#   Extract Prison information
+#---------------------------------------------------------------------
+
+url="https://www.tdcj.texas.gov/covid-19/offender_mac.html"
+
+webpage <- 
+  read_html(url) 
+
+tbls_ls <- read_html(url) %>%
+  html_nodes("table") %>%
+  html_table(fill = TRUE)
+
+# Unpack all ten tables and combine where needed
+
+col.names <- c("Pending_Tests",
+               "Negative_Tests", 
+               "Positive_Tests", 
+               "Medical_Restriction",
+               "Medical_Isolation")
+
+df <- tbls_ls[[1]] %>% 
+  rename(Unit=X1, Pending_Tests=X2) %>% 
+  mutate(Unit=str_squish(Unit))
+
+for (i in 2:5){
+  tmp <- tbls_ls[[i]] %>% 
+    rename(Unit=X1, !!col.names[i] := X2) %>% 
+    mutate(Unit=str_squish(Unit))
+  df <- left_join(df, tmp, by="Unit")
+}
+
+staff <- tbls_ls[[6]] %>% 
+  rename(Unit=X1, Staff_Positive_Tests=X2) %>% 
+  mutate(Unit=str_squish(Unit))
+
+for (i in 7:10) {
+  tmp <- tbls_ls[[i]] %>% 
+    rename(Unit=X1, Staff_Positive_Tests=X2) %>% 
+    mutate(Unit=str_squish(Unit))
+  staff <- bind_rows(staff, tmp)
+}
+new_prisons <- left_join(df, staff, by="Unit")
+
+
+#---------------------------------------------------------------------
 #   Read in excel file from state
 #---------------------------------------------------------------------
 
@@ -208,6 +253,19 @@ saveRDS(deaths ,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::toda
 saveRDS(deaths,"/home/ajackson/Dropbox/Rprojects/Covid/Deaths.rds")
 # Also save to mirror site
 saveRDS(deaths,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Deaths.rds")
+
+
+################   Prison data
+# Read in the old data
+prisons <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Prisons.rds")
+# append the new data
+prisons <- bind_rows(prisons, new_prisons)
+# Save an accumulated file in case of a failure
+saveRDS(prisons ,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),"_Prisons.rds"))
+# Save the real file for later use
+saveRDS(prisons,"/home/ajackson/Dropbox/Rprojects/Covid/Prisons.rds")
+# Also save to mirror site
+saveRDS(prisons,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Prisons.rds")
 
 
 
