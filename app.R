@@ -306,7 +306,7 @@ MapLabels <- lapply(seq(nrow(MappingData)), function(i) {
               MappingData[i,]$Deaths, " Deaths<br>",
               MappingData[i,]$DPerC, " Deaths per Case<br>",
               MappingData[i,]$DPerCap, " Deaths per 100,000<br>",
-              MappingData[i,]$m, " Cum Slope per capita<br>",
+              #MappingData[i,]$m, " Cum Slope per capita<br>",
               MappingData[i,]$double, " Doubling Time<br>",
               MappingData[i,]$avgpct, " Avg Pct Chg"
               ),
@@ -1011,9 +1011,9 @@ server <- function(input, output) {
           geom_point(data=TestingData,
                         aes(x=Date, y=Total/xform, color="tests"),
                      size=3, shape=21, fill="white") +
-          geom_text(data=TestingData,
-                    aes(x=Date, y=Total/xform, label=Total),
-                    nudge_x=-1.50, nudge_y=0.0) +
+          #geom_text(data=TestingData,
+          #          aes(x=Date, y=Total/xform, label=Total),
+          #          nudge_x=-1.50, nudge_y=0.0) +
           theme(text = element_text(size=20)) +
           labs(title=paste0("COVID-19 Cases in ",PopLabel$Label), 
                subtitle=paste0(" as of ", lastdate))
@@ -1084,9 +1084,14 @@ server <- function(input, output) {
                             size = 3) 
      } else {
         
-        p <- p + geom_point(aes(color="data"), size=2) +
-                 geom_text(aes(label=Cases),
+        p <- p + geom_point(aes(color="data"), size=2) 
+                # geom_text(aes(label=Cases),
+                #           nudge_x=-1.50, nudge_y=0.0)
+        if (max(subdata$Cases)<100) {
+          p <- p + geom_text(aes(label=Cases),
                            nudge_x=-1.50, nudge_y=0.0)
+          
+        }
      }       
 
       
@@ -1535,7 +1540,8 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
   data_details <- function(data, variable, EqText, m, b, rsqr) {
     renderUI({
       str1 <- paste("Most recent value, on",data$Date[nrow(data)],
-                    "was<b>", data[nrow(data), variable],"</b>",variable)
+                    "was<b>", formatC(data[nrow(data), variable],
+                                      format="d", big.mark=","),"</b>",variable)
       str3 <- paste("           Doubling Time =", signif(log10(2)/m,2), "days",
                     "<br> ", EqText)
       
@@ -1643,14 +1649,14 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     p <- foo %>% 
       ggplot(aes(x=Date, y=m)) +
       geom_point() +
-      geom_line() +
+      #geom_line() +
       theme(text = element_text(size=20)) +
       geom_smooth() +
       labs(title=paste0(my_title
                         ,PopLabel$Label),
            y=my_ylab)
     
-    if (!grepl("percent", in_slopetype)) {
+    if (in_slopetype=="cases") {
       p <- p +
       geom_errorbar(aes(ymax=m+sd, ymin=m-sd)) +
         labs(subtitle=paste0("Fit over ",in_window," days"))
