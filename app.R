@@ -318,6 +318,58 @@ span <- function(vector){
   return(max(foo) - min(foo))
 }
 
+#' log scale
+#'
+#' Creates a function which returns ticks for a given data range. It uses some
+#' code from scales::log_breaks, but in contrast to that function it not only
+#' the exponentials of the base b, but log minor ticks (f*b^i, where f and i are 
+#' integers), too.
+#'
+#' @param n Approximate number of ticks to produce
+#' @param base Logarithm base
+#'
+#' @return
+#'
+#' A function which expects one parameter:
+#'
+#' * **x**: (numeric vector) The data for which to create a set of ticks.
+#'
+#' @export
+logTicks <- function(n = 5, base = 10){
+  # Divisors of the logarithm base. E.g. for base 10: 1, 2, 5, 10.
+  divisors <- which((base / seq_len(base)) %% 1 == 0)
+  mkTcks <- function(min, max, base, divisor){
+    f <- seq(divisor, base, by = divisor)
+    return(unique(c(base^min, as.vector(outer(f, base^(min:max), `*`)))))
+  }
+  
+  function(x) {
+    rng <- range(x, na.rm = TRUE)
+    lrng <- log(rng, base = base)
+    min <- floor(lrng[1])
+    max <- ceiling(lrng[2])
+    
+    tck <- function(divisor){
+      t <- mkTcks(min, max, base, divisor)
+      t[t >= rng[1] & t <= rng[2]]
+    }
+    # For all possible divisors, produce a set of ticks and count how many ticks
+    # result
+    tcks <- lapply(divisors, function(d) tck(d))
+    l <- vapply(tcks, length, numeric(1))
+    
+    # Take the set of ticks which is nearest to the desired number of ticks
+    i <- which.min(abs(n - l))
+    if(l[i] < 2){
+      # The data range is too small to show more than 1 logarithm tick, fall
+      # back to linear interpolation
+      ticks <- pretty(x, n = n, min.n = 2)
+    }else{
+      ticks <- tcks[[i]]
+    }
+    return(ticks)
+  }
+}
 ##################################################
 # Define UI for displaying data for Texas
 ##################################################
@@ -992,6 +1044,8 @@ server <- function(input, output) {
     #------------------
     #  Plot fit line, Extension of line, and testing data
     #------------------
+    testend <- tibble(end_day=last(TestingData$Date), 
+                      end_case=last(TestingData$Total)/xform)
     p <-  p +
           expand_limits(x = LastDate+10) +
           geom_line(data=case_fit,
@@ -1016,7 +1070,11 @@ server <- function(input, output) {
           #          nudge_x=-1.50, nudge_y=0.0) +
           theme(text = element_text(size=20)) +
           labs(title=paste0("COVID-19 Cases in ",PopLabel$Label), 
-               subtitle=paste0(" as of ", lastdate))
+               subtitle=paste0(" as of ", lastdate)) +
+          geom_text(data=testend,
+                 aes(y=end_case,x=end_day,label=format(end_case, big.mark = ",")),
+                 size=5.0,
+                 vjust="bottom", hjust="left") 
     #------------------
     #  Plot recovered estimate
     #------------------
@@ -1099,11 +1157,17 @@ server <- function(input, output) {
     #  Log scaling
     #------------------
       if (in_logscale) {
-        trans_value <- "log10"
         min_limit <- min(subdata$Cases[1], 10)
+        p <- p + scale_y_continuous(sec.axis = sec_axis(~.*xform, 
+                                    name = "Statewide Test Total"),
+                                    trans="log10",
+                                    breaks = logTicks(n = 4), 
+                                    minor_breaks = logTicks(n = 40)) 
       } else {
-        trans_value <- "identity"
         min_limit <- 0
+        p <- p + scale_y_continuous(sec.axis = sec_axis(~.*xform, 
+                                    name = "Statewide Test Total"),
+                                    trans="identity" ) 
       }
     #------------------
     #  Zoom
@@ -1112,22 +1176,12 @@ server <- function(input, output) {
     if (in_modeling=="logistic") {zoom_factor <- 4}
       if (in_zoom) { # bigger scale
           # limit height of modeled fit
-        p <- p + scale_y_continuous(#limits=c(min_limit, 
-                                    #         zoom_factor*max(subdata$Cases)),
-                                    sec.axis = sec_axis(~.*xform, 
-                                    name = "Statewide Test Total"),
-                                    trans=trans_value) +
-          coord_cartesian(ylim=c(min_limit, 
-                                 zoom_factor*max(subdata$Cases))
-                          )
+         p <- p + coord_cartesian(ylim=c(min_limit, 
+                                 zoom_factor*max(subdata$Cases)))
       } else { # normal scale
-        p <- p + scale_y_continuous(#limits=c(min_limit, max(1.2*case_fit$upper_conf)),
-                                    sec.axis = sec_axis(~.*xform, 
-                                    name = "Statewide Test Total"),
-                                    trans=trans_value)+
-          coord_cartesian(ylim=c(min_limit, 
-                                 1.5*max(subdata$Cases))
-                          )
+
+        p <- p + coord_cartesian(ylim=c(min_limit, 
+                                 1.5*max(subdata$Cases)))
       }
     #------------------
     #  Legend
@@ -1470,9 +1524,9 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                                      aes(x, y, 
                                          label = signif(ExpLine_est$est_cases[indx], 3) ))
       #     Add actual cases
-      p <- p + geom_point(data=subdata, aes(y=Cases, x=Date, color="data"), size=2) +
-               geom_text(data=subdata, aes(y=Cases, x=Date, label=Cases),
-                         nudge_x=-1.50, nudge_y=0.0)
+      p <- p + geom_point(data=subdata, aes(y=Cases, x=Date, color="data"), size=2)# +
+               #geom_text(data=subdata, aes(y=Cases, x=Date, label=Cases),
+               #          nudge_x=-1.50, nudge_y=0.0)
       
       p <-  build_legend(p, "Deaths",
                              c("Data", "Fit", "Est Cases"), # Labels for legend
@@ -1487,22 +1541,21 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                              )
     }      
     #-------------------------------- Log scaling?
+    
+    upper_limit <- ymax
+    if (in_Deaths_zoom) { upper_limit <- ymax*6}
+    
       if (in_Deaths_logscale) {
-        trans_value <- "log10"
         min_limit <- min(death_fit$Deaths[1], 2)
-      } else {
-        trans_value <- "identity"
-        min_limit <- 0
-      }
-      if (in_Deaths_zoom) {
-          # limit height of modeled fit
         p <- p + scale_y_continuous(limits=c(min_limit, 6*ymax),
-                                    trans=trans_value)
+                                    trans="log10",
+                                    breaks = logTicks(n = 4), 
+                                    minor_breaks = logTicks(n = 40)) 
       } else {
+        min_limit <- 0
         p <- p + scale_y_continuous(limits=c(min_limit, ymax),
-                                    trans=trans_value)
+                                    trans="identity")
       }
-  
     
     print(":::::::  displayed_data")
     if (in_death_modeling=="death_logistic") {
