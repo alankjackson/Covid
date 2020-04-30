@@ -237,6 +237,24 @@ foo2 <- foo %>%
 
 ```
 
+## Fix missing tests
+
+```{r missing tests}
+#############   tests
+foo <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Testing.rds")
+foo <- foo[11:14,]
+
+foo <- bind_rows(`2020-04-22_Testing`, foo)
+
+foo %>% unique() -> foo
+
+# Save the real file for later use
+saveRDS(foo,"/home/ajackson/Dropbox/Rprojects/Covid/Testing.rds")
+# Also save to mirror site
+saveRDS(foo,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Testing.rds")
+
+```
+
 
 
 
