@@ -46,7 +46,6 @@ close(z)
 #   County polygons
 Texas <- readRDS(gzcon(url(paste0(DataArchive, "Texas_County_Outlines_lowres.rds"))))
 
-
 init_zoom <- 6
 MapCenter <- c(-99.9018, 31.9686) # center of state
 
@@ -87,20 +86,12 @@ DF <- DF %>%
   mutate(Deaths=as.numeric(Deaths)) %>% 
   mutate(Deaths=na_if(Deaths, 0))
 
-
-# Add dummy Estimate field
-
-#DF <- DF %>% 
-#    mutate(Estimate=Cases)
-
-
 #   Last date in dataset formatted for plotting
 
 sf <- stamp_date("Sunday, Jan 17, 1999")
 lastdate <- sf(DF$Date[nrow(DF)])
 
 LastDate <- DF[nrow(DF),]$Date
-
 
 # Load population of counties into tibble
 Counties <- tribble(
@@ -412,15 +403,15 @@ ui <- basicPage(
                    h4("Details on displayed data"),
                    htmlOutput("death_details")
          ), # end tab panel Deaths
-         tabPanel( ##########   Slope Change
-                   "Slope Change",
+         tabPanel( ##########   Indicators
+                   "Indicators",
                    fluid = TRUE,
-                   value = "SlopeChange",
+                   value = "Indicators",
                    plotOutput("plot_slopes",
                               height = "700px")#,
                   # h4("Details on displayed data"),
                   # htmlOutput("death_details")
-         ), # end tab panel Slope Change
+         ), # end tab panel Indicators
          tabPanel( ##########   Missed Tests
                    "Missed Tests",
                    fluid = TRUE,
@@ -463,6 +454,12 @@ ui <- basicPage(
                      paste0(Counties$County, ": ", Counties$Cases),
                      selected = "Harris"
                    )
+                 ), # end select county 
+                 dateRangeInput('dateRange',
+                      label = 'Date range mm/dd/yy',
+                      start = ymd("2020-03-10"), end = today(),
+                      min   = ymd("2020-03-10"), max = today(),
+                      separator = " - ", format = "mm/dd/yy"
                  )
                ), # end Data select
 
@@ -600,8 +597,8 @@ ui <- basicPage(
                   ),# end wellPanel
                   # end conditional panel
                   conditionalPanel( 
-                    #    Slope Change Tab
-                    condition = "input.An_tabs == 'SlopeChange'",
+                    #    Indicators Tab
+                    condition = "input.An_tabs == 'Indicators'",
                       wellPanel(
                           numericInput(
                               "window",
@@ -636,11 +633,11 @@ ui <- basicPage(
                             min=3,
                             max=15
                         ),
-                        checkboxInput(
-                          inputId = "truncate",
-                          label = strong("Start on March 25"),
-                          value = FALSE
-                        )
+                       # checkboxInput(
+                       #   inputId = "truncate",
+                       #   label = strong("Start on March 25"),
+                       #   value = FALSE
+                       # )
                       )
                   )
                  ) # end column Controls
@@ -689,7 +686,7 @@ ui <- basicPage(
 
 # Define server logic 
 server <- function(input, output) {
-  #hideTab(inputId = "An_tabs", target="SlopeChange")   
+  #hideTab(inputId = "An_tabs", target="Indicators")   
   hideTab(inputId = "An_tabs", target="Tests")   
   hideTab(inputId = "An_tabs", target="Something")   
 #   Global variables are
@@ -706,9 +703,13 @@ server <- function(input, output) {
   #------------------- Prep Data ---------------------
   #---------------------------------------------------    
   prep_data <- function(in_dataset="Region", 
-                        in_area="Texas"
+                        in_area="Texas",
+                        in_dateRange
                         ) { 
     print(":::::::  prep_data")
+      print("-----------  dateRange")
+      print(in_dateRange)
+      print("-----------  dateRange")
     if (in_dataset=="Region") { # work with regions
       PopLabel <<- Regions %>% filter(Region==in_area)
       target <- unlist(DefineRegions$List[DefineRegions$Region==in_area])
@@ -719,7 +720,10 @@ server <- function(input, output) {
                     Days=mean(Days), 
                     Deaths=sum(Deaths, na.rm=TRUE)) %>% 
           mutate(actual_deaths=Deaths-lag(Deaths, 1, 0)) %>%  
-          mutate(Deaths=na_if(Deaths, 0)) 
+          mutate(Deaths=na_if(Deaths, 0)) %>% 
+          filter(between(Date, 
+                         ymd(in_dateRange[1]), 
+                         ymd(in_dateRange[2])))
       return()
       
     } else { # select a county
@@ -734,7 +738,10 @@ server <- function(input, output) {
       PopLabel <<- Counties %>% filter(County==county) %>% 
                      mutate(Label=paste(county, "County"))
       subdata <<- DF %>% filter(County==county) %>% 
-                         mutate(actual_deaths=Deaths-lag(Deaths, 1, 0))  
+                         mutate(actual_deaths=Deaths-lag(Deaths, 1, 0)) %>% 
+                         filter(between(Date, 
+                                        ymd(in_dateRange[1]), 
+                                        ymd(in_dateRange[2])))
       return()
     }
   } # end prep_data
@@ -1078,27 +1085,29 @@ server <- function(input, output) {
     #------------------
     #  Plot recovered estimate
     #------------------
-    p <- p +
-      geom_line(data=case_fit[1:(nrow(case_fit)-in_recover),],
-                aes(x=Date+in_recover, y=Cases*0.98,
-                    color="recovered"),
-                size=1,
-                linetype="dotted")
+    if (nrow(case_fit)-in_recover>1) {
+      p <- p +
+        geom_line(data=case_fit[1:(nrow(case_fit)-in_recover),],
+                  aes(x=Date+in_recover, y=Cases*0.98,
+                      color="recovered"),
+                  size=1,
+                  linetype="dotted")
     
     #------------------
     #  Plot active cases estimate
     #------------------
-    active <- tibble(Date=case_fit$Date[in_recover+1:(nrow(case_fit)-in_recover)],
-                     Cases=case_fit$Cases[in_recover+1:(nrow(case_fit)-in_recover)] -
-                           case_fit$Cases[1:(nrow(case_fit)-in_recover)]*0.98)
-    print(active)
-    p <- p +
-      geom_line(data=active,
-                aes(x=Date, y=Cases,
-                    color="active"),
-                size=1,
-                linetype="solid")
-    
+      active <- tibble(Date=case_fit$Date[in_recover+1:(nrow(case_fit)-in_recover)],
+                       Cases=case_fit$Cases[in_recover+1:(nrow(case_fit)-in_recover)] -
+                             case_fit$Cases[1:(nrow(case_fit)-in_recover)]*0.98)
+      print(active)
+      p <- p +
+        geom_line(data=active,
+                  aes(x=Date, y=Cases,
+                      color="active"),
+                  size=1,
+                  linetype="solid")
+      
+    }
     
     #------------------
     #  if logistic fit, show inflection and uncertainty
@@ -1136,10 +1145,11 @@ server <- function(input, output) {
     #  Bars or points?
     #------------------
     if (!in_logscale) {
-        p <- p + geom_col(alpha = 2/3)  +
-             geom_label(aes(label=Cases), 
-                            stat='identity',
-                            size = 3) 
+        p <- p + geom_point(aes(color="data"), size=2) 
+        #p <- p + geom_col(alpha = 2/3)  +
+        #     geom_label(aes(label=Cases), 
+        #                    stat='identity',
+        #                    size = 3) 
      } else {
         
         p <- p + geom_point(aes(color="data"), size=2) 
@@ -1189,24 +1199,7 @@ server <- function(input, output) {
       leg_labs <- c("Data", "Fit", "Tests", "Recovered", "Active Cases") # Labels for legend
       leg_vals <- c("black", "blue", "black", "red", "green") # Color values
       leg_brks <- c("data", "fit", "tests", "recovered", "active") # Breaks (named lists)
-    #------------------
-    #  Multiply cases
-    #------------------
- #     if (in_mult) {
- #         p <- add_mult(p, subdata, in_mult_pos=in_mult_pos, in_weights = in_weights)
- #         leg_labs <- c(leg_labs, "Multiplied")
- #         leg_vals <- c(leg_vals, "red")
- #         leg_brks <- c(leg_brks, "mult")
- #     } 
-    #------------------
-    #  Estimate missed cases
-    #------------------
-    #  if (in_estmiss) {
-    #      p <- add_estmiss(p, subdata)
-    #      leg_labs <- c(leg_labs, "Missed\nCases")
-    #      leg_vals <- c(leg_vals, "green")
-    #      leg_brks <- c(leg_brks, "est_miss")
-    #  } 
+
     #------------------
     #  Crowdsize
     #------------------
@@ -1238,33 +1231,6 @@ server <- function(input, output) {
       
     return(p)
   }
-  
-
-  #---------------------------------------------------    
-  #------------------- Add mult Plot ---------------
-  #---------------------------------------------------    
- # add_mult <- function(p, subdata, in_mult_pos, in_weights) {
- #   print(":::::::  add_mult")
- #   #   Case with estimates of undercount
- #   subdata <- subdata %>% # update mult cases in case needed
- #     mutate(Estimate=Cases*replace_na(in_mult_pos,0.1))
- #   
- #   
- #   # Build an exponential model
- #   foo <- build_expmodel(subdata,
- #                         indep="Estimate",
- #                         in_weights=in_weights,
- #                         fit="all")
- #   
- #   Est_layer <-   geom_line(data=foo$Line[[1]],
- #                            aes(x=Date, y=Estimate,
- #                                color="mult"),
- #                            size=1,
- #                            linetype="dotted")
- #   p <- p + Est_layer 
- #   
- #   return(p)
- # }
   
   #---------------------------------------------------    
   #------------------- Add Estimate of missed cases --
@@ -1331,7 +1297,6 @@ server <- function(input, output) {
       Population <- PopLabel[2][[1]]
       dayseq <- 0:(as.integer(LastDate - begin) + 10)
       dateseq <- as_date(begin:(LastDate + 10))
-      ###Cases <- case_fit$Cases
       active <- tibble(Date=case_fit$Date[in_recover+1:(nrow(case_fit)-in_recover)],
                      Cases=case_fit$Cases[in_recover+1:(nrow(case_fit)-in_recover)] -
                            case_fit$Cases[1:(nrow(case_fit)-in_recover)]*0.98)
@@ -1520,7 +1485,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
         geom_label(data = data.frame(x = ExpLine_est$Date[indx], 
                                      y = ExpLine_est$est_cases[indx]), 
                                      nudge_x=1,
-                                     nudge_y=0, 
+                                     nudge_y=0,
                                      aes(x, y, 
                                          label = signif(ExpLine_est$est_cases[indx], 3) ))
       #     Add actual cases
@@ -1574,16 +1539,6 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                                           death_params[["Rsqr"]])
     }
     
-    #m <- death_params[["m"]]
-    #b <- death_params[["b"]] 
-    #Rsqr <- death_params[["Rsqr"]]
-    #output$death_details <- data_details(data,
-    #                                     "Deaths",
-    #                                     EqText,
-    #                                     m,
-    #                                     b,
-    #                                     Rsqr)
-
     return(p)
   }
   
@@ -1637,17 +1592,11 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                                 in_window,
                                 in_slopetype,
                                 in_smooth,
-                                in_smthlength=3,
-                                in_truncate
+                                in_smthlength=3
                                 ){
     halfwidth <- as.integer(in_window/2)
     
-    # truncate
     foo <- subdata
-    if (in_truncate) {
-      foo <- subdata %>% 
-        filter(Date>"2020-03-24")
-    }
     
     if (in_slopetype=="cases") {
       foo <- foo %>% 
@@ -1682,8 +1631,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
         unnest(tidied) %>% 
         filter(term=="Days") %>% 
         select(-log_cases, -model, -term) %>% 
-        rename(sd=std.error, m=estimate) #%>% 
-        #filter(m>0.0)
+        rename(sd=std.error, m=estimate)  
     }
     if (!grepl("percent", in_slopetype)) {
       foo <- foo %>% filter(m>0.0)
@@ -1702,7 +1650,6 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     p <- foo %>% 
       ggplot(aes(x=Date, y=m)) +
       geom_point() +
-      #geom_line() +
       theme(text = element_text(size=20)) +
       geom_smooth() +
       labs(title=paste0(my_title
@@ -1787,12 +1734,12 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                             reverse=TRUE,
                             right = FALSE,
                             domain = MappingData$DPerCap)
-    palavgpct <- colorQuantile(
+    palavgpct <- colorNumeric(
                             na.color = "transparent",
-                            palette = heat.colors(5),
-                            n = 5, 
+                            palette = heat.colors(8),
+                            #n = 5, 
                             reverse=TRUE,
-                            right = FALSE,
+                            #right = FALSE,
                             domain = MappingData$avgpct)
     
     paldeathpercase <- colorQuantile(
@@ -1948,11 +1895,11 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                       fillColor = ~palavgpct(MappingData$avgpct)) %>% 
           addLegend("bottomleft", pal = palavgpct, values = ~avgpct, 
                     title = "Recent Avg Pct Change",
-                    labels= as.character(seq(avgpctRange[1], avgpctRange[2], length.out = 8)),
-                    labFormat = function(type, cuts, p) {
-                      n = length(cuts)
-                      paste0(signif(cuts[-n],2), " &ndash; ", signif(cuts[-1],2))
-                    },
+                    #labels= as.character(seq(avgpctRange[1], avgpctRange[2], length.out = 8)),
+                    #labFormat = function(type, cuts, p) {
+                    #  n = length(cuts)
+                    #  paste0(signif(cuts[-n],2), " &ndash; ", signif(cuts[-1],2))
+                    #},
                     opacity = 1)
       }) 
     } else { # deathpercase
@@ -2006,6 +1953,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                 input$dataset
                 input$region
                 input$county
+                input$dateRange
                 1}, { # Change data selection
     print(":::::::  observe_event Analysis Data")
                   
@@ -2016,7 +1964,8 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     )
     # ===============================
     prep_data(input$dataset,
-              in_area
+              in_area,
+              input$dateRange
     )           
     # ===============================
     
@@ -2103,16 +2052,15 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
         }
       }
   #---------------------------------
-  #------------- Slope Change tab
+  #------------- Indicators tab
   #---------------------------------
-      if (input$An_tabs == "SlopeChange") {
+      if (input$An_tabs == "Indicators") {
         if (sum(!is.na(subdata$Cases))>15) {
           p <- build_slope_plot(
                                  input$window,
                                  input$slopetype,
                                  input$smooth,
-                                 input$smthlength,
-                                 input$truncate
+                                 input$smthlength
                                  )
           output$plot_slopes <- renderPlot({print(p)})
         } else {
@@ -2251,7 +2199,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
         }
       } 
                   #   move the following stuff when implementing
-      if (input$An_tabs == "SlopeChange") {
+      if (input$An_tabs == "Indicators") {
          # p <- build_slope_plot()
       } 
       if (input$An_tabs == "Tests") {
@@ -2303,17 +2251,15 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                 input$slopetype
                 input$smooth
                 input$smthlength
-                input$truncate
                 input$An_tabs
                 1} , { # 
-      if (input$An_tabs == "SlopeChange") {
+      if (input$An_tabs == "Indicators") {
           if (sum(!is.na(subdata$Cases))>15) {
             p <- build_slope_plot(
               input$window,
               input$slopetype,
               input$smooth,
-              input$smthlength,
-              input$truncate
+              input$smthlength
             )
             output$plot_slopes <- renderPlot({print(p)})
           } else {
