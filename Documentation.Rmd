@@ -194,9 +194,12 @@ time that individual was diagnosed/tested, and multiply by the 1/CFR.
 
 For reference, read [this paper](https://cmmid.github.io/topics/covid19/severity/global_cfr_estimates.html)
 
-## Slope Change
+## Indicators
 
-Basically, I fit a line in a sliding window to the cumulative case points,
+These are meant to be things that can indicate where a county is headed, for
+good or for ill.
+
+For cumulative cases, I fit a line in a sliding window to the cumulative case points,
 and display the slope of that fit. This illustrates how the number of cases
 may be growing on a day-to-day basis and should show when "the curve is
 flattening". Of course the goal is for this number to go to zero.
@@ -209,8 +212,17 @@ to reporting issues that occurred in the early days.
 You can view the simple daily percent change, this is not windowed,
 but is the daily percent change in number of cases.
 
-Finally, because testing started so slowly, the data prior to
-March 25 is pretty dodgy, so you can exclude that if you wish. 
+Avg Percent Change is the daily percent change passed through a averaging
+filter that is "Fit Length" long.
+
+New Cases is just that - the daily number of new cases. The average will
+help damp the noise in that measurement.
+
+And then the same thing, as a per 100,000 population measurement, to normalize out
+the county size.
+
+If more smoothing is needed, there is a median smoothning filter that can be applied.
+
 
 ## Map
 
