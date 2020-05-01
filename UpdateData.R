@@ -78,6 +78,18 @@ mytable <- read_csv(url) %>%
 mytable$LastUpdate <- as.character(mytable$LastUpdate)
 
 mytable
+#  emergency backup file
+saveRDS(mytable,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),"_mytable.rds"))
+# Read in the old data
+CovidData <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
+# append the new data
+CovidData <- bind_rows(CovidData, mytable)
+# Save an accumulated file in case of a failure
+saveRDS(CovidData,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),"_Covid.rds"))
+# Save the real file for later use
+saveRDS(CovidData,"/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
+# Also save to mirror site
+saveRDS(CovidData,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Covid.rds")
 
 #---------------------------------------------------------------------
 #   Extract Testing status
@@ -126,6 +138,17 @@ testing_status <- tribble(
 print("--1--")
 
 testing_status <- testing_status %>% mutate(Date=lubridate::today()-1)
+################   Testing data
+# Read in the old data
+TestingData <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Testing.rds")
+# append the new data
+TestingData <- bind_rows(TestingData, testing_status)
+# Save an accumulated file in case of a failure
+saveRDS(TestingData,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),"_Testing.rds"))
+# Save the real file for later use
+saveRDS(TestingData,"/home/ajackson/Dropbox/Rprojects/Covid/Testing.rds")
+# Also save to mirror site
+saveRDS(TestingData,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Testing.rds")
 
 print("--2--")
 #---------------------------------------------------------------------
@@ -147,8 +170,35 @@ deaths_today <- tribble(
   ~Date, ~Cum_Deaths,
   lubridate::today()-1, deaths
 )
+################   Death data
+# Read in the old data
+deaths <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Deaths.rds")
+# append the new data
+deaths <- bind_rows(deaths, deaths_today)
+# Save an accumulated file in case of a failure
+saveRDS(deaths ,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),"_deaths.rds"))
+# Save the real file for later use
+saveRDS(deaths,"/home/ajackson/Dropbox/Rprojects/Covid/Deaths.rds")
+# Also save to mirror site
+saveRDS(deaths,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Deaths.rds")
 
 print("--5--")
+
+#---------------------------------------------------------------------
+#   Read in excel file from state
+#---------------------------------------------------------------------
+
+url <- "https://dshs.texas.gov/coronavirus/TexasCOVID19CaseCountData.xlsx"
+myfile <- getBinaryURL(url, ssl.verifyhost=FALSE, ssl.verifypeer=FALSE)
+
+path <- "/home/ajackson/Dropbox/Rprojects/Covid/TexasDataXcel/"
+writeBin(myfile, paste0(path, "Cases_by_County_", lubridate::today(),".xlsx"))
+
+url <- "https://www.dshs.texas.gov/chs/data/COVID-19CumulativeTestTotalsbyCounty.xlsx"
+myfile <- getBinaryURL(url, ssl.verifyhost=FALSE, ssl.verifypeer=FALSE)
+
+path <- "/home/ajackson/Dropbox/Rprojects/Covid/TexasDataXcel/"
+writeBin(myfile, paste0(path, "Tests_by_County_", lubridate::today(),".xlsx"))
 
 #---------------------------------------------------------------------
 #   Extract Prison information
@@ -182,11 +232,11 @@ for (i in 2:5){
   df <- left_join(df, tmp, by="Unit")
 }
 
-staff <- tbls_ls[[6]] %>% 
+staff <- tbls_ls[[7]] %>% 
   rename(Unit=X1, Staff_Positive_Tests=X2) %>% 
   mutate(Unit=str_squish(Unit))
 
-for (i in 7:10) {
+for (i in 8:11) {
   tmp <- tbls_ls[[i]] %>% 
     rename(Unit=X1, Staff_Positive_Tests=X2) %>% 
     mutate(Unit=str_squish(Unit))
@@ -194,22 +244,6 @@ for (i in 7:10) {
 }
 new_prisons <- left_join(df, staff, by="Unit")
 
-
-#---------------------------------------------------------------------
-#   Read in excel file from state
-#---------------------------------------------------------------------
-
-url <- "https://dshs.texas.gov/coronavirus/TexasCOVID19CaseCountData.xlsx"
-myfile <- getBinaryURL(url, ssl.verifyhost=FALSE, ssl.verifypeer=FALSE)
-
-path <- "/home/ajackson/Dropbox/Rprojects/Covid/TexasDataXcel/"
-writeBin(myfile, paste0(path, "Cases_by_County_", lubridate::today(),".xlsx"))
-
-url <- "https://www.dshs.texas.gov/chs/data/COVID-19CumulativeTestTotalsbyCounty.xlsx"
-myfile <- getBinaryURL(url, ssl.verifyhost=FALSE, ssl.verifypeer=FALSE)
-
-path <- "/home/ajackson/Dropbox/Rprojects/Covid/TexasDataXcel/"
-writeBin(myfile, paste0(path, "Tests_by_County_", lubridate::today(),".xlsx"))
 
 
 #---------------------------------------------------------------------
@@ -219,40 +253,40 @@ writeBin(myfile, paste0(path, "Tests_by_County_", lubridate::today(),".xlsx"))
 ########################################################
 
 # Read in the old data
-CovidData <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
+#CovidData <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
 # append the new data
-CovidData <- bind_rows(CovidData, mytable)
+#CovidData <- bind_rows(CovidData, mytable)
 # Save an accumulated file in case of a failure
-saveRDS(CovidData,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),"_Covid.rds"))
+#saveRDS(CovidData,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),"_Covid.rds"))
 # Save the real file for later use
-saveRDS(CovidData,"/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
+#saveRDS(CovidData,"/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
 # Also save to mirror site
-saveRDS(CovidData,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Covid.rds")
+#saveRDS(CovidData,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Covid.rds")
 
 ################   Testing data
 # Read in the old data
-TestingData <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Testing.rds")
+#TestingData <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Testing.rds")
 # append the new data
-TestingData <- bind_rows(TestingData, testing_status)
+#TestingData <- bind_rows(TestingData, testing_status)
 # Save an accumulated file in case of a failure
-saveRDS(TestingData,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),"_Testing.rds"))
+#saveRDS(TestingData,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),"_Testing.rds"))
 # Save the real file for later use
-saveRDS(TestingData,"/home/ajackson/Dropbox/Rprojects/Covid/Testing.rds")
+#saveRDS(TestingData,"/home/ajackson/Dropbox/Rprojects/Covid/Testing.rds")
 # Also save to mirror site
-saveRDS(TestingData,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Testing.rds")
+#saveRDS(TestingData,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Testing.rds")
 
 
 ################   Death data
 # Read in the old data
-deaths <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Deaths.rds")
+#deaths <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Deaths.rds")
 # append the new data
-deaths <- bind_rows(deaths, deaths_today)
+#deaths <- bind_rows(deaths, deaths_today)
 # Save an accumulated file in case of a failure
-saveRDS(deaths ,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),"_deaths.rds"))
+#saveRDS(deaths ,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),"_deaths.rds"))
 # Save the real file for later use
-saveRDS(deaths,"/home/ajackson/Dropbox/Rprojects/Covid/Deaths.rds")
+#saveRDS(deaths,"/home/ajackson/Dropbox/Rprojects/Covid/Deaths.rds")
 # Also save to mirror site
-saveRDS(deaths,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Deaths.rds")
+#saveRDS(deaths,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Deaths.rds")
 
 
 ################   Prison data
