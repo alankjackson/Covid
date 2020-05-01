@@ -365,6 +365,10 @@ logTicks <- function(n = 5, base = 10){
 # Define UI for displaying data for Texas
 ##################################################
 ui <- basicPage(
+  tags$head(
+    tags$style(type="text/css", ".inline label{ display: table-cell; text-align: left; vertical-align: middle; } 
+                 .inline .form-group{display: table-row;}")
+  ),
     #    Cases, Map, Documentation
   tabsetPanel(id = "tabs",
     ##########   Analysis Tab
@@ -527,21 +531,7 @@ ui <- basicPage(
                         value = 1.00
                       )
                     )
- #                   checkboxInput(
- #                     inputId = "weights",
- #                     label = strong("Weight fit"),
- #                     value = FALSE
- #                   ),
-                    #HTML("<hr>")
-                   # checkboxInput(
-                   #   inputId = "mult",
-                   #   label = strong("Multiply Cases"),
-                   #   value = FALSE
-                   # ),
-                   # numericInput("mult_pos", label = h5("Factor"), 
-                   #              min = 1.,
-                   #              max = 20,
-                   #              value = 2)
+
                     ) 
                   ),
                   # end wellPanel Modeling parameters
@@ -600,44 +590,41 @@ ui <- basicPage(
                     #    Indicators Tab
                     condition = "input.An_tabs == 'Indicators'",
                       wellPanel(
-                          numericInput(
-                              "window",
-                              label = h5("Days to fit over"),
-                              step = 2,
-                              value = 3,
-                              min=3,
-                              max=15
-                          )
+                        tags$div(class = "inline", 
+                                 numericInput(inputId = "window", 
+                                              step = 2,
+                                              value = 3,
+                                              min=3,
+                                              max=15,
+                                           label = "Fit Length:"),
+                                 numericInput(inputId = "smthlength", 
+                                            step = 2,
+                                            value = 3,
+                                            min=3,
+                                            max=15,
+                                           label = "Median:")),
+                        checkboxInput(
+                          inputId = "smooth",
+                          label = strong("Smooth?"),
+                          value = FALSE
+                        ),
                       ),
                       wellPanel(
                         radioButtons(
                           "slopetype",
                           label = h4("Y-Axis"),
                           choices = list(
+                            "New Cases" = "newcase",
+                            "Avg New Cases" = "avgnewcase",
+                            "New Cases per 100k" = "newcasepercap",
+                            "Avg New Cases per 100k" = "avgnewcasepercap",
+                            "Percent change" = "percent",
+                            "Avg Percent change" = "avgpercent",
                             "Cum Cases" = "cases",
-                            "Doubling Time" = "doubling",
-                            "Percent change" = "percent"
+                            "Doubling Time" = "doubling"
                           ),
-                      selected = "cases"
+                      selected = "newcase"
                         ), 
-                        checkboxInput(
-                          inputId = "smooth",
-                          label = strong("Smooth?"),
-                          value = FALSE
-                        ),
-                        numericInput(
-                            "smthlength",
-                            label = h5("Smoothing Length"),
-                            step = 2,
-                            value = 3,
-                            min=3,
-                            max=15
-                        ),
-                       # checkboxInput(
-                       #   inputId = "truncate",
-                       #   label = strong("Start on March 25"),
-                       #   value = FALSE
-                       # )
                       )
                   )
                  ) # end column Controls
@@ -1594,29 +1581,68 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                                 in_smooth,
                                 in_smthlength=3
                                 ){
+    print(":::::::  build_slope_plot")
     halfwidth <- as.integer(in_window/2)
+    Population <- PopLabel$Population
+    print("-------- slope  1 --------------")
+    foo <- subdata %>% 
+      mutate(change=(Cases-lag(Cases, default=0, order_by = Date))) %>% 
+      mutate(change=pmax(change, 0)) %>% 
+      mutate(Pct_change=100*change/lag(Cases, order_by = Date)) %>% 
+      mutate(avg_pct_chg=zoo::rollmean(Pct_change, in_window, 
+                                  fill=c(0, NA, last(Pct_change)))) %>% 
+      mutate(avg_chg=zoo::rollmean(change, in_window, 
+                              fill=c(0, NA, last(change)))) %>% 
+      mutate(avg_pct_chg=na_if(avg_pct_chg, 0)) %>% 
+      mutate(Pct_change=na_if(Pct_change, 0)) %>% 
+      mutate(change=na_if(change, 0)) %>% 
+      mutate(chgpercapita=1.e5*change/Population) %>% 
+      mutate(avg_chgpercapita=1.e5*avg_chg/Population) #%>% 
+      #mutate(avg_pct_chg=replace(avg_pct_chg, avg_pct_chg>30, NA)) %>% 
+      #mutate(Pct_change=replace(Pct_change, Pct_change>30, NA))
+    print("-------- slope  2 --------------")
+    #browser()
+    foo <- foo %>% 
+      mutate(m = case_when(
+        in_slopetype=="percent" ~ Pct_change,
+        in_slopetype=="avgpercent" ~ avg_pct_chg,
+        in_slopetype=="newcase" ~ change,
+        in_slopetype=="avgnewcase" ~ avg_chg,
+        in_slopetype=="newcasepercap" ~ chgpercapita,
+        in_slopetype=="avgnewcasepercap" ~ avg_chgpercapita,
+        TRUE ~ 0
+      ))
+    print("-------- slope  3 --------------")
     
-    foo <- subdata
+    my_title <- list("cases"="Slope of Cum Case Count in ",
+                  "percent"="Percent Change of Cases in ",
+                  "doubling"="Doubling Time for ",
+                  "avgpercent"="Avg Pct Change in Cases in ",
+                  "newcase"="New Cases in ",
+                  "avgnewcase"="Avg New Cases in ",
+                  "newcasepercap"="New Cases per 100,000 in ",
+                  "avgnewcasepercap"="Avg New Cases per 100,000 in ")
+    my_ylab <- list("cases"="Slope: Change in cum num cases/ num days ",
+                "percent"="Daily percent change",
+                "doubling"="Doubling Time in Days",
+                "avgpercent"="Avg Pct Change in Cases",
+                "newcase"="New Cases",
+                "avgnewcase"="Avg New Cases",
+                "newcasepercap"="New Cases per 100,000",
+                "avgnewcasepercap"="Avg New Cases per 100,000")
     
+    print("-------- slope  4 --------------")
     if (in_slopetype=="cases") {
       foo <- foo %>% 
         mutate(log_cases=Cases)
-      my_title <- "Slope of Cum Case Count in "
-      my_ylab <- "Slope: Change in Cum num cases / number of days"
-    } else if (in_slopetype=="percent") {
-      foo <- foo %>% 
-        mutate(m=100*(Cases-lag(Cases))/lag(Cases)) %>% 
-        mutate(sd=0)
-      my_title <- "Percent Change of Cases in "
-      my_ylab <- "Daily Percent Change"
     } else {
       foo <- foo %>% 
         mutate(log_cases=log10(Cases))
-      my_title <- "Doubling Time for "
-      my_ylab <- "Doubling Time in Days"
     }
     
-    if (in_slopetype!="percent") {
+    print("-------- slope  5 --------------")
+    if (in_slopetype=="doubling" || in_slopetype=="cases") { # calc slope
+    print("-------- slope  5.1 --------------")
       foo <- foo %>%
         mutate(
           model = slide(
@@ -1631,30 +1657,42 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
         unnest(tidied) %>% 
         filter(term=="Days") %>% 
         select(-log_cases, -model, -term) %>% 
-        rename(sd=std.error, m=estimate)  
+        rename(sd=std.error) %>% 
+        mutate(m=estimate)
     }
-    if (!grepl("percent", in_slopetype)) {
-      foo <- foo %>% filter(m>0.0)
-    }
+    
+    print("-------- slope  5.5 --------------")
+   # if (!grepl("percent", in_slopetype)) {
+   #   foo <- foo %>% filter(m>0.0)
+   # }
     #   calculate doubling time
     if (in_slopetype=="doubling") {
       foo <- foo %>% 
         mutate(m=signif(log10(2)/m,2),
                sd=signif(log10(2)/(m-sd),2)) %>% 
-        filter(m<200)
+        mutate(m=replace(m, m>200, NA)) 
+       # filter(m<200)
     }
+    print("-------- slope  5.75 --------------")
+    #---------------   smoothing
     if (in_smooth) {
-      foo$m <- fractal::medianFilter(foo$m,in_smthlength)
+      #foo$m <- fractal::medianFilter(foo$m,in_smthlength)
+      foo$m <- zoo::rollmedian(foo$m, in_smthlength, 
+                    fill=c(0, NA, last(foo$m)))
     }
+    
+    print("-------- slope  6 --------------")
+    foo
+    #-------------------------   plot
     
     p <- foo %>% 
       ggplot(aes(x=Date, y=m)) +
       geom_point() +
       theme(text = element_text(size=20)) +
       geom_smooth() +
-      labs(title=paste0(my_title
+      labs(title=paste0(my_title[[in_slopetype]]
                         ,PopLabel$Label),
-           y=my_ylab)
+           y=my_ylab[[in_slopetype]])
     
     if (in_slopetype=="cases") {
       p <- p +
