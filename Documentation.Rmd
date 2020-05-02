@@ -79,6 +79,9 @@ The metro areas follow the standard definition, and consist of counties:
 *  Austin: Bastrop, Caldwell, Hays, Travis, and Williamson
 *  Lubbock: Crosby, Lubbock, and Lynn
 *  Amarillo: Armstrong, Carson, Potter, Randall, and Oldham
+*  Corpus Christi: Aransas, Nueces, and San Patricio
+*  Killeen-Temple: Bell, Coryell, and Lampasas
+*  Beaumont-Port Arthur: Hardin, Jefferson, and Orange
 
 When looking at counties, I helpfully display the latest cumulative case
 count for that county.
@@ -223,6 +226,10 @@ the county size.
 
 If more smoothing is needed, there is a median smoothning filter that can be applied.
 
+## Counties
+
+In this tab we compare various measurements for all the relevant counties - 
+that is - those for which there is sufficient data.
 
 ## Map
 
