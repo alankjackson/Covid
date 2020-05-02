@@ -712,6 +712,7 @@ server <- function(input, output) {
           filter(County %in% target) %>% 
           group_by(Date) %>% 
           summarise(Cases=sum(Cases), 
+                    new_cases=sum(new_cases), 
                     Days=mean(Days), 
                     Deaths=sum(Deaths, na.rm=TRUE)) %>% 
           mutate(actual_deaths=Deaths-lag(Deaths, 1, 0)) %>%  
