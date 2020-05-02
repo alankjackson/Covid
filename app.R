@@ -547,13 +547,80 @@ ui <- basicPage(
                             "Doubling Time" = "doubling"
                           ),
                       selected = "newcase"
-                        ), 
+                        ) 
                       )
                   )
                  ) # end column Controls
          ) # end fluid page
                 
      ), # end tabPanel Analysis
+    ##########   Counties Tab
+    tabPanel( "Counties", fluid = TRUE, value = "CountiesTab",
+        HTML("<hr>"),
+        fluidPage(#-------------------- Counties
+            column( 9, # Plot           
+              plotOutput("plot_counties",
+                    height = "800px"),
+              h4("Details on displayed data"),
+              htmlOutput("counties_details")
+            ), # end of column Plot
+            #-------------------- Controls
+            column(3, # Controls
+                  wellPanel( 
+                    radioButtons(
+                      "counties_y_axis",
+                      label = h4("Choose the Y-Axis"),
+                      choices = list(
+                        "New Cases" = "newcase",
+                        "Avg New Cases" = "avgnewcase",
+                        "New Cases per 100k" = "newcasepercap",
+                        "Avg New Cases per 100k" = "avgnewcasepercap",
+                        "Percent change" = "percent",
+                        "Avg Percent change" = "avgpercent",
+                        "Cases" = "cases",
+                        "Cases per 100k" = "percapita",
+                        "Deaths" = "deaths",
+                        "Deaths per 100k" = "DPerC"
+                      ),
+                      selected = "newcase"
+                    ) 
+                  ), # end y-axis panel
+                  wellPanel( 
+                    radioButtons(
+                      "counties_selector",
+                      label = h4("Highlight based on:"),
+                      choices = list(
+                        "New Cases" = "newcase",
+                        "Avg New Cases" = "avgnewcase",
+                        "New Cases per 100k" = "newcasepercap",
+                        "Avg New Cases per 100k" = "avgnewcasepercap",
+                        "Percent change" = "percent",
+                        "Avg Percent change" = "avgpercent",
+                        "Cases" = "cases",
+                        "Cases per 100k" = "percapita",
+                        "Deaths" = "deaths",
+                        "Deaths per 100k" = "DPerC"
+                      ),
+                      selected = "newcase"
+                    ) 
+                  ), # end highlight panel
+                  wellPanel( # Misc controls
+                    tags$div(class = "inline", 
+                             numericInput(inputId = "case_start", 
+                                          step = 1,
+                                          value = 30,
+                                          min=10,
+                                          label = "Start:")
+                    ),
+                    checkboxInput(
+                      inputId = "county_log",
+                      label = strong("Log Scale"),
+                      value = TRUE
+                    )
+                  ) # end Misc controls
+               ) # end column control
+         ) # end fluid page
+     ), # end tabPanel Counties
     ##########   Map Tab
     tabPanel( "Map", fluid = TRUE, value = "MapTab",
         HTML("<hr>"),
