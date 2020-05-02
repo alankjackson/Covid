@@ -42,6 +42,13 @@ TestingData$Total <- as.numeric(TestingData$Total)
 z <- gzcon(url(paste0(DataLocation, "Deaths.rds")))
 DeathData <- readRDS(z)
 close(z)
+#   County Population data
+z <- gzcon(url(paste0(DataArchive, "Census_July1_2019_TexasCountyPop.rds")))
+Counties <- readRDS(z)
+close(z)
+
+
+
 
 #   County polygons
 Texas <- readRDS(gzcon(url(paste0(DataArchive, "Texas_County_Outlines_lowres.rds"))))
@@ -101,96 +108,6 @@ lastdate <- sf(DF$Date[nrow(DF)])
 
 LastDate <- DF[nrow(DF),]$Date
 
-# Load population of counties into tibble
-Counties <- tribble(
-    ~County, ~Population,
-    "Harris", 4602523, "Dallas", 2586552, "Tarrant", 2019977,
-    "Bexar", 1925865, "Travis", 1203166, "Collin", 944350, "Hidalgo", 849389,
-    "El Paso", 837654, "Denton", 807047, "Fort Bend", 739342,
-    "Montgomery", 554445, "Williamson", 527057, "Cameron", 421750,
-    "Nueces", 360486, "Brazoria", 353999, "Bell", 342236,
-    "Galveston", 327089, "Lubbock", 301454, "Webb", 272053,
-    "Jefferson", 255210, "McLennan", 248429, "Smith", 225015,
-    "Brazos", 219193, "Hays", 204150, "Ellis", 168838,
-    "Midland", 164194, "Johnson", 163475, "Ector", 158342,
-    "Guadalupe", 155137, "Taylor", 136348, "Comal", 135097,
-    "Randall", 132475, "Wichita", 131818, "Parker", 129802,
-    "Grayson", 128560, "Gregg", 123494, "Potter", 120899,
-    "Kaufman", 118910, "Tom Green", 117466, "Bowie", 93858,
-    "Rockwall", 93642, "Hunt", 92152, "Victoria", 91970,
-    "Angelina", 87607, "Orange", 84047, "Bastrop", 82577,
-    "Liberty", 81862, "Henderson", 80460, "Coryell", 75389,
-    "Walker", 71539, "San Patricio", 67046, "Harrison", 66645,
-    "Nacogdoches", 65558, "Wise", 64639, "Starr", 63894,
-    "Maverick", 57970, "Anderson", 57863, "Hood", 56901,
-    "Hardin", 56379, "Van Zandt", 54368, "Rusk", 53595,
-    "Cherokee", 51903, "Kerr", 51365, "Waller", 49987,
-    "Lamar", 49532, "Medina", 49334, "Val Verde", 49027,
-    "Atascosa", 48828, "Navarro", 48583, "Wilson", 48198,
-    "Polk", 47837, "Burnet", 45750, "Wood", 43815,
-    "Kendall", 41982, "Wharton", 41551, "Erath", 41482,
-    "Caldwell", 41401, "Jim Wells", 41192, "Upshur", 40769,
-    "Chambers", 40292, "Cooke", 39571, "Brown", 37834,
-    "Matagorda", 36743, "Howard", 36667, "Hopkins", 36240,
-    "Jasper", 35504, "Hill", 35399, "Washington", 34796,
-    "Fannin", 34175, "Hale", 34113, "Titus", 32730,
-    "Bee", 32691, "Kleberg", 31425, "Cass", 30087,
-    "Austin", 29565, "Palo Pinto", 28317, "San Jacinto", 27819,
-    "Grimes", 27630, "Uvalde", 27009, "Gillespie", 26208,
-    "Shelby", 25478, "Fayette", 25066, "Aransas", 24763,
-    "Milam", 24664, "Limestone", 23515, "Panola", 23440,
-    "Hockley", 23162, "Houston", 22955, "Gray", 22685,
-    "Calhoun", 21807, "Moore", 21801, "Bandera", 21763,
-    "Willacy", 21754, "Hutchinson", 21571, "Tyler", 21496,
-    "Colorado", 21022, "Gonzales", 20667,  "Lampasas", 23399,
-    "Llano", 20640, 
-    "DeWitt", 20435, "Gaines", 20321, "Lavaca", 19941,
-    "Jones", 19891, "Freestone", 19709, "Montague", 19409,
-    "Frio", 19394, "Deaf Smith", 18899, "Eastland", 18270,
-    "Bosque", 18122, "Young", 18114, "Burleson", 17863,
-    "Andrews", 17818, "Falls", 17299, "Scurry", 17239,
-    "Leon", 17098, "Lee", 16952, "Robertson", 16890,
-    "Pecos", 15797, "Karnes", 15387, "Reeves", 15125,
-    "Nolan", 14966, "Jackson", 14820, "Trinity", 14569,
-    "Zapata", 14369, "Madison", 14128, "Newton", 14057,
-    "Callahan", 13770, "Comanche", 13495, "Lamb", 13262,
-    "Dawson", 12964, "Wilbarger", 12906, "Camp", 12813,
-    "Terry", 12615, "Morris", 12424, "Red River", 12275,
-    "Zavala", 12131, "Live Oak", 12123, "Ward", 11586,
-    "Rains", 11473, "Duval", 11355, "Blanco", 11279,
-    "Franklin", 10679, "Dimmit", 10663, "Sabine", 10458,
-    "Clay", 10387, "Ochiltree", 10348, "Runnels", 10310,
-    "Marion", 10083, "Parmer", 9852, "Stephens", 9372,
-    "Brewster", 9216, "Jack", 8842, "Archer", 8789,
-    "Somervell", 8743, "Yoakum", 8571, "Mitchell", 8558,
-    "Coleman", 8391, "San Augustine", 8327, "Hamilton", 8269,
-    "McCulloch", 8098, "Winkler", 7802, "Castro", 7787,
-    "Goliad", 7531, "Swisher", 7484, "La Salle", 7409,
-    "Dallam", 7243, "Refugio", 7236, "Childress", 7226,
-    "Brooks", 7180, "Presidio", 7123, "Bailey", 7092,
-    "Garza", 6288, "Carson", 6032, "San Saba", 5962,
-    "Floyd", 5872, "Crosby", 5861, "Haskell", 5809,
-    "Lynn", 5808, "Hartley", 5767, "Martin", 5614,
-    "Hansford", 5547, "Wheeler", 5482, "Jim Hogg", 5282,
-    "Delta", 5215, "Mills", 4902, "Crane", 4839,
-    "Kimble", 4408, "Concho", 4233, "Mason", 4161,
-    "Hudspeth", 4098, "Hemphill", 4061, "Hardeman", 3952,
-    "Fisher", 3883, "Sutton", 3865, "Reagan", 3752,
-    "Knox", 3733, "Kinney", 3675, "Upton", 3634,
-    "Crockett", 3633, "Baylor", 3591, "Lipscomb", 3469,
-    "Real", 3389, "Donley", 3387, "Shackelford", 3311,
-    "Coke", 3275, "Hall", 3074, "Schleicher", 3061,
-    "Sherman", 3058, "Collingsworth", 2996, "Cochran", 2904,
-    "Culberson", 2241, "Jeff Davis", 2234, "Dickens", 2216,
-    "Menard", 2123, "Oldham", 2090, "Edwards", 2055,
-    "Armstrong", 1916, "Cottle", 1623, "Throckmorton", 1567,
-    "Briscoe", 1546, "Irion", 1524, "Glasscock", 1430,
-    "Foard", 1408, "Stonewall", 1385, "Motley", 1156,
-    "Sterling", 1141, "Roberts", 885, "Terrell", 862,
-    "Kent", 749, "Borden", 665, "McMullen", 662,
-    "Kenedy", 595, "King", 228, "Loving", 102
-)
-
 #   Sort counties with 20 largest first, then alphabetical
 
 ByPop <- arrange(Counties, -Population)
@@ -206,6 +123,9 @@ Regions <- tribble(
             "San Antonio", 2426204, "San Antonio Metro Region",
             "Austin", 2058351, "Austin Metro Region",
             "Lubbock", 290805, "Lubbock Metro Region",
+            "Corpus Christi", 429024, "Corpus Christi Region", 
+            "Killeen-Temple", 460303, "Killeen-Temple Region", 
+            "Beaumont-Port Arthur", 392563, "Beaumont-Port Arthur Region", 
             "Amarillo", 249881, "Amarillo Metro Region")
 
 DefineRegions <- tribble(
@@ -216,6 +136,9 @@ DefineRegions <- tribble(
     "San Antonio", c("Atascosa", "Bandera", "Bexar", "Comal", "Guadalupe", "Kendall", "Medina", "Wilson"), 
     "Austin", c("Bastrop", "Caldwell", "Hays", "Travis", "Williamson"),
     "Lubbock", c("Crosby", "Lubbock", "Lynn"),
+    "Corpus Christi", c("Aransas", "Nueces", "San Patricio"),
+    "Killeen-Temple", c("Bell", "Coryell", "Lampasas"),
+    "Beaumont-Port Arthur", c("Hardin", "Jefferson", "Orange"),
     "Amarillo", c("Armstrong", "Carson", "Potter", "Randall", "Oldham")
 )
 
@@ -1047,8 +970,14 @@ server <- function(input, output) {
     #------------------
     #  Plot fit line, Extension of line, and testing data
     #------------------
-    testend <- tibble(end_day=last(TestingData$Date), 
-                      end_case=last(TestingData$Total)/xform)
+    testend <- tibble(end_date=last(TestingData$Date), 
+                      end_case=last(TestingData$Total),
+                      end_y=last(TestingData$Total)/xform)
+    
+    # truncate tests where cases start
+    testbeg <- max(1, subdata$Days[1]+1-8)
+    teststop <- last(subdata$Days)
+    
     p <-  p +
           expand_limits(x = LastDate+10) +
           geom_line(data=case_fit,
@@ -1065,17 +994,16 @@ server <- function(input, output) {
           geom_point(data=case_fit[(nrow(case_fit)-9):nrow(case_fit),],
                         aes(x=Date, y=Cases),
                      shape=20, size=2, fill="blue") +
-          geom_point(data=TestingData,
-                        aes(x=Date, y=Total/xform, color="tests"),
-                     size=3, shape=21, fill="white") +
-          #geom_text(data=TestingData,
-          #          aes(x=Date, y=Total/xform, label=Total),
-          #          nudge_x=-1.50, nudge_y=0.0) +
+          geom_point(data=TestingData[testbeg:teststop,],
+                        aes(x=Date, y=Total/xform, color="tests", fill="white"),
+                     size=3, shape=21, 
+                     fill="white"
+                     ) +
           theme(text = element_text(size=20)) +
           labs(title=paste0("COVID-19 Cases in ",PopLabel$Label), 
                subtitle=paste0(" as of ", lastdate)) +
           geom_text(data=testend,
-                 aes(y=end_case,x=end_day,label=format(end_case, big.mark = ",")),
+                 aes(y=end_y,x=end_date,label=format(end_case, big.mark = ",")),
                  size=5.0,
                  vjust="bottom", hjust="left") 
     #------------------
@@ -1194,6 +1122,7 @@ server <- function(input, output) {
     #------------------
       leg_labs <- c("Data", "Fit", "Tests", "Recovered", "Active Cases") # Labels for legend
       leg_vals <- c("black", "blue", "black", "red", "green") # Color values
+      leg_fill <- c("black", "blue", "white", "red", "green") # Color fill values
       leg_brks <- c("data", "fit", "tests", "recovered", "active") # Breaks (named lists)
 
     #------------------
@@ -1206,7 +1135,9 @@ server <- function(input, output) {
       p <-  build_legend(p, "Cases",
                              leg_labs, # Labels for legend
                              leg_vals, # Color values
-                             leg_brks # Breaks (named lists)
+                             leg_brks, # Breaks (named lists)
+                             leg_fill, # fill values
+                         in_logscale
       )
       
       if (in_modeling=="logistic") {
@@ -1260,13 +1191,17 @@ server <- function(input, output) {
   #------------------- Build Legend ------------------
   #---------------------------------------------------    
   
-  build_legend <- function(p, title, plabs, pvals, pbrks){
+  build_legend <- function(p, title, plabs, pvals, pbrks, fvals, in_log){
     print(":::::::  build_legend")
     
     #   Create list of named characters
     names(pvals) <- pbrks
     
-    legend <- theme(legend.position=c( 0.12, 0.5 ))
+    if (in_log) {
+      legend <- theme(legend.position=c( 0.82, 0.20 ))
+    } else {
+      legend <- theme(legend.position=c( 0.18, 0.80 ))
+    }
       
     print(pvals)
     print(plabs)
@@ -1275,8 +1210,12 @@ server <- function(input, output) {
                                          values = pvals,
                                          labels = plabs,
                                          breaks = pbrks
-                                         )
-    p <- p + legend + Legend_layer 
+                                         ) 
+    p <- p + legend + Legend_layer +
+                    scale_fill_manual(name = title, 
+                                      values = fvals,
+                                      guide="legend",
+                                      breaks = pbrks)
     
     return(p)
   }
@@ -1320,15 +1259,16 @@ server <- function(input, output) {
 
 CrowdText <- "Sizes of groups to avoid to keep\nchance of meeting a contagious\nperson below 1%"
 
-      y_anno <- 6*max(Cases)*0.9
+      y_anno <- 6*last(Cases)*0.95
       if (in_zoom) {
-        y_anno <- Cases[length(Cases)]*0.9
+        #y_anno <- Cases[length(Cases)]*0.9
+        y_anno <- last(Cases)*0.95
       }
       
       p <- p + CrowdLayer1 + 
                CrowdLayer2 +
                annotate("label", label=CrowdText, 
-                        x=begin+5, y=y_anno, 
+                        x=begin+10, y=y_anno, 
                         fill="lightcoral", size=4)
       
           return(p)
@@ -1492,13 +1432,17 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
       p <-  build_legend(p, "Deaths",
                              c("Data", "Fit", "Est Cases"), # Labels for legend
                              c("black", "blue", "red"), # Color values
-                             c("data", "fit", "est") # Breaks (named lists)
+                             c("data", "fit", "est"), # Breaks (named lists)
+                             c("black", "blue", "red"), # fill values
+                         in_Deaths_logscale
                              )
     } else {
       p <-  build_legend(p, "Deaths",
                              c("Data", "Fit"), # Labels for legend
                              c("black", "blue"), # Color values
-                             c("data", "fit") # Breaks (named lists)
+                             c("data", "fit"), # Breaks (named lists)
+                             c("black", "blue"), # fill values
+                         in_Deaths_logscale
                              )
     }      
     #-------------------------------- Log scaling?
@@ -1680,7 +1624,8 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
       foo <- foo %>% 
         mutate(m=signif(log10(2)/m,2),
                sd=signif(log10(2)/(m-sd),2)) %>% 
-        mutate(m=replace(m, m>200, NA)) 
+        mutate(m=replace(m, m>200, NA)) %>%  
+        mutate(m=replace(m, m< -200, NA)) 
        # filter(m<200)
     }
     print("-------- slope  5.75 --------------")
