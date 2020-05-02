@@ -86,6 +86,14 @@ DF <- DF %>%
   mutate(Deaths=as.numeric(Deaths)) %>% 
   mutate(Deaths=na_if(Deaths, 0))
 
+# Calculate new cases
+
+DF <- DF %>% 
+  group_by(County) %>% 
+    arrange(Cases) %>% 
+    mutate(new_cases=(Cases-lag(Cases, default=Cases[1]))) %>%
+  ungroup()
+
 #   Last date in dataset formatted for plotting
 
 sf <- stamp_date("Sunday, Jan 17, 1999")
@@ -1586,27 +1594,28 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     Population <- PopLabel$Population
     print("-------- slope  1 --------------")
     foo <- subdata %>% 
-      mutate(change=(Cases-lag(Cases, default=0, order_by = Date))) %>% 
-      mutate(change=pmax(change, 0)) %>% 
-      mutate(Pct_change=100*change/lag(Cases, order_by = Date)) %>% 
+      arrange(Cases) %>% 
+      #mutate(change=(Cases-lag(Cases, default=Cases[1]))) %>% 
+      mutate(new_cases=pmax(new_cases, 0)) %>% 
+      mutate(Pct_change=100*new_cases/lag(Cases, default=Cases[1])) %>% 
       mutate(avg_pct_chg=zoo::rollmean(Pct_change, in_window, 
                                   fill=c(0, NA, last(Pct_change)))) %>% 
-      mutate(avg_chg=zoo::rollmean(change, in_window, 
-                              fill=c(0, NA, last(change)))) %>% 
+      mutate(avg_chg=zoo::rollmean(new_cases, in_window, 
+                              fill=c(0, NA, last(new_cases)))) %>% 
       mutate(avg_pct_chg=na_if(avg_pct_chg, 0)) %>% 
       mutate(Pct_change=na_if(Pct_change, 0)) %>% 
-      mutate(change=na_if(change, 0)) %>% 
-      mutate(chgpercapita=1.e5*change/Population) %>% 
+      mutate(new_cases=na_if(new_cases, 0)) %>% 
+      mutate(chgpercapita=1.e5*new_cases/Population) %>% 
       mutate(avg_chgpercapita=1.e5*avg_chg/Population) #%>% 
       #mutate(avg_pct_chg=replace(avg_pct_chg, avg_pct_chg>30, NA)) %>% 
-      #mutate(Pct_change=replace(Pct_change, Pct_change>30, NA))
+      #mutate(Pct_new_cases=replace(Pct_change, Pct_change>30, NA))
     print("-------- slope  2 --------------")
     #browser()
     foo <- foo %>% 
       mutate(m = case_when(
         in_slopetype=="percent" ~ Pct_change,
         in_slopetype=="avgpercent" ~ avg_pct_chg,
-        in_slopetype=="newcase" ~ change,
+        in_slopetype=="newcase" ~ new_cases,
         in_slopetype=="avgnewcase" ~ avg_chg,
         in_slopetype=="newcasepercap" ~ chgpercapita,
         in_slopetype=="avgnewcasepercap" ~ avg_chgpercapita,
