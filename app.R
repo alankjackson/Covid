@@ -1714,6 +1714,116 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
   return(p)
   }
    
+  #---------------------------------------------------    
+  #------------------- Build Counties Plot -----------
+  #---------------------------------------------------    
+  
+  build_counties_plot <- function(
+                                in_counties_y_axis,
+                                in_counties_selector,
+                                in_case_start,
+                                in_country_log
+                                ){
+    print(":::::::  build_slope_plot")
+    
+    #   Create a tibble of county summary information
+    
+    window <- 5
+    
+    counties <- DF %>% 
+      select(County, Cases, Deaths, Date, new_cases) %>% 
+      filter(County!="Total") %>% 
+      filter(County!="Pending County Assignment") %>% 
+      left_join(Counties, by="County") %>% 
+      group_by(County) %>% 
+        mutate(new_cases=pmax(new_cases, 0)) %>% 
+        mutate(Pct_change=100*new_cases/lag(Cases, order_by = Date)) %>% 
+        mutate(avg_pct_chg=rollmean(Pct_change, window, 
+                                    fill=c(0, NA, last(Pct_change)))) %>% 
+        mutate(avg_chg=rollmean(new_cases, window, 
+                                fill=c(0, NA, last(new_cases)))) %>% 
+      ungroup() %>% 
+      mutate(percapita=Cases/Population*100000) %>% 
+      mutate(Deaths=na_if(Deaths, 0)) %>% 
+      mutate(avg_pct_chg=na_if(avg_pct_chg, 0)) %>% 
+      mutate(Pct_change=na_if(Pct_change, 0)) %>% 
+      mutate(new_cases=na_if(new_cases, 0)) %>% 
+      mutate(chgpercapita=1.e5*new_cases/Population) %>% 
+      mutate(avg_chgpercapita=1.e5*avg_chg/Population) %>% 
+      mutate(DPerC=na_if(Deaths/Cases,0)) %>% 
+      mutate(avg_pct_chg=replace(avg_pct_chg, avg_pct_chg>30, NA)) %>% 
+      mutate(Pct_change=replace(Pct_change, Pct_change>30, NA))
+    
+    # Start each county at the minimum case spot and create an x-axis variable
+    counties_case <- counties %>% 
+      filter(Cases>case_start) %>%  
+      group_by(County) %>% 
+      arrange(Date) %>% 
+      mutate(day = row_number()) %>% 
+      add_tally() %>% 
+      ungroup() %>% 
+      filter(n>5)
+    
+    value <- c("Pct_change",
+               "Cases",
+               "Deaths",
+               "percapita",
+               "new_cases",
+               "DPerC",
+               "avg_chg",
+               "chgpercapita",
+               "avg_chgpercapita",
+               "avg_pct_chg")
+    
+    y_axis <- "avg_chgpercapita"
+    selector <- "Cases"
+    y_labels <- list("Pct_change"="Percent Change",
+                     "Cases"="Number of Cases",
+                     "Deaths"="Number of Deaths",
+                     "percapita"="Cases per 100,000",
+                     "new_cases"="New Cases",
+                     "DPerC"="Deaths per 100,000",
+                     "avg_chg"="Avg New Cases",
+                     "chgpercapita"="New Cases per 100,000",
+                     "avg_chgpercapita"="Avg New Cases per 100,000",
+                     "avg_pct_chg"="5-day Avg Percent Change")
+    
+    #     Apply selector
+    counties_case %>% 
+      arrange(Date) %>% 
+      group_by(County) %>% 
+      mutate(Mselect=last(!!as.name(selector))) %>% 
+      mutate(end_case=last(!!as.name(y_axis)), end_day=max(day)) %>% 
+      arrange(-Mselect) %>% 
+      ungroup() %>% 
+      filter(Mselect>(unique(Mselect)[7])) %>% 
+      select(-Mselect) -> counties_case_filt
+    
+    #   Stretch scale
+    daylimit <- max(counties_case_filt$day)*1.1
+    
+    #   Plot county data
+    #p[[i*10+j]] <- 
+    counties_case %>% 
+      ggplot(aes(x=day, y=!!as.name(y_axis))) + 
+      scale_y_log10(breaks = logTicks(n = 4), minor_breaks = logTicks(n = 40)) +
+      theme(legend.position = "none") +
+      geom_line(aes(group=County),colour = alpha("grey", 0.7)) +
+      geom_line(data=counties_case_filt,
+                aes(color=County)) + 
+      geom_label(data=counties_case_filt,
+                 aes(y=end_case,x=end_day,label=County, color=County),
+                 size=3.0,
+                 label.size = 0.15,
+                 vjust="top", hjust="left") +
+      expand_limits(x=daylimit) + # make room for labels
+      labs(title=paste("Counties With Greatest ",y_labels[[selector]]),
+           x="Days after reaching 30 Cases",
+           y=paste(y_labels[[y_axis]]))
+    
+    
+    
+  }
   ######################  Map ########################
   #---------------------------------------------------    
   #------------------- Build Model -------------------
