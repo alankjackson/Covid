@@ -200,6 +200,7 @@ myfile <- getBinaryURL(url, ssl.verifyhost=FALSE, ssl.verifypeer=FALSE)
 path <- "/home/ajackson/Dropbox/Rprojects/Covid/TexasDataXcel/"
 writeBin(myfile, paste0(path, "Tests_by_County_", lubridate::today(),".xlsx"))
 
+
 #---------------------------------------------------------------------
 #   Extract Prison information
 #---------------------------------------------------------------------
