@@ -315,7 +315,15 @@ isnt_out_z <- function(x, thres = 5, na.rm = TRUE) {
   )
   
   #---------------  Clean up and calc base quantities
-  foo <- DF %>% 
+  foo <- DF %>%     
+    # Start each county at 10 cases
+    filter(Cases>10) %>%  
+    group_by(County) %>% 
+      arrange(Date) %>% 
+      mutate(day = row_number()) %>% 
+      add_tally() %>% 
+    ungroup() %>% 
+    filter(n>5) %>% # must have at least 5 datapoints
     select(County, Cases, Deaths, Date, new_cases, new_deaths) %>% 
     filter(County!="Total") %>% 
     filter(County!="Pending County Assignment") %>% 
