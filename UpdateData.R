@@ -244,6 +244,7 @@ for (i in 8:11) {
   staff <- bind_rows(staff, tmp)
 }
 new_prisons <- left_join(df, staff, by="Unit")
+new_prisons <- new_prisons %>% mutate(Date=lubridate::today()-1)
 
 
 
