@@ -46,9 +46,14 @@ close(z)
 z <- gzcon(url(paste0(DataArchive, "Census_July1_2019_TexasCountyPop.rds")))
 Counties <- readRDS(z)
 close(z)
-
-
-
+#   Prison Population data
+z <- gzcon(url(paste0(DataArchive, "Prison_Pop2020.rds")))
+Prison_pop <- readRDS(z)
+close(z)
+#   Prison Location data
+z <- gzcon(url(paste0(DataArchive, "Prison_Locations.rds")))
+Prison_loc <- readRDS(z)
+close(z)
 
 #   County polygons
 Texas <- readRDS(gzcon(url(paste0(DataArchive, "Texas_County_Outlines_lowres.rds"))))
@@ -379,6 +384,20 @@ isnt_out_z <- function(x, thres = 8, na.rm = TRUE) {
  }
 
 prep_counties()
+
+  #---------------------------------------------------    
+  #------------------- Prison Data -------------------
+  #---------------------------------------------------    
+  
+Prison <- left_join(Prison_loc, Prison_pop, by="Unit_Name")
+
+#county_totals <- Prison %>% 
+#  group_by(County) %>% 
+#    summarise(County_pop=sum(Population)) %>% 
+#  ungroup
+
+Prison <- Prison %>% 
+  select(Unit_Name, County, Population)
 
 
 #' log scale
