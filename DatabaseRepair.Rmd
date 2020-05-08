@@ -255,6 +255,26 @@ saveRDS(foo,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Testing.rds")
 
 ```
 
+##  Create a separate county population file to be read in
+
+```{r}
+
+inpath <- "/home/ajackson/Dropbox/Rprojects/Datasets"
+utpath <- "/home/ajackson/Dropbox/Rprojects/Datasets/Archive"
+
+df <- readxl::read_excel(paste0(inpath,"/","Census_July1_2019_TexasCountyPop.xlsx"))
+
+df <- df %>% 
+  rename(County=1, Census=13) %>% 
+  filter(grepl("County,",County)) %>% 
+  mutate(County=str_remove(County,"[.]")) %>% 
+  mutate(County=str_remove(County," County, Texas")) %>% 
+  select(County, Population=Census)
+
+saveRDS(df, paste0(utpath,"/","Census_July1_2019_TexasCountyPop.rds"))
+
+```
+
 
 
 
