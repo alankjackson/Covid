@@ -2005,15 +2005,8 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
         mutate(Mselect=last(!!as.name(in_counties_selector))) %>% 
         mutate(end_case=last(!!as.name(in_counties_y_axis)), end_day=max(day)) %>% 
         do_sort(sorting) %>% 
-<<<<<<< HEAD
       ungroup() %>% 
       do_filter(sorting) %>% 
-=======
-        #arrange(desc(Mselect)) %>% 
-      ungroup() %>% 
-      do_filter(sorting) %>% 
-      #filter(Mselect>(unique(Mselect)[7])) %>% 
->>>>>>> Counties
       select(-Mselect) -> counties_case_filt
     
     #   Stretch scale
