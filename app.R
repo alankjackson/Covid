@@ -78,7 +78,8 @@ DF <- DF %>% filter(Cases>0, !is.na(Cases))
 
 # Add Statewide Totals per day
 
-DF <- DF %>% select(-LastUpdate) %>% bind_rows(
+#DF <- DF %>% select(-LastUpdate) %>% bind_rows(
+DF <- DF %>% bind_rows(
                   DF %>%
                   group_by(Date) %>% 
                   summarise(Cases = sum(Cases), Deaths=sum(Deaths)) %>% 
