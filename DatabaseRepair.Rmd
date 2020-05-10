@@ -107,7 +107,7 @@ path <- "/home/ajackson/Dropbox/Rprojects/Covid/"
 
 foo <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
 
-foo <- slice(foo,-1295:-1548)
+foo <- slice(foo,-11455:-11708)
 
 saveRDS(foo ,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),"_deaths.rds"))
 # Save the real file for later use
