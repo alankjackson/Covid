@@ -54,6 +54,10 @@ close(z)
 z <- gzcon(url(paste0(DataArchive, "Prison_Locations.rds")))
 Prison_loc <- readRDS(z)
 close(z)
+#   Current Prison epidemic data
+z <- gzcon(url(paste0(DataLocation, "Prisons.rds")))
+Prison_covid <- readRDS(z)
+close(z)
 
 #   County polygons
 Texas <- readRDS(gzcon(url(paste0(DataArchive, "Texas_County_Outlines_lowres.rds"))))
@@ -304,7 +308,7 @@ isnt_out_z <- function(x, thres = 8, na.rm = TRUE) {
   #------------------- County Data -------------------
   #---------------------------------------------------    
   
- prep_counties <- function( ) { 
+ prep_counties <- function() { 
   
   window <- 5
   #---------------  Control matrix
@@ -399,6 +403,99 @@ Prison <- left_join(Prison_loc, Prison_pop, by="Unit_Name")
 Prison <- Prison %>% 
   select(Unit_Name, County, Population)
 
+Prison_covid <- Prison_covid %>% 
+  mutate(Unit=str_replace(Unit, "ETTF", "East Texas")) %>% 
+  mutate(Unit=str_replace(Unit, "Fort Stockton", "Ft. Stockton")) %>% 
+  mutate(Unit=str_replace(Unit, "Jester 1", "Jester I")) %>% 
+  mutate(Unit=str_replace(Unit, "Jester 3", "Jester III")) %>% 
+  mutate(Unit=str_replace(Unit, "Jester 4", "Jester IV")) %>% 
+  mutate(Unit=str_replace(Unit, "Sansaba", "San Saba")) %>% 
+  filter(Unit!="No Longer in Custody") %>% 
+  filter(Unit!="Bambi") %>% 
+  rename(Cases=Positive_Tests)
+
+Prison_covid <- left_join(Prison_covid, Prison, by=c("Unit"="Unit_Name"))
+
+Prison_covid <- Prison_covid %>% 
+  group_by(Unit) %>% 
+    arrange(Cases) %>% 
+    mutate(new_cases=(Cases-lag(Cases, default=Cases[1]))) %>%
+    mutate(new_cases=pmax(new_cases, 0)) %>% # truncate negative numbers
+  ungroup()
+
+ prep_prisons <- function() { 
+  
+  window <- 5
+  #---------------  Control matrix
+  
+  calc_controls <- tribble(
+    ~base,       ~avg, ~percap, ~trim, ~positive,
+    "Cases",      TRUE, TRUE,  FALSE, TRUE,
+    "pct_chg",    TRUE, FALSE, FALSE, TRUE,
+    "doubling",   TRUE, FALSE, TRUE, TRUE,
+    "new_cases",  TRUE, TRUE,  FALSE, TRUE
+  )
+  
+  #---------------  Clean up and calc base quantities
+  foo <- Prison_covid %>%     
+    # Start each county at 10 cases
+    filter(Cases>10) %>%  
+    group_by(Unit) %>% 
+      arrange(Date) %>% 
+      mutate(day = row_number()) %>% 
+      add_tally() %>% 
+    ungroup() %>% 
+    filter(n>5) %>% # must have at least 5 datapoints
+    select(Unit, Cases, Date, new_cases, Population, County) %>% 
+    group_by(Unit) %>%
+      arrange(Date) %>% 
+      mutate(pct_chg=100*new_cases/lag(Cases, default=Cases[1])) %>% 
+      mutate(doubling=doubling(Cases, window, Unit)) %>% 
+    ungroup()
+  
+  #----------------- Trim outliers and force to be >0
+  
+  for (base in calc_controls$base[calc_controls$trim]){
+    for (unit in unique(foo$Unit)) {
+      foo[foo$Unit==unit,][base] <- isnt_out_z((foo[foo$Unit==unit,][[base]]))
+    }
+  }
+  for (base in calc_controls$base[calc_controls$positive]){
+    foo[base] <- na_if(foo[base], 0)
+  }
+  
+  #----------------- Calc Rolling Average
+  
+  inputs <- calc_controls$base[calc_controls$avg==TRUE]
+  
+  foo <- foo %>% 
+    group_by(Unit) %>% 
+    mutate_at(inputs, list(avg = ~ zoo::rollmean(., window, 
+                                                 fill=c(first(.), NA, last(.))))) %>% 
+    rename_at(vars(ends_with("_avg")), 
+              list(~ paste("avg", gsub("_avg", "", .), sep = "_")))
+  
+  foo <- foo %>% 
+    mutate(pct_chg=na_if(pct_chg, 0)) %>% 
+    mutate(pct_chg=replace(pct_chg, pct_chg>30, NA)) %>% 
+    mutate(pct_chg=replace(pct_chg, pct_chg<0.1, NA)) %>% 
+    mutate(avg_pct_chg=na_if(avg_pct_chg, 0)) %>% 
+    mutate(avg_pct_chg=replace(avg_pct_chg, avg_pct_chg>30, NA)) %>% 
+    mutate(avg_pct_chg=replace(avg_pct_chg, avg_pct_chg<0.1, NA))
+  
+  #----------------- Calc per capitas
+  
+  inputs <- calc_controls$base[calc_controls$percap==TRUE]
+  inputs <- c(paste0("avg_", inputs), inputs)
+  
+  foo <- foo %>% 
+    mutate_at(inputs, list(percap = ~ . / Population * 100)) 
+  
+  Prison_data <<- foo
+  
+ }
+
+prep_prisons()
 
 #' log scale
 #'
@@ -813,6 +910,79 @@ ui <- basicPage(
                     ),
                     checkboxInput(
                       inputId = "county_log",
+                      label = strong("Log Scale"),
+                      value = TRUE
+                    )
+                  ) # end Misc controls
+               ) # end column control
+         ) # end fluid page
+     ), # end tabPanel Counties
+    ##########   Prisons Tab
+    tabPanel( "Prisons", fluid = TRUE, value = "PrisonsTab",
+        HTML("<hr>"),
+        fluidPage(#-------------------- Counties
+            column( 9, # Plot           
+              plotOutput("plot_prisons",
+                    height = "700px"),
+              gt::gt_output("prisons_details")
+            ), # end of column Plot
+            #-------------------- Controls
+            column(3, # Controls
+                  wellPanel( 
+                    h4("Choose the Y-Axis"),
+                    checkboxInput(
+                      "prisons_avg",
+                      label = "Running Average",
+                      value = TRUE
+                    ),
+                    #HTML("<hr>"),
+                    checkboxInput(
+                      inputId = "prisons_percap",
+                      label = "percent population",
+                      value = TRUE
+                    ),
+                    HTML("<hr>"),
+                    radioButtons(
+                      "prisons_y_axis",
+                      label = NULL,
+                      choices = list(
+                        "Cases" = "Cases",
+                        "New Cases" = "new_cases",
+                        "Percent change" = "pct_chg",
+                        "Doubling Time" = "doubling"
+                      ),
+                      selected = "Cases"
+                    ) 
+                  ), # end y-axis panel
+                  wellPanel( 
+                    h4("Highlight Based On:"),
+                    checkboxInput(
+                      "prisons_select_avg",
+                      label = "Running Average",
+                      value = TRUE
+                    ),
+                    #HTML("<hr>"),
+                    checkboxInput(
+                      inputId = "prisons_select_percap",
+                      label = "percent population",
+                      value = TRUE
+                    ),
+                    HTML("<hr>"),
+                    radioButtons(
+                      "prisons_selector",
+                      label = NULL,
+                      choices = list(
+                        "Cases" = "Cases",
+                        "New Cases" = "new_cases",
+                        "Percent change" = "pct_chg",
+                        "Doubling Time" = "doubling"
+                      ),
+                      selected = "new_cases"
+                    ) 
+                  ), # end highlight panel
+                  wellPanel( # Misc controls
+                    checkboxInput(
+                      inputId = "prison_log",
                       label = strong("Log Scale"),
                       value = TRUE
                     )
@@ -1638,19 +1808,19 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                     aes(x=Date, y=Deaths),
                  shape=20, size=2, fill="blue") 
     print("---- build_death_plot 3 ------")
-    if (!in_Deaths_logscale) {
-        p <- p + geom_col(alpha = 2/3)  +
-             geom_label(aes(label=Deaths), 
-                            stat='identity',
-                            size = 3) 
-     } else {
+    #if (!in_Deaths_logscale) {
+    #    p <- p + geom_col(alpha = 2/3) # +
+    #         #geom_label(aes(label=Deaths), 
+    #         #               stat='identity',
+    #         #               size = 3) 
+    # } else {
         
         p <- p + geom_point(aes(color="data"), size=2) 
-     } 
+    # } 
     print("---- build_death_plot 4 ------")
-      p <- p + geom_label(data=death_fit[(nrow(death_fit)-9):nrow(death_fit),],
-                  aes(label=as.integer(Deaths+.5)),
-                  hjust=1, vjust=0) +
+      p <- p + #geom_label(data=death_fit[(nrow(death_fit)-9):nrow(death_fit),],
+             #     aes(label=as.integer(Deaths+.5)),
+             #     hjust=1, vjust=0) +
 
           theme(text = element_text(size=20)) +
           labs(title=paste0("COVID-19 Deaths in ",PopLabel$Label), 
@@ -1682,9 +1852,9 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                                      aes(x, y, 
                                          label = signif(ExpLine_est$est_cases[indx], 3) ))
       #     Add actual cases
-      p <- p + geom_point(data=subdata, aes(y=Cases, x=Date, color="data"), size=2)# +
-               #geom_text(data=subdata, aes(y=Cases, x=Date, label=Cases),
-               #          nudge_x=-1.50, nudge_y=0.0)
+      p <- p + geom_point(data=subdata, aes(y=Cases, x=Date, color="data"), size=2) +
+               geom_text(data=subdata, aes(y=Cases, x=Date, label=Cases),
+                         nudge_x=-1.50, nudge_y=0.0)
       
       p <-  build_legend(p, "Deaths",
                              c("Data", "Fit", "Est Cases"), # Labels for legend
@@ -2076,6 +2246,179 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
       gt::cols_label(County=gt::md("**County**"), 
                      !!sym(in_counties_selector):=gt::md(paste0("**",y_labels[[in_counties_selector]],"**")), 
                      Cases=gt::md("**Cases**")) %>% 
+      gt::tab_style(style=gt::cell_fill(color="lightcyan"),
+                    locations=gt::cells_title())
+    
+     # HTML(paste(details$text[1:6], collapse = '<br/>'))
+      
+    })
+    
+    
+    return(p)
+    
+  }
+   
+  #---------------------------------------------------    
+  #------------------- Build Prisons Plot ------------
+  #---------------------------------------------------    
+  
+  build_prisons_plot <- function(
+                                in_prisons_y_axis,
+                                in_prisons_selector,
+                                in_prison_log
+                                ){
+    print(":::::::  build_prisons_plot")
+    
+    window <- 5
+    
+
+    
+    print("-------------  prisons plot 1")
+    
+    #---------------  Control matrix
+    
+    calc_controls <- tribble(
+      ~base,       ~avg, ~percap, ~trim, ~positive,
+      "Cases",      TRUE, TRUE,  FALSE, TRUE,
+      "pct_chg",    TRUE, FALSE, TRUE, TRUE,
+      "doubling",   TRUE, FALSE, TRUE, TRUE,
+      "new_cases",  TRUE, TRUE,  TRUE, TRUE
+    )
+    
+    #--------------- Clean up unuseable choices
+    
+    if (grepl("percap", in_prisons_y_axis)&
+        (grepl("pct_chg",in_prisons_y_axis)
+         || grepl("doubling",in_prisons_y_axis))) {
+      in_prisons_y_axis <- str_remove(in_prisons_y_axis, "_percap")
+    }
+    if (grepl("percap", in_prisons_selector)&
+        (grepl("pct_chg",in_prisons_selector)
+         || grepl("doubling",in_prisons_selector))) {
+      in_prisons_selector <- str_remove(in_prisons_selector, "_percap")
+    }
+    
+    print("-------------  prisons plot 2")
+    # Start each county at the minimum case spot and create an x-axis variable
+    prisons_case <- Prison_data %>% 
+      filter(Cases>10) %>%  
+      group_by(Unit) %>% 
+        arrange(Date) %>% 
+        mutate(day = row_number()) %>% 
+        add_tally() %>% 
+      ungroup() %>% 
+      filter(n>5) # must have at least 5 datapoints
+    
+    print("-------------  prisons plot 3")
+    y_labels <- list(
+                     "Cases"="Number of Cases",
+                     "Cases_percap"="Cases percent Pop",
+                     "avg_Cases"="Avg Cases",
+                     "avg_Cases_percap"="Avg Cases percent Pop",
+                     "new_cases"="Number of New Cases",
+                     "new_cases_percap"="New Cases percent Pop",
+                     "avg_new_cases"="Avg New Cases",
+                     "avg_new_cases_percap"="Avg New Cases percent Pop",
+                     "Deaths"="Number of Deaths",
+                     "Deaths_percap"="Deaths per 100,000",
+                     "avg_Deaths"="Avg Deaths",
+                     "avg_Deaths_percap"="Avg Deaths per 100,000",
+                     "new_deaths"="Number of New Deaths",
+                     "new_deaths_percap"="New Deaths per 100,000",
+                     "avg_new_deaths"="Avg New Deaths",
+                     "avg_new_deaths_percap"="Avg New Deaths per 100,000",
+                     "pct_chg"="Percent Change",
+                     "avg_pct_chg"="5-day Avg Percent Change",
+                     "doubling"="Doubling Time in Days",
+                     "avg_doubling"="Avg Doubling Time in Days"
+                     )
+    
+    print("-------------  prisons plot 4")
+    #     Apply selector
+    sorting <- grepl("doubling", in_prisons_selector)
+    print(paste("--->>> sorting = ", sorting))
+    
+    title_label <- "Greatest"
+    if (sorting) {title_label <- "Smallest"}
+    
+    do_sort <- function(df, sorting) {
+      if (sorting){
+        print("a")
+        dplyr::arrange(df, Mselect)
+      } else {
+        print("b")
+        dplyr::arrange(df, desc(Mselect))
+        }
+    }
+    do_filter <- function(df, sorting) {
+      if (sorting){
+        print("c")
+        dplyr::filter(df, Mselect<(unique(Mselect)[7]))
+      } else {
+        print("d")
+        dplyr::filter(df, Mselect>(unique(Mselect)[7]))
+        }
+    }
+    
+    prisons_case %>% 
+      arrange(Date) %>% 
+      group_by(Unit) %>% 
+        mutate(Mselect=last(!!as.name(in_prisons_selector))) %>% 
+        mutate(end_case=last(!!as.name(in_prisons_y_axis)), end_day=max(day)) %>% 
+        do_sort(sorting) %>% 
+      ungroup() %>% 
+      do_filter(sorting) %>% 
+      select(-Mselect) -> prisons_case_filt
+    
+    #   Stretch scale
+    daylimit <- max(prisons_case_filt$day)*1.1
+    
+    print("-------------  prisons plot 5")
+    #   Plot Unit data
+    p <- 
+    prisons_case %>% 
+      ggplot(aes(x=day, y=!!as.name(in_prisons_y_axis))) + 
+      #scale_y_log10(breaks = logTicks(n = 4), minor_breaks = logTicks(n = 40)) +
+      theme(legend.position = "none", text = element_text(size=20)) +
+      geom_line(aes(group=Unit),colour = alpha("grey", 0.7)) +
+      geom_line(data=prisons_case_filt,
+                aes(color=Unit)) + 
+      geom_label(data=prisons_case_filt,
+                 aes(y=end_case,x=end_day,label=Unit, color=Unit),
+                 size=3.0,
+                 label.size = 0.15,
+                 vjust="top", hjust="left") +
+      expand_limits(x=daylimit) + # make room for labels
+      labs(title=paste("Prisons With",title_label,y_labels[[in_prisons_selector]]),
+           x=paste0("Days after reaching 10 Cases"),
+           y=paste(y_labels[[in_prisons_y_axis]])) 
+    
+    if (in_prison_log){
+      p <- p + scale_y_log10(breaks = logTicks(n = 4), minor_breaks = logTicks(n = 40))
+    }
+    
+    print("-------------  prisons plot 6")
+    #-----------   Data details
+    output$prisons_details <- gt::render_gt({
+      
+      details <- prisons_case_filt %>% 
+        group_by(Unit) %>% 
+          summarise(signif(last(!!as.name(in_prisons_selector)),3),
+                    last(Cases), last(County)) %>% 
+        rename(!!sym(in_prisons_selector):=2, Cases=3, County=4) %>% 
+        mutate(label=y_labels[[in_prisons_selector]]) %>% 
+        arrange(desc(!!as.name(in_prisons_selector))) %>% 
+        mutate(text=paste0(Unit,": ", label, " = ", 
+                           !!as.name(in_prisons_selector),
+                           " and Total Cases = ", Cases))
+      
+    details %>% select(-label, -text) %>%
+      gt::gt() %>%
+      gt::tab_header(title="Highlighted Details") %>% 
+      gt::cols_label(Unit=gt::md("**Unit**"), 
+                     !!sym(in_prisons_selector):=gt::md(paste0("**",y_labels[[in_prisons_selector]],"**")), 
+                     Cases=gt::md("**Cases**"),
+                     County=gt::md("**County**")) %>% 
       gt::tab_style(style=gt::cell_fill(color="lightcyan"),
                     locations=gt::cells_title())
     
@@ -2734,6 +3077,39 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     output$plot_counties <- renderPlot({print(p)})             
   })
     
+  #---------------------------------------------------    
+  #------------------- Prisons Tab ------------------
+  #---------------------------------------------------    
+  observeEvent({input$PrisonsTab
+                input$prisons_y_axis
+                input$prisons_selector
+                input$prisons_avg
+                input$prisons_percap
+                input$prisons_select_avg
+                input$prisons_select_percap
+                input$prison_log
+                1} , { # 
+    print(":::::::  observe_event PrisonsTab")
+                  
+                  print(paste(input$prisons_y_axis,
+                              input$prisons_selector,
+                              input$prison_log))
+                  
+    y_axis <- input$prisons_y_axis
+    if (input$prisons_avg) {y_axis <- paste0("avg_", y_axis)}
+    if (input$prisons_percap) {y_axis <- paste0(y_axis,"_percap")}
+                  
+    selector <- input$prisons_selector
+    if (input$prisons_select_avg) {selector <- paste0("avg_", selector)}
+    if (input$prisons_select_percap) {selector <- paste0(selector,"_percap")}
+    
+    p <- build_prisons_plot(y_axis,
+                             selector,
+                             input$county_log
+                            )
+                  
+    output$plot_prisons <- renderPlot({print(p)})             
+  })
     
   #---------------------------------------------------    
   #------------------- Mapping Controls --------------
