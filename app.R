@@ -78,7 +78,8 @@ DF <- DF %>% filter(Cases>0, !is.na(Cases))
 
 # Add Statewide Totals per day
 
-DF <- DF %>% select(-LastUpdate) %>% bind_rows(
+#DF <- DF %>% select(-LastUpdate) %>% bind_rows(
+DF <- DF %>% bind_rows(
                   DF %>%
                   group_by(Date) %>% 
                   summarise(Cases = sum(Cases), Deaths=sum(Deaths)) %>% 
@@ -2451,17 +2452,22 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
   #---------------------------------------------------    
   draw_map2 <- function(in_county_color) {
     
-    my_vars <- c("Cases", "Deaths", "new_cases", "new_deaths", 
-                 "percapita", "m", "double", "avgpct", "DPerC", 
-                 "DPerCap")
     QuantScale <- TRUE
     # Create color scale
     Range <- range(MappingData[[in_county_color]], na.rm=TRUE)
-    Ncuts <- min(as.integer(sum(MappingData[[in_county_color]]>0, na.rm=TRUE)/
-                            sum(MappingData[[in_county_color]]==1, na.rm=TRUE)), 8)
+    Ncuts <- min(as.integer(sum(MappingData[[in_county_color]]>Range[1], na.rm=TRUE)/
+                            sum(MappingData[[in_county_color]]==Range[1], na.rm=TRUE)), 8)
     Ncuts <- replace_na(Ncuts, 8)
     if (Ncuts<=4) {QuantScale <- FALSE}
     print(paste("Ncuts etc", Ncuts, in_county_color, QuantScale, Range))
+    
+    my_titles <- list("Cases"="Total Cases",
+                      "percapita"="Cases per 100,000",
+                      "Deaths"="Total Deaths",
+                      "DPerCap"="Deaths per 100,000",
+                      "double"="Doubling Time",
+                      "avgpct"="Recent Avg Pct Change",
+                      "DPerC"="Deaths per Case")
     
     # Usually reverse scale, but not always
     color_reverse <- TRUE
@@ -2488,7 +2494,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     
     output$TexasMap <- renderLeaflet({
       #   Basemap
-      leaflet(MappingData) %>% 
+      my_map <- leaflet(MappingData) %>% 
         setView(lng = MapCenter[1] , lat = MapCenter[2], zoom = init_zoom ) %>%   
         addTiles() %>%
         addPolygons(data = MappingData, 
@@ -2498,15 +2504,23 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                     smoothFactor = 0.2, 
                     fillOpacity = 0.7,
                     label = MapLabels,
-                    fillColor = ~pal(MappingData[[in_county_color]])) #%>% 
-        #addLegend("bottomleft", pal = pal, values = ~ !!as.name(in_county_color), 
-        #          title = "Total Cases",
-        #          labels= as.character(seq(Range[1], Range[2], length.out = 5)),
-        #          labFormat = function(type, cuts, p) {
-        #            n = length(cuts)
-        #            paste0(signif(cuts[-n],2), " &ndash; ", signif(cuts[-1],2))
-        #          },
-        #          opacity = 1)
+                    fillColor = ~pal(MappingData[[in_county_color]]))  
+      if (QuantScale) {
+        my_map %>% 
+        addLegend("bottomleft", pal = pal, values = MappingData[[in_county_color]], 
+                  title = my_titles[[in_county_color]],
+                  labels= as.character(seq(Range[1], Range[2], length.out = 5)),
+                  labFormat = function(type, cuts, p) {
+                    n = length(cuts)
+                    paste0(signif(cuts[-n],2), " &ndash; ", signif(cuts[-1],2))
+                  },
+                  opacity = 1)
+      } else {
+        my_map %>% 
+          addLegend("bottomleft", pal = pal, values = MappingData[[in_county_color]], 
+                    title = my_titles[[in_county_color]],
+                    opacity = 1)
+      }
     }) 
     
   }
