@@ -600,9 +600,9 @@ ui <- basicPage(
                    fluid = TRUE,
                    value = "Indicators",
                    plotOutput("plot_slopes",
-                              height = "700px")#,
-                  # h4("Details on displayed data"),
-                  # htmlOutput("death_details")
+                              height = "700px"),
+                   h4("Details on displayed data"),
+                   htmlOutput("indicator_details")
          ), # end tab panel Indicators
          tabPanel( ##########   Missed Tests
                    "Missed Tests",
@@ -2079,9 +2079,24 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
       geom_errorbar(aes(ymax=m+sd, ymin=m-sd)) +
         labs(subtitle=paste0("Fit over ",in_window," days"))
     }
+  #------------------- Build Data Details Panel ------
+  output$indicator_details <- renderUI({
+      str1 <- paste("Most recent value, on",last(foo$Date),
+                    "was<b>", formatC(last(foo$m),
+                                      format="d", big.mark=","),"</b>",
+                    my_ylab[[in_slopetype]])
+      
+     # if (has_name(PopLabel,"Region")) {
+        HTML(paste(str1, sep = '<br/>'))
+     # } else { # Counties - find ranking
+     #   
+     #   
+     # }
+    })
+    
   return(p)
   }
-   
+  
   #---------------------------------------------------    
   #------------------- Build Counties Plot -----------
   #---------------------------------------------------    
