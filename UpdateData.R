@@ -80,7 +80,7 @@ foo <- read_excel(casecounts_path) %>%
   rename(County=1, Cases=2, Deaths=3) %>% 
   filter(County!="County", County!="Total") %>% 
   mutate(Date=lubridate::today()-1) %>% 
-  mutate(LastUpdate=as.character(lubridate::today()))
+  #mutate(LastUpdate=as.character(lubridate::today()))
 foo$Cases <- as.numeric(foo$Cases)
 foo$Deaths <- as.numeric(foo$Deaths)
 
