@@ -1005,16 +1005,16 @@ ui <- basicPage(
                #    Select quantity to color counties with
                radioButtons("county_color", 
                   label = strong("Display which variable?"),
-                  choices = list( "Total Cases" = "casetotal", 
+                  choices = list( "Total Cases" = "Cases", 
                                  "Cases per 100,000 population" = "percapita",
-                                 "Deaths" = "deaths",
-                                 "Deaths per 100,000" = "deathspercap",
-                                 "Deaths/Cases" = "deathpercase",
+                                 "Deaths" = "Deaths",
+                                 "Deaths per 100,000" = "DPerCap",
+                                 "Deaths/Cases" = "DPerC",
                                  #"Slope per 100,000" = "case_slope",
                                  "Doubling Time" = "double",
-                                 "Avg Recent Pct Change" = "avg_chg"
+                                 "Avg Recent Pct Change" = "avgpct"
                                  ), 
-                  selected = "casetotal",
+                  selected = "Cases",
                   width='90%',
                   inline=FALSE)
                ) # end column control
@@ -2449,8 +2449,69 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
   #---------------------------------------------------    
   #------------------- Build Model -------------------
   #---------------------------------------------------    
+  draw_map2 <- function(in_county_color) {
+    
+    my_vars <- c("Cases", "Deaths", "new_cases", "new_deaths", 
+                 "percapita", "m", "double", "avgpct", "DPerC", 
+                 "DPerCap")
+    QuantScale <- TRUE
+    # Create color scale
+    Range <- range(MappingData[[in_county_color]], na.rm=TRUE)
+    Ncuts <- min(as.integer(sum(MappingData[[in_county_color]]>0, na.rm=TRUE)/
+                            sum(MappingData[[in_county_color]]==1, na.rm=TRUE)), 8)
+    Ncuts <- replace_na(Ncuts, 8)
+    if (Ncuts<=4) {QuantScale <- FALSE}
+    print(paste("Ncuts etc", Ncuts, in_county_color, QuantScale, Range))
+    
+    # Usually reverse scale, but not always
+    color_reverse <- TRUE
+    if (in_county_color=="double") {color_reverse <- FALSE}
+    
+    if (QuantScale) {
+      print("----- color Quantile")
+      pal <- colorQuantile(palette = heat.colors(Ncuts), 
+                           domain = MappingData[[in_county_color]], 
+                           n = Ncuts, 
+                           na.color = "transparent", 
+                           alpha = FALSE, 
+                           reverse = color_reverse,
+                           right = FALSE) 
+    } else {
+      print("----- color Numeric")
+      pal <- colorNumeric(palette = heat.colors(8),
+                          na.color = "transparent",
+                          reverse=color_reverse,
+                          domain = MappingData[[in_county_color]])
+    }
+    
+    # Draw the map
+    
+    output$TexasMap <- renderLeaflet({
+      #   Basemap
+      leaflet(MappingData) %>% 
+        setView(lng = MapCenter[1] , lat = MapCenter[2], zoom = init_zoom ) %>%   
+        addTiles() %>%
+        addPolygons(data = MappingData, 
+                    group=in_county_color,
+                    stroke = TRUE,
+                    weight = 1,
+                    smoothFactor = 0.2, 
+                    fillOpacity = 0.7,
+                    label = MapLabels,
+                    fillColor = ~pal(MappingData[[in_county_color]])) #%>% 
+        #addLegend("bottomleft", pal = pal, values = ~ !!as.name(in_county_color), 
+        #          title = "Total Cases",
+        #          labels= as.character(seq(Range[1], Range[2], length.out = 5)),
+        #          labFormat = function(type, cuts, p) {
+        #            n = length(cuts)
+        #            paste0(signif(cuts[-n],2), " &ndash; ", signif(cuts[-1],2))
+        #          },
+        #          opacity = 1)
+    }) 
+    
+  }
   
-  draw_map <- function() {
+  draw_map <- function(in_county_color) {
     
     print("Map --1--")
     Range <- range(MappingData$percapita, na.rm=TRUE)
@@ -2465,8 +2526,8 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     
     print("Map --2--")
     #   Calculate proper number of quantile cuts
-    nCase <- as.integer(sum(MappingData$Cases>0, na.rm=TRUE)/
-                          sum(MappingData$Cases==1, na.rm=TRUE))
+    nCase <- min(as.integer(sum(MappingData$Cases>0, na.rm=TRUE)/
+                          sum(MappingData$Cases==1, na.rm=TRUE)), 8)
     nDeath <- as.integer(sum(MappingData$Deaths>0, na.rm=TRUE)/
                            sum(MappingData$Deaths==1, na.rm=TRUE))
     
@@ -3132,7 +3193,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
   observeEvent({
     input$county_color
     1} , { #  draw map
-      draw_map()
+      draw_map2(input$county_color)
       })
 }
 
