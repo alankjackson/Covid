@@ -301,6 +301,24 @@ saveRDS(foo,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Prisons.rds")
 
 ```
 
+## \r\n added to a county name
+
+```{r bad county name}
+
+path <- "/home/ajackson/Dropbox/Rprojects/Covid/"
+
+foobar <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
+
+foobar <- foobar %>% 
+  mutate(County=str_replace_all(County, "[\r\n]" , "")) %>%  
+  select(-LastUpdate)
+
+# Save the real file for later use
+saveRDS(foobar,"/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
+# Also save to mirror site
+saveRDS(foobar,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Covid.rds")
+```
+
 
 
 
