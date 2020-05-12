@@ -80,7 +80,8 @@ foo <- read_excel(casecounts_path) %>%
   rename(County=1, Cases=2, Deaths=3) %>% 
   filter(County!="County", County!="Total") %>% 
   mutate(Date=lubridate::today()-1) %>% 
-  mutate(County=str_replace_all(County, "[\r\n]" , ""))
+  mutate(County=str_replace_all(County, "[\r\n]" , "")) %>% 
+  mutate(County=str_replace(County, "SanAugustine", "San Augustine"))
   #mutate(LastUpdate=as.character(lubridate::today()))
 foo$Cases <- as.numeric(foo$Cases)
 foo$Deaths <- as.numeric(foo$Deaths)
@@ -250,11 +251,11 @@ for (i in 2:5){
   df <- left_join(df, tmp, by="Unit")
 }
 
-staff <- tbls_ls[[7]] %>% 
-  rename(Unit=X1, Staff_Positive_Tests=X2) %>% 
-  mutate(Unit=str_squish(Unit))
+#staff <- tbls_ls[[7]] %>% 
+#  rename(Unit=X1, Staff_Positive_Tests=X2) %>% 
+#  mutate(Unit=str_squish(Unit))
 
-for (i in 8:11) {
+for (i in 6:10) {
   tmp <- tbls_ls[[i]] %>% 
     rename(Unit=X1, Staff_Positive_Tests=X2) %>% 
     mutate(Unit=str_squish(Unit))
