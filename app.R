@@ -101,7 +101,8 @@ DF$Deaths <- str_replace(DF$Deaths,"-", "na")
 
 DF <- DF %>% 
   mutate(Deaths=as.numeric(Deaths)) %>% 
-  mutate(Deaths=na_if(Deaths, 0))
+  replace_na(list(Deaths=0))
+  #mutate(Deaths=na_if(Deaths, 0))
 
 # Calculate new cases
 
@@ -234,8 +235,12 @@ attribute <- function(foo, attribute, grouper){
   foo %>% 
     group_by(!!grouper) %>% 
     arrange(Date) %>% 
-    mutate(avg=zoo::rollmean(!!attribute, window, 
-                             fill=c(0, NA, last(!!attribute)))) %>% 
+    #mutate(avg=zoo::rollmean(!!attribute, window, 
+    #                         fill=c(0, NA, last(!!attribute)))) %>% 
+    mutate(avg=zoo::rollapply(!!attribute, window, 
+                              FUN=function(x) mean(x, na.rm=TRUE),
+                              partial=TRUE,
+                              fill=c(0, NA, last(!!attribute)))) %>% 
     ungroup()
   
 }
@@ -264,7 +269,7 @@ isnt_out_z <- function(x, thres = 8, na.rm = TRUE) {
     "Deaths",     TRUE, TRUE,  FALSE, TRUE,
     "pct_chg",    TRUE, FALSE, FALSE, TRUE,
     "doubling",   TRUE, FALSE, TRUE, TRUE,
-    "active",     TRUE, TRUE,  FALSE, FALSE,
+    "active_cases", TRUE, TRUE,  FALSE, FALSE,
     "deaths_percase", FALSE, FALSE,  TRUE, TRUE,
     "new_cases",  TRUE, TRUE,  FALSE, TRUE,
     "new_deaths", TRUE, TRUE,  FALSE, TRUE
@@ -279,17 +284,17 @@ isnt_out_z <- function(x, thres = 8, na.rm = TRUE) {
       mutate(day = row_number()) %>% 
       add_tally() %>% 
     ungroup() %>% 
-    filter(n>5) %>% # must have at least 5 datapoints
-    select(County, Cases, Deaths, Date, new_cases, new_deaths) %>% 
+    #filter(n>5) %>% # must have at least 5 datapoints
+    select(County, Cases, Deaths, Date, new_cases, new_deaths, n) %>% 
     filter(County!="Total") %>% 
     filter(County!="Pending County Assignment") %>% 
     left_join(Counties, by="County") %>% 
-    rename(Cases=Cases.x) %>% 
-    select(-Cases.y) %>% 
+    #rename(Cases=Cases.x) %>% 
+    #select(-Cases.y) %>% 
     group_by(County) %>%
       arrange(Date) %>% 
       mutate(pct_chg=100*new_cases/lag(Cases, default=Cases[1])) %>%
-      mutate(active=Cases-lag(Cases, n=14, default=0)) %>%
+      mutate(active_cases=Cases-lag(Cases, n=14, default=0)) %>%
       mutate(deaths_percase=Deaths/Cases) %>%
       mutate(doubling=doubling(Cases, window, County)) %>% 
     ungroup()
@@ -311,8 +316,16 @@ isnt_out_z <- function(x, thres = 8, na.rm = TRUE) {
   
   foo <- foo %>% 
     group_by(County) %>% 
-    mutate_at(inputs, list(avg = ~ zoo::rollmean(., window, 
-                                                 fill=c(first(.), NA, last(.))))) %>% 
+    mutate_at(inputs, list(avg = ~ zoo::rollapply(., window, 
+                                                  FUN=function(x) mean(x, na.rm=TRUE),
+                                                  #partial=TRUE,
+                                                  fill=c(first(.), NA, last(.))))) %>% 
+    ##mutate(avg=zoo::rollapply(!!attribute, window, 
+    ##                          FUN=function(x) mean(x, na.rm=TRUE),
+    ##                          partial=TRUE,
+    ##                          fill=c(0, NA, last(!!attribute)))) %>% 
+    #mutate_at(inputs, list(avg = ~ zoo::rollmean(., window, 
+    #                                             fill=c(first(.), NA, last(.))))) %>% 
     rename_at(vars(ends_with("_avg")), 
               list(~ paste("avg", gsub("_avg", "", .), sep = "_")))
   
@@ -391,7 +404,9 @@ prep_counties()
 #   Select off latest values from counties
 TodayData <- counties %>% 
   group_by(County) %>% 
-    filter(row_number()==n())
+    mutate_at(vars(matches("avg_")), nth, -3) %>% 
+    filter(row_number()==n()) %>% 
+    mutate_if(is.numeric, signif, 3) %>% 
   ungroup()
 
 #  add county polygons
@@ -425,6 +440,10 @@ MapLabels <- lapply(seq(nrow(MappingData)), function(i) {
               ),
       "NA", "Zero"))
 })
+
+#     Trim counties now that mappingdata is made
+
+counties <<- counties %>% filter(n>5)
 
 #     Meat packing in the county?
 meat <- meat_packing %>% 
@@ -922,8 +941,10 @@ ui <- basicPage(
                       choices = list(
                         "Cases" = "Cases",
                         "New Cases" = "new_cases",
+                        "Active Cases" = "active_cases",
                         "Deaths" = "Deaths",
                         "New Deaths" = "new_deaths",
+                        "Deaths per Case" = "deaths_percase",
                         "Percent change" = "pct_chg",
                         "Doubling Time" = "doubling"
                       ),
@@ -950,8 +971,10 @@ ui <- basicPage(
                       choices = list(
                         "Cases" = "Cases",
                         "New Cases" = "new_cases",
+                        "Active Cases" = "active_cases",
                         "Deaths" = "Deaths",
                         "New Deaths" = "new_deaths",
+                        "Deaths per Case" = "deaths_percase",
                         "Percent change" = "pct_chg",
                         "Doubling Time" = "doubling"
                       ),
@@ -1080,9 +1103,10 @@ ui <- basicPage(
                       choices = list(
                         "Cases" = "Cases",
                         "New Cases" = "new_cases",
+                        "Active Cases" = "active_cases",
                         "Deaths" = "Deaths",
                         "New Deaths" = "new_deaths",
-                        "Active Cases" = "active_cases",
+                        "Deaths per Case" = "deaths_percase",
                         "Percent change" = "pct_chg",
                         "Doubling Time" = "doubling"
                       ),
@@ -2214,15 +2238,15 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     
     #---------------  Control matrix
     
-    calc_controls <- tribble(
-      ~base,       ~avg, ~percap, ~trim, ~positive,
-      "Cases",      TRUE, TRUE,  FALSE, TRUE,
-      "Deaths",     TRUE, TRUE,  FALSE, TRUE,
-      "pct_chg",    TRUE, FALSE, TRUE, TRUE,
-      "doubling",   TRUE, FALSE, TRUE, TRUE,
-      "new_cases",  TRUE, TRUE,  TRUE, TRUE,
-      "new_deaths", TRUE, TRUE,  TRUE, TRUE
-    )
+    #calc_controls <- tribble(
+    #  ~base,       ~avg, ~percap, ~trim, ~positive,
+    #  "Cases",      TRUE, TRUE,  FALSE, TRUE,
+    #  "Deaths",     TRUE, TRUE,  FALSE, TRUE,
+    #  "pct_chg",    TRUE, FALSE, TRUE, TRUE,
+    #  "doubling",   TRUE, FALSE, TRUE, TRUE,
+    #  "new_cases",  TRUE, TRUE,  TRUE, TRUE,
+    #  "new_deaths", TRUE, TRUE,  TRUE, TRUE
+    #)
     
     #--------------- Clean up unuseable choices
     
@@ -2258,6 +2282,10 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                      "new_cases_percap"="New Cases per 100,000",
                      "avg_new_cases"="Avg New Cases",
                      "avg_new_cases_percap"="Avg New Cases per 100,000",
+                     "active_cases"="Number of Active Cases",
+                     "active_cases_percap"="Active Cases per 100,000",
+                     "avg_active_cases"="Avg Active Cases",
+                     "avg_active_cases_percap"="Avg Active Cases per 100,000",
                      "Deaths"="Number of Deaths",
                      "Deaths_percap"="Deaths per 100,000",
                      "avg_Deaths"="Avg Deaths",
@@ -3335,6 +3363,19 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     in_county_color <- input$map_color
     if (input$map_avg) {in_county_color <- paste0("avg_", in_county_color)}
     if (input$map_percap) {in_county_color <- paste0(in_county_color,"_percap")}
+    
+    #--------------- Clean up unuseable choices
+    
+    if (grepl("percap", in_county_color)&
+        (grepl("pct_chg",in_county_color)
+         || grepl("doubling",in_county_color)
+         || grepl("percase", in_county_color))) {
+      in_county_color <- str_remove(in_county_color, "_percap")
+    }
+    if (grepl("avg_", in_county_color)&
+        grepl("percase",in_county_color)){
+      in_county_color <- str_remove(in_county_color, "avg_")
+    }
     
       draw_map2(in_county_color,
                 input$map_prisons,
