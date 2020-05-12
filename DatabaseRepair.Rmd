@@ -311,7 +311,8 @@ foobar <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
 
 foobar <- foobar %>% 
   mutate(County=str_replace_all(County, "[\r\n]" , "")) %>%  
-  select(-LastUpdate)
+  mutate(County=str_replace(County, "SanAugustine" , "San Augustine"))# %>%  
+#  select(-LastUpdate)
 
 # Save the real file for later use
 saveRDS(foobar,"/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
