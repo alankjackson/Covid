@@ -229,7 +229,7 @@ If more smoothing is needed, there is a median smoothning filter that can be app
 ## Counties
 
 In this tab we compare various measurements for all the relevant counties - 
-that is - those for which there is sufficient data.
+that is - those for which there is sufficient data. By that is meant at least 10 cases, otherwise the data is really pretty useless.
 
 ## Map
 
