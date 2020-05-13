@@ -79,12 +79,13 @@ writeBin(DailyCounts, paste0(path, "County_Case_Data_", lubridate::today(),".xls
 foo <- read_excel(casecounts_path) %>% 
   rename(County=1, Cases=2, Deaths=3) %>% 
   filter(County!="County", County!="Total") %>% 
-  mutate(Date=lubridate::today()-1) %>% 
+  mutate(Date=lubridate::today()) %>% 
   #mutate(LastUpdate=as.character(lubridate::today()))
 foo$Cases <- as.numeric(foo$Cases)
 foo$Deaths <- as.numeric(foo$Deaths)
 
-foo
+head(foo)
+tail(foo)
 
 #  emergency backup file
 saveRDS(foo,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),"_mytable.rds"))
