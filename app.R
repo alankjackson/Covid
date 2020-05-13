@@ -357,52 +357,6 @@ prep_counties()
   #------------------- Mapping Data -------------------
   #---------------------------------------------------    
   
-#TodayData <- DF %>% filter(Date==LastDate) %>% 
-#  filter(County!="Pending County Assignment") %>% 
-#  left_join(., Counties, by="County") %>% 
-#  mutate(percapita=Cases/Population*100000)
-#
-## Calc doubling and slope for last 5 days
-#GetSlope <- function(x, y){
-#  if(length(y)<5) {return(NA)}
-#  if(y[5]<5) {return(NA)}
-#  model <- lm(y~x )
-#  model[["coefficients"]][["x"]]
-#}
-#GetDouble <- function(x, y){
-#  if(length(y)<5) {return(NA)}
-#  if(y[5]<5) {return(NA)}
-#  model <- lm(log10(y)~x )
-#  m <- model[["coefficients"]][["x"]]
-#  if (m<.0001) {return(NA)}
-#  signif(log10(2)/m,2) # doubling time
-#}
-#GetPercent <- function(x, y){
-#  if(length(y)<5) {return(NA)}
-#  if(y[5]<5) {return(NA)}
-#  m <- (100*(y-lag(y))/lag(y))
-#  m <- mean(m, na.rm = TRUE)
-#  signif(m,2) # average percent change
-#}
-#
-#Slopes <- DF %>% 
-#  filter(County!="Pending County Assignment") %>% 
-#  group_by(County) %>% 
-#  slice(tail(row_number(), 5)) %>% 
-#  mutate(m=GetSlope(Days, Cases)) %>% 
-#  mutate(double=GetDouble(Days, Cases)) %>% 
-#  mutate(avgpct=GetPercent(Days, Cases)) %>% 
-#  slice(1) %>% 
-#  ungroup %>% 
-#  select(County, m, double, avgpct)
-
-# Add current cases to county for labeling selector
-
-#Counties <- left_join(Counties, TodayData, by="County") %>% 
-#  select(County, Population=Population.x, Cases) %>% 
-#  replace_na(list(Cases=0))
-#
-
 #   Select off latest values from counties
 TodayData <- counties %>% 
   group_by(County) %>% 
@@ -416,17 +370,7 @@ MappingData <-  merge(Texas, TodayData,
                       by.x = c("County"), by.y = c("County"),
                       all.x = TRUE) 
 
-#MappingData <- left_join(MappingData, Slopes, by="County")
-
 # Build labels for map
-
-
-#MappingData <- MappingData %>%
-#  mutate(m=signif(100000*m/Population,3)) %>% 
-#  mutate(percapita=signif(percapita,3)) %>% 
-#  mutate(Deaths=na_if(Deaths, 0)) %>% 
-#  mutate(DPerC=na_if(signif(Deaths/Cases,2),0)) %>% 
-#  mutate(DPerCap=na_if(100000*signif(Deaths/Population,2),0))  
 
 MapLabels <- lapply(seq(nrow(MappingData)), function(i) {
   htmltools::HTML(
@@ -467,11 +411,6 @@ span <- function(vector){
   #---------------------------------------------------    
   
 Prison <- left_join(Prison_loc, Prison_pop, by="Unit_Name")
-
-#county_totals <- Prison %>% 
-#  group_by(County) %>% 
-#    summarise(County_pop=sum(Population)) %>% 
-#  ungroup
 
 Prison <- Prison %>% 
   select(Unit_Name, County, Population)
@@ -588,6 +527,60 @@ Prison_covid <- Prison_covid %>%
  }
 
 prep_prisons()
+
+###############     modules
+
+#----------------------------------------------------------
+#               create attribute selector
+#----------------------------------------------------------
+
+attribute_select_input <- function(id, label="Choose the Y-Axis") {
+  ns <- NS(id)
+  tagList(
+    h4(label),
+    checkboxInput(
+      ns("Running_average"),
+      label = "Running Average",
+      value = TRUE
+    ),
+    checkboxInput(
+      inputId = ns("Percap"),
+      label = "per 100,000",
+      value = TRUE
+    ),
+    HTML("<hr>"),
+    radioButtons(
+      ns("Attribute"),
+      label = NULL,
+      choices = list(
+        "Cases" = "Cases",
+        "New Cases" = "new_cases",
+        "Active Cases" = "active_cases",
+        "Deaths" = "Deaths",
+        "New Deaths" = "new_deaths",
+        "Deaths per Case" = "deaths_percase",
+        "Percent change" = "pct_chg",
+        "Doubling Time" = "doubling"
+      ),
+      selected = "Cases"
+    ) 
+  )
+}
+
+attribute_select <- function(input, output, session) {
+  reactive({
+    y_axis <- input$Attribute
+    if (input$Running_average &
+        calc_controls$avg[calc_controls$base==input$Attribute]) {
+      y_axis <- paste0("avg_", y_axis)}
+    if (input$Percap &
+        calc_controls$percap[calc_controls$base==input$Attribute]) {
+      y_axis <- paste0(y_axis,"_percap")}
+    
+    y_axis
+  })
+}
+
 
 #' log scale
 #'
@@ -1001,6 +994,69 @@ ui <- basicPage(
                ) # end column control
          ) # end fluid page
      ), # end tabPanel Counties
+    ##########   MetroRegions Tab
+    tabPanel( "Regions", fluid = TRUE, value = "RegionsTab",
+        HTML("<hr>"),
+        fluidPage(#-------------------- Regions
+            column( 9, # Plot           
+              plotOutput("plot_regions",
+                    height = "700px"),
+              #h4("Details on displayed data"),
+              #htmlOutput("counties_details")
+              #gt::gt_output("counties_details")
+            ), # end of column Plot
+            #-------------------- Controls
+            column(3, # Controls
+                  wellPanel( 
+                    attribute_select_input("Regions", "Choose the Y-Axis")
+                  ), # end y-axis panel
+                  wellPanel( 
+                    h4("Highlight Based On:"),
+                    checkboxInput(
+                      "Regions_select_avg",
+                      label = "Running Average",
+                      value = TRUE
+                    ),
+                    #HTML("<hr>"),
+                    checkboxInput(
+                      inputId = "Regions_select_percap",
+                      label = "per 100,000",
+                      value = TRUE
+                    ),
+                    HTML("<hr>"),
+                    radioButtons(
+                      "Regions_selector",
+                      label = NULL,
+                      choices = list(
+                        "Cases" = "Cases",
+                        "New Cases" = "new_cases",
+                        "Active Cases" = "active_cases",
+                        "Deaths" = "Deaths",
+                        "New Deaths" = "new_deaths",
+                        "Deaths per Case" = "deaths_percase",
+                        "Percent change" = "pct_chg",
+                        "Doubling Time" = "doubling"
+                      ),
+                      selected = "new_cases"
+                    ) 
+                  ), # end highlight panel
+                  wellPanel( # Misc controls
+                    tags$div(class = "inline", 
+                             numericInput(inputId = "Regions_case_start", 
+                                          step = 1,
+                                          value = 30,
+                                          min=10,
+                                          label = "Start:")
+                    ),
+                    checkboxInput(
+                      inputId = "Regions_log",
+                      label = strong("Log Scale"),
+                      value = TRUE
+                    )
+                  ) # end Misc controls
+               ) # end column control
+         ) # end fluid page
+     ), # end tabPanel Regions
     ##########   Prisons Tab
     tabPanel( "Prisons", fluid = TRUE, value = "PrisonsTab",
         HTML("<hr>"),
@@ -2332,6 +2388,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
         dplyr::filter(df, Mselect>(unique(Mselect)[min(length(unique(Mselect))-2,7)]))
         }
     }
+    #browser()
     
     counties_case %>% 
       arrange(Date) %>% 
@@ -3358,6 +3415,56 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                   
     output$plot_counties <- renderPlot({print(p)})             
   })
+  #---------------------------------------------------    
+  #------------------- Regions Tab ------------------
+  #---------------------------------------------------    
+  in_Regions_Y_Axis <- callModule(attribute_select, "Regions")
+  print(paste("----Regions----",in_Regions_Y_Axis ))
+  
+  
+  
+  observeEvent({input$RegionsTab
+                input$Regions_y_axis
+                input$Regions_selector
+                input$Regions_avg
+                input$Regions_percap
+                input$Regions_select_avg
+                input$Regions_select_percap
+                input$Regions_case_start
+                input$Regions_log
+                1} , { # 
+    print(":::::::  observe_event CountiesTab")
+                  
+                  print(paste(input$Regions_y_axis,
+                              input$Regions_selector,
+                              input$Regions_case_start,
+                              input$Regions_log))
+  
+#    y_axis <- input$Regions_y_axis
+#    if (input$Regions_avg &
+#        calc_controls$avg[calc_controls$base==input$Regions_y_axis]) {
+#      y_axis <- paste0("avg_", y_axis)}
+#    if (input$Regions_percap &
+#        calc_controls$percap[calc_controls$base==input$Regions_y_axis]) {
+#      y_axis <- paste0(y_axis,"_percap")}
+#                  
+#    selector <- input$Regions_selector
+#    if (input$Regions_select_avg &
+#        calc_controls$avg[calc_controls$base==input$Regions_selector]) {
+#      selector <- paste0("avg_", selector)}
+#    if (input$Regions_select_percap &
+#        calc_controls$percap[calc_controls$base==input$Regions_selector]) {
+#      selector <- paste0(selector,"_percap")}
+#    
+#    p <- build_Regions_plot(y_axis,
+#                             selector,
+#                             input$case_start,
+#                             input$county_log
+#                            )
+#                  
+#    output$plot_Regions <- renderPlot({print(p)})             
+  })
+    
     
   #---------------------------------------------------    
   #------------------- Prisons Tab ------------------
