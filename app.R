@@ -108,7 +108,7 @@ DF <- DF %>%
 
 DF <- DF %>% 
   group_by(County) %>% 
-    arrange(Cases) %>% 
+    arrange(Date) %>% 
     mutate(new_cases=(Cases-lag(Cases, default=Cases[1]))) %>%
     mutate(new_cases=pmax(new_cases, 0)) %>% # truncate negative numbers
     mutate(new_deaths=(Deaths-lag(Deaths, default=Deaths[1]))) %>%
@@ -258,22 +258,23 @@ isnt_out_z <- function(x, thres = 8, na.rm = TRUE) {
   #------------------- County Data -------------------
   #---------------------------------------------------    
   
- prep_counties <- function() { 
+  #---------------  Control matrix, available everywhere
   
-  window <- 5
-  #---------------  Control matrix
-  
-  calc_controls <- tribble(
+  calc_controls <<- tribble(
     ~base,       ~avg, ~percap, ~trim, ~positive,
     "Cases",      TRUE, TRUE,  FALSE, TRUE,
     "Deaths",     TRUE, TRUE,  FALSE, TRUE,
     "pct_chg",    TRUE, FALSE, FALSE, TRUE,
     "doubling",   TRUE, FALSE, TRUE, TRUE,
-    "active_cases", TRUE, TRUE,  FALSE, FALSE,
+    "active_cases", TRUE, TRUE,  FALSE, TRUE,
     "deaths_percase", FALSE, FALSE,  TRUE, TRUE,
     "new_cases",  TRUE, TRUE,  FALSE, TRUE,
     "new_deaths", TRUE, TRUE,  FALSE, TRUE
   )
+
+ prep_counties <- function() { 
+  
+  window <- 5
   
   #---------------  Clean up and calc base quantities
   foo <- DF %>%     
@@ -307,6 +308,7 @@ isnt_out_z <- function(x, thres = 8, na.rm = TRUE) {
     }
   }
   for (base in calc_controls$base[calc_controls$positive]){
+    foo[base] <- pmax(0, foo[[base]])
     foo[base] <- na_if(foo[base], 0)
   }
   
@@ -435,7 +437,7 @@ MapLabels <- lapply(seq(nrow(MappingData)), function(i) {
               MappingData[i,]$Deaths, "Deaths<br>",
               MappingData[i,]$deaths_percase, "Deaths per Case<br>",
               MappingData[i,]$Deaths_percap, "Deaths per 100,000<br>",
-              MappingData[i,]$double, "Doubling Time<br>",
+              MappingData[i,]$doubling, "Doubling Time<br>",
               MappingData[i,]$avg_pct, "Avg Pct Chg"
               ),
       "NA", "Zero"))
@@ -478,6 +480,7 @@ Prison_load <- Prison %>%
   group_by(County) %>% 
   summarise(Population=sum(Population)) %>% 
   ungroup
+
 foo <- left_join(MappingData, Prison_load, by="County") %>% 
   select(County, Population=Population.x,
          inmates=Population.y) %>% 
@@ -1130,12 +1133,12 @@ ui <- basicPage(
                     checkboxInput(
                       "map_prisons",
                       label = "Counties with >1% prison pop",
-                      value = TRUE
+                      value = FALSE
                     ),
                     checkboxInput(
                       "map_meat_packers",
                       label = "Counties with meat packing",
-                      value = TRUE
+                      value = FALSE
                     )
                ) # end column control
          ) # end fluid page
@@ -2238,15 +2241,17 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     
     #---------------  Control matrix
     
-    #calc_controls <- tribble(
-    #  ~base,       ~avg, ~percap, ~trim, ~positive,
-    #  "Cases",      TRUE, TRUE,  FALSE, TRUE,
-    #  "Deaths",     TRUE, TRUE,  FALSE, TRUE,
-    #  "pct_chg",    TRUE, FALSE, TRUE, TRUE,
-    #  "doubling",   TRUE, FALSE, TRUE, TRUE,
-    #  "new_cases",  TRUE, TRUE,  TRUE, TRUE,
-    #  "new_deaths", TRUE, TRUE,  TRUE, TRUE
-    #)
+    calc_controls <- tribble(
+      ~base,       ~avg, ~percap, ~trim, ~positive,
+      "Cases",      TRUE, TRUE,  FALSE, TRUE,
+      "Deaths",     TRUE, TRUE,  FALSE, TRUE,
+      "pct_chg",    TRUE, FALSE, TRUE, TRUE,
+      "doubling",   TRUE, FALSE, TRUE, TRUE,
+      "active_cases", TRUE, TRUE,  FALSE, FALSE,
+      "deaths_percase", FALSE, FALSE,  TRUE, TRUE,
+      "new_cases",  TRUE, TRUE,  TRUE, TRUE,
+      "new_deaths", TRUE, TRUE,  TRUE, TRUE
+    )
     
     #--------------- Clean up unuseable choices
     
@@ -2294,6 +2299,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                      "new_deaths_percap"="New Deaths per 100,000",
                      "avg_new_deaths"="Avg New Deaths",
                      "avg_new_deaths_percap"="Avg New Deaths per 100,000",
+                     "deaths_percase"="Deaths per Case",
                      "pct_chg"="Percent Change",
                      "avg_pct_chg"="5-day Avg Percent Change",
                      "doubling"="Doubling Time in Days",
@@ -2320,10 +2326,10 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     do_filter <- function(df, sorting) {
       if (sorting){
         print("c")
-        dplyr::filter(df, Mselect<(unique(Mselect)[7]))
+        dplyr::filter(df, Mselect<(unique(Mselect)[min(length(unique(Mselect))-2,7)]))
       } else {
         print("d")
-        dplyr::filter(df, Mselect>(unique(Mselect)[7]))
+        dplyr::filter(df, Mselect>(unique(Mselect)[min(length(unique(Mselect))-2,7)]))
         }
     }
     
@@ -2338,14 +2344,13 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
       select(-Mselect) -> counties_case_filt
     
     #   Stretch scale
-    daylimit <- max(counties_case_filt$day)*1.1
+    daylimit <- max(counties_case_filt$day, na.rm = TRUE)*1.1
     
     print("-------------  counties plot 5")
     #   Plot county data
     p <- 
     counties_case %>% 
       ggplot(aes(x=day, y=!!as.name(in_counties_y_axis))) + 
-      #scale_y_log10(breaks = logTicks(n = 4), minor_breaks = logTicks(n = 40)) +
       theme(legend.position = "none", text = element_text(size=20)) +
       geom_line(aes(group=County),colour = alpha("grey", 0.7)) +
       geom_line(data=counties_case_filt,
@@ -2372,19 +2377,20 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
         group_by(County) %>% 
           summarise(signif(last(!!as.name(in_counties_selector)),3),
                     last(Cases)) %>% 
-        rename(!!sym(in_counties_selector):=2, Cases=3) %>% 
+        rename(!!sym(in_counties_selector):=2, Total_Cases=3) %>% 
         mutate(label=y_labels[[in_counties_selector]]) %>% 
         arrange(desc(!!as.name(in_counties_selector))) %>% 
         mutate(text=paste0(County,": ", label, " = ", 
                            !!as.name(in_counties_selector),
-                           " and Total Cases = ", Cases))
+                           " and Total Cases = ", Total_Cases))
+    #print("-------------  counties plot 7")
       
     details %>% select(-label, -text) %>%
       gt::gt() %>%
       gt::tab_header(title="Highlighted Details") %>% 
       gt::cols_label(County=gt::md("**County**"), 
                      !!sym(in_counties_selector):=gt::md(paste0("**",y_labels[[in_counties_selector]],"**")), 
-                     Cases=gt::md("**Cases**")) %>% 
+                     Total_Cases=gt::md("**Cases**")) %>% 
       gt::tab_style(style=gt::cell_fill(color="lightcyan"),
                     locations=gt::cells_title())
     
@@ -2492,10 +2498,12 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     do_filter <- function(df, sorting) {
       if (sorting){
         print("c")
-        dplyr::filter(df, Mselect<(unique(Mselect)[7]))
+        dplyr::filter(df, Mselect<(unique(Mselect)[min(length(unique(Mselect))-2,7)]))
+        #dplyr::filter(df, Mselect<(unique(Mselect)[7]))
       } else {
         print("d")
-        dplyr::filter(df, Mselect>(unique(Mselect)[7]))
+        dplyr::filter(df, Mselect>(unique(Mselect)[min(length(unique(Mselect))-2,7)]))
+        #dplyr::filter(df, Mselect>(unique(Mselect)[7]))
         }
     }
     
@@ -2544,19 +2552,19 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
         group_by(Unit) %>% 
           summarise(signif(last(!!as.name(in_prisons_selector)),3),
                     last(Cases), last(County)) %>% 
-        rename(!!sym(in_prisons_selector):=2, Cases=3, County=4) %>% 
+        rename(!!sym(in_prisons_selector):=2, Total_Cases=3, County=4) %>% 
         mutate(label=y_labels[[in_prisons_selector]]) %>% 
         arrange(desc(!!as.name(in_prisons_selector))) %>% 
         mutate(text=paste0(Unit,": ", label, " = ", 
                            !!as.name(in_prisons_selector),
-                           " and Total Cases = ", Cases))
+                           " and Total Cases = ", Total_Cases))
       
     details %>% select(-label, -text) %>%
       gt::gt() %>%
       gt::tab_header(title="Highlighted Details") %>% 
       gt::cols_label(Unit=gt::md("**Unit**"), 
                      !!sym(in_prisons_selector):=gt::md(paste0("**",y_labels[[in_prisons_selector]],"**")), 
-                     Cases=gt::md("**Cases**"),
+                     Total_Cases=gt::md("**Cases**"),
                      County=gt::md("**County**")) %>% 
       gt::tab_style(style=gt::cell_fill(color="lightcyan"),
                     locations=gt::cells_title())
@@ -2597,17 +2605,45 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
       filter(meat)
     
     #   Legend titles
-    my_titles <- list("Cases"="Total Cases",
-                      "percapita"="Cases per 100,000",
-                      "Deaths"="Total Deaths",
-                      "DPerCap"="Deaths per 100,000",
-                      "double"="Doubling Time",
-                      "avgpct"="Recent Avg Pct Change",
-                      "DPerC"="Deaths per Case")
+    #my_titles <- list("Cases"="Total Cases",
+    #                  "percapita"="Cases per 100,000",
+    #                  "Deaths"="Total Deaths",
+    #                  "Deaths_percap"="Deaths per 100,000",
+    #                  "doubling"="Doubling Time",
+    #                  "avg_pct_chg"="Recent Avg Pct Change",
+    #                  "deaths_percase"="Deaths per Case")
     
+    my_titles <- list(
+                     "Cases"="Number of Cases",
+                     "Cases_percap"="Cases pct Pop",
+                     "avg_Cases"="Avg Cases",
+                     "avg_Cases_percap"="Avg Cases pct Pop",
+                     "new_cases"="Number of New Cases",
+                     "new_cases_percap"="New Cases pct Pop",
+                     "avg_new_cases"="Avg New Cases",
+                     "avg_new_cases_percap"="Avg New Cases pct Pop",
+                     "active_cases"="Number of Active Cases",
+                     "active_cases_percap"="Active Cases per 100,000",
+                     "avg_active_cases"="Avg Active Cases",
+                     "avg_active_cases_percap"="Avg Active Cases per 100,000",
+                     "Deaths"="Number of Deaths",
+                     "Deaths_percap"="Deaths per 100,000",
+                     "avg_Deaths"="Avg Deaths",
+                     "avg_Deaths_percap"="Avg Deaths per 100,000",
+                     "new_deaths"="Number of New Deaths",
+                     "new_deaths_percap"="New Deaths per 100,000",
+                     "avg_new_deaths"="Avg New Deaths",
+                     "avg_new_deaths_percap"="Avg New Deaths per 100,000",
+                     "pct_chg"="Percent Change",
+                     "avg_pct_chg"="5-day Avg Percent Change",
+                     "doubling"="Doubling Time in Days",
+                     "avg_doubling"="Avg Doubling Time in Days",
+                     "deaths_percase"="Deaths per Case"
+                     )
     # Usually reverse scale, but not always
     color_reverse <- TRUE
-    if (in_county_color=="double") {color_reverse <- FALSE}
+    if (grepl("doubl", in_county_color)) {color_reverse <- FALSE}
+    #browser()
     
     if (QuantScale) {
       print("----- color Quantile")
@@ -3297,14 +3333,22 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                               input$counties_selector,
                               input$case_start,
                               input$county_log))
-                  
+  
     y_axis <- input$counties_y_axis
-    if (input$counties_avg) {y_axis <- paste0("avg_", y_axis)}
-    if (input$counties_percap) {y_axis <- paste0(y_axis,"_percap")}
+    if (input$counties_avg &
+        calc_controls$avg[calc_controls$base==input$counties_y_axis]) {
+      y_axis <- paste0("avg_", y_axis)}
+    if (input$counties_percap &
+        calc_controls$percap[calc_controls$base==input$counties_y_axis]) {
+      y_axis <- paste0(y_axis,"_percap")}
                   
     selector <- input$counties_selector
-    if (input$counties_select_avg) {selector <- paste0("avg_", selector)}
-    if (input$counties_select_percap) {selector <- paste0(selector,"_percap")}
+    if (input$counties_select_avg &
+        calc_controls$avg[calc_controls$base==input$counties_selector]) {
+      selector <- paste0("avg_", selector)}
+    if (input$counties_select_percap &
+        calc_controls$percap[calc_controls$base==input$counties_selector]) {
+      selector <- paste0(selector,"_percap")}
     
     p <- build_counties_plot(y_axis,
                              selector,
@@ -3340,6 +3384,22 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     selector <- input$prisons_selector
     if (input$prisons_select_avg) {selector <- paste0("avg_", selector)}
     if (input$prisons_select_percap) {selector <- paste0(selector,"_percap")}
+    
+    y_axis <- input$prisons_y_axis
+    if (input$prisons_avg &
+        calc_controls$avg[calc_controls$base==input$prisons_y_axis]) {
+      y_axis <- paste0("avg_", y_axis)}
+    if (input$prisons_percap &
+        calc_controls$percap[calc_controls$base==input$prisons_y_axis]) {
+      y_axis <- paste0(y_axis,"_percap")}
+                  
+    selector <- input$prisons_selector
+    if (input$prisons_select_avg &
+        calc_controls$avg[calc_controls$base==input$prisons_selector]) {
+      selector <- paste0("avg_", selector)}
+    if (input$prisons_select_percap &
+        calc_controls$percap[calc_controls$base==input$prisons_selector]) {
+      selector <- paste0(selector,"_percap")}
     
     p <- build_prisons_plot(y_axis,
                              selector,
