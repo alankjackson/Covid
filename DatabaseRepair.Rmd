@@ -354,7 +354,7 @@ inpath <- "/home/ajackson/Dropbox/Rprojects/Covid/TexasDataXcel/"
 utpath <- "/home/ajackson/Dropbox/Rprojects/Covid/"
 
 #         get cases
-df <- readxl::read_excel(paste0(inpath,"County_Case_Data_2020-05-10.xlsx"))
+df <- readxl::read_excel(paste0(inpath,"County_Case_Data_2020-05-12.xlsx"))
 
 # No data for March 14
 
@@ -363,14 +363,14 @@ my_colnames <- c(
                  ymd("2020-03-11"),  
                  ymd("2020-03-12"),  
                  ymd("2020-03-13"),  
-                 ymd("2020-03-15")+0:55)
+                 ymd("2020-03-15")+0:58)
 
 my_colnames <- my_colnames %>% 
                  format('%Y-%m-%d')
 my_colnames <- c("County", my_colnames)
 
 
-my_columns <- c(1, 7:66)
+my_columns <- c(1, 7:69)
 
 df <- df %>% 
   rename_at(my_columns,~ my_colnames)
@@ -384,9 +384,9 @@ foo <- df %>% mutate(Cases=as.numeric(Cases))
 
 # get deaths
 
-df <- readxl::read_excel(paste0(inpath,"Deaths_by_County_2020-05-10.xlsx"))
+df <- readxl::read_excel(paste0(inpath,"Deaths_by_County_2020-05-12.xlsx"))
 
-my_columns <- c(1, 9:12, 14:69)
+my_columns <- c(1, 9:12, 14:72)
 
 df <- df %>% 
   rename_at(my_columns,~ my_colnames)
