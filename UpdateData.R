@@ -146,7 +146,7 @@ saveRDS(CovidData,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Covid.rds")
 #  total_tests, public_tests, private_tests
 #)   
 #
-#print("--1--")
+print("--test--")
 
 foo <- read_excel(Tests_path) %>% 
   rename(County=1, total_tests=2) %>% 
@@ -252,11 +252,11 @@ for (i in 2:5){
   df <- left_join(df, tmp, by="Unit")
 }
 
-#staff <- tbls_ls[[7]] %>% 
-#  rename(Unit=X1, Staff_Positive_Tests=X2) %>% 
-#  mutate(Unit=str_squish(Unit))
+staff <- tbls_ls[[6]] %>% 
+  rename(Unit=X1, Staff_Positive_Tests=X2) %>% 
+  mutate(Unit=str_squish(Unit))
 
-for (i in 6:10) {
+for (i in 7:10) {
   tmp <- tbls_ls[[i]] %>% 
     rename(Unit=X1, Staff_Positive_Tests=X2) %>% 
     mutate(Unit=str_squish(Unit))
