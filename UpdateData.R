@@ -55,7 +55,8 @@ path <- "/home/ajackson/Dropbox/Rprojects/Covid/TexasDataXcel/"
 writeBin(casecounts, paste0(path, "Cases_by_County_", lubridate::today(),".xlsx"))
 casecounts_path <- paste0(path, "Cases_by_County_", lubridate::today(),".xlsx")
 
-url <- "https://www.dshs.texas.gov/chs/data/COVID-19CumulativeTestTotalsbyCounty.xlsx"
+url <- "https://dshs.texas.gov/coronavirus/TexasCOVID-19CumulativeTestsOverTimebyCounty.xlsx"
+#url <- "https://www.dshs.texas.gov/chs/data/COVID-19CumulativeTestTotalsbyCounty.xlsx"
 Tests <- getBinaryURL(url, ssl.verifyhost=FALSE, ssl.verifypeer=FALSE)
 
 path <- "/home/ajackson/Dropbox/Rprojects/Covid/TexasDataXcel/"
