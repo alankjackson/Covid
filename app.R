@@ -2509,7 +2509,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     summarylist <- c("Cases", "Deaths", "new_cases", "new_deaths",
                      "active_cases")
     summarylist <- c(summarylist, str_replace(summarylist, "^", "avg_"))
-    summarylist <- c(summarylist, "Population", percap)
+    summarylist <- c(summarylist, "Population")
     
     inputs <- calc_controls$base[calc_controls$percap==TRUE]
     inputs <- c(paste0("avg_", inputs), inputs)
