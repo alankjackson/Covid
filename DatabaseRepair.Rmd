@@ -427,7 +427,41 @@ saveRDS(foobar,"/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
 saveRDS(foobar,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Covid.rds")
 ```
 
+##  Fix bad tests
 
+```{r bad tests}
+
+# Read in the old data
+TestingData <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Testing.rds")
+
+# back up dates one day
+TestingData$Date <- TestingData$Date+1
+
+# add missing day
+testing_status <- tribble(
+  ~Private, ~Public, ~Total, ~Date,
+  NA,       NA,      "330300", ymd("2020-04-30")
+)   
+TestingData <- TestingData %>% 
+  bind_rows(testing_status) %>%
+  arrange(Date)
+
+TestingData <- TestingData[c(1:56,58:59),]
+
+TestingData[52:58,]$Total <- c("489294", "513978",  "525697",  
+                               "538172", "587431", "623284", "645992") 
+
+# Save an accumulated file in case of a failure
+saveRDS(TestingData,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),"_Testing.rds"))
+# Save the real file for later use
+saveRDS(TestingData,"/home/ajackson/Dropbox/Rprojects/Covid/Testing.rds")
+# Also save to mirror site
+saveRDS(TestingData,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Testing.rds")
+
+
+
+
+```
 
 
 

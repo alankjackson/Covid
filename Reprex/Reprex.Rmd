@@ -1,0 +1,195 @@
+---
+title: "Reprex"
+author: "Alan Jackson"
+date: "4/6/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+library(tidyverse)
+library(lubridate)
+#library(car)
+library(rsample)
+library(broom)
+library(purrr)
+
+indata <- tribble(
+~Date,       ~Cases,  ~Days, 
+"2020-03-10",    21,     0, 
+"2020-03-11",    23,     1, 
+"2020-03-12",    38,     2, 
+"2020-03-13",    51,     3, 
+"2020-03-14",    56,     4, 
+"2020-03-15",    57,     5, 
+"2020-03-16",    64,     6, 
+"2020-03-17",    83,     7, 
+"2020-03-18",   143,     8, 
+"2020-03-19",   194,     9, 
+"2020-03-20",   304,    10, 
+"2020-03-21",   334,    11, 
+"2020-03-22",   352,    12, 
+"2020-03-23",   410,    13, 
+"2020-03-24",   974,    14, 
+"2020-03-25",  1396,    15, 
+"2020-03-26",  1731,    16, 
+"2020-03-27",  2052,    17, 
+"2020-03-28",  2371,    18, 
+"2020-03-29",  2877,    19, 
+"2020-03-30",  3266,    20, 
+"2020-03-31",  3997,    21, 
+"2020-04-01",  4669,    22, 
+"2020-04-02",  5330,    23, 
+"2020-04-03",  6110,    24, 
+"2020-04-04",  6812,    25, 
+"2020-04-05",  7276,    26 
+)
+indata <- tribble(
+  ~County, ~Cases, ~Date, ~Deaths, ~Days, ~actual_deaths, 
+"Harris",    7,	"2020-03-10",	NA,	0,	NA,
+"Harris",    8,	"2020-03-11",	NA,	1,	NA,
+"Harris",    9,	"2020-03-12",	NA,	2,	NA,
+"Harris",   10,	"2020-03-13",	NA,	3,	NA,
+"Harris",   10,	"2020-03-14",	NA,	4,	NA,
+"Harris",   10,	"2020-03-15",	NA,	5,	NA,
+"Harris",   10,	"2020-03-16",	NA,	6,	NA,
+"Harris",   10,	"2020-03-17",	NA,	7,	NA,
+"Harris",   10,	"2020-03-18",	NA,	8,	NA,
+"Harris",   24,	"2020-03-19",	1,	9,	NA,
+"Harris",   25,	"2020-03-20",	1,	10,	0,
+"Harris",   27,	"2020-03-21",	1,	11,	0,
+"Harris",   27,	"2020-03-22",	1,	12,	0,
+"Harris",   27,	"2020-03-23",	1,	13,	0,
+"Harris",  134,	"2020-03-24",	1,	14, 0,
+"Harris",  185,	"2020-03-25",	1,	15, 0,
+"Harris",  203,	"2020-03-26",	2,	16, 1,
+"Harris",  229,	"2020-03-27",	2,	17, 0,
+"Harris",  445,	"2020-03-28",	2,	18, 0,
+"Harris",  526,	"2020-03-29",	4,	19, 2,
+"Harris",  563,	"2020-03-30",	4,	20, 0,
+"Harris",  680,	"2020-03-31",	6,	21, 2,
+"Harris",  847,	"2020-04-01",	6,	22, 0,
+"Harris",  955,	"2020-04-02",	8,	23, 2,
+"Harris", 1106,	"2020-04-03",	13,	24, 5,
+"Harris", 1284,	"2020-04-04",	17,	25, 4,
+"Harris", 1395,	"2020-04-05",	20,	26, 3,
+"Harris", 1809,	"2020-04-06",	22,	27, 2,
+"Harris", 2146,	"2020-04-07",	23,	28, 1,
+"Harris", 2341,	"2020-04-08",	31,	29,	8,
+"Harris", 3047,	"2020-04-09",	34,	30,	3,
+"Harris", 3261,	"2020-04-10",	40,	31,	6   
+)
+
+indata$Date <- as_date(indata$Date)
+df. <<- indata
+
+```
+
+## logistic function
+
+
+```{r logistic}
+#---------------------------------------------------    
+#------------------- Fit Logistic function ---------
+#---------------------------------------------------    
+logistic_model <- function(r, projection){
+    
+    #df. <- indata
+    #df. <- as.data.frame(df)
+    indep <- "Cases"
+    r <- 0.24
+    projection <- 10
+    Asym <- max(df.$Cases)*5
+    xmid <- max(df.$Days)*2
+    scal <- 1/r
+    
+    my_formula <- as.formula(paste0(indep, " ~ SSlogis(Days, Asym, xmid, scal)"))
+    
+    print("----1----")
+    
+    ## using a selfStart model
+      
+      logistic_model <- NULL
+      #try(logistic_model <- nls(Cases ~ SSlogis(Days, Asym, xmid, scal), 
+      try(logistic_model <- nls(my_formula, 
+                                data=df.)); # does not stop in the case of error
+      
+      if(is.null(logistic_model)) {
+         case_params <<- list(K=NA, 
+                              r=NA, 
+                              xmid=NA)
+        return()
+      }
+    ## using a selfStart model
+    coeffs <- coef(logistic_model)
+    
+    dayseq <- df.$Days
+    dayseq <- c(dayseq,(dayseq[length(dayseq)]+1):
+                    (dayseq[length(dayseq)]-1+projection))
+    dateseq <- df.$Date
+    dateseq <- as_date(c(dateseq,(dateseq[length(dateseq)]+1): 
+                             (dateseq[length(dateseq)]-1+projection)))
+#    foo <- data.frame(Days=dayseq)
+    Cases <- predict(logistic_model, data.frame(Days=dayseq))
+    foo <- tibble(Date=dateseq, Days=dayseq, Cases=Cases )
+    
+        ###############   tidy bootstrap start
+    
+    boots <- bootstraps(df., times = 100)
+    
+    fit_nls_on_bootstrap <- function(split) {
+      nls(my_formula, analysis(split))
+    }
+    f_safe <- purrr::safely(fit_nls_on_bootstrap)
+    
+    boot_models <- boots %>% 
+      mutate(model = map(splits, f_safe)) %>% 
+        mutate(no_error = model %>% purrr::map_lgl(.f = ~ is.null(.x$error))) %>% 
+        filter(no_error) %>% 
+    mutate(model = model %>% purrr::map("result")) %>% 
+      mutate(coef_info = map(model, tidy))
+    
+    pred2 <- function(model, foo){
+        list(predict(model, foo)[0:nrow(foo)])
+    }
+    
+    df2 <- boot_models %>% 
+      rowwise() %>% 
+      transmute(predicted = pred2(model, foo)) %>% 
+      as_data_frame() %>%  transpose(.names="1":nrow(boot_models)) %>% 
+      lapply(FUN = unlist) %>%
+      as_tibble() %>% 
+      as.matrix() %>% 
+      apply(., 1, quantile, c(0.025, 0.975)) %>% 
+      as_tibble() %>% 
+      rownames_to_column %>% 
+      gather(var, value, -rowname) %>% 
+      pivot_wider(names_from=rowname, values_from=value) %>% 
+      select(lower_conf=2, upper_conf=3) %>% 
+      tibble(foo, .)
+    
+    ggplot(df2, aes(x=Date, y=Cases))+
+        geom_ribbon( aes(x=Date,ymin=lower_conf,ymax=upper_conf),
+                    fill="pink")+
+        geom_line()
+    
+    ###############   tidy bootstrap end
+    preds <- tibble(dayseq, dateseq,
+                    Cases,
+                    confidence[,1],
+                    confidence[,2])
+    print(preds)
+    names(preds) <- c("Days", "Date","Cases","SD_upper","SD_lower")
+    
+    #  return a tibble
+    tribble(~Line, ~r, ~K, ~xmid,
+            preds, 1/coeffs[["scal"]], coeffs[["Asym"]], coeffs[["xmid"]])
+    
+} 
+```
+
+## Test function
+
+```{r testit}
+        foo <- logistic_model(0.24, 10)
+```

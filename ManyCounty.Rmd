@@ -1,0 +1,823 @@
+---
+title: "Many County"
+author: "Alan Jackson"
+date: "4/12/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(leaflet)
+library(leafpop) # for popup on map
+library(ggplot2)
+library(stringr)
+library(lubridate)
+library(rsample)
+library(broom)
+library(purrr)
+library(ggridges)
+library(viridis)
+library(zoo)
+
+#   Directory where data is stored
+
+DataLocation <- "https://www.ajackson.org/Covid/"
+DataArchive <- "https://www.ajackson.org/SharedData/"
+
+#   Tibble database
+
+#   Case data
+z <- gzcon(url(paste0(DataLocation, "Covid.rds")))
+DF <- readRDS(z)
+close(z)
+#   Testing data
+z <- gzcon(url(paste0(DataLocation, "Testing.rds")))
+TestingData <- readRDS(z)
+close(z)
+TestingData$Total <- as.numeric(TestingData$Total)
+#   Death data
+z <- gzcon(url(paste0(DataLocation, "Deaths.rds")))
+DeathData <- readRDS(z)
+close(z)
+
+#   County polygons
+Texas <- readRDS(gzcon(url(paste0(DataArchive, "Texas_County_Outlines_lowres.rds"))))
+
+
+init_zoom <- 6
+MapCenter <- c(-99.9018, 31.9686) # center of state
+
+global_slope <- 0.13
+# https://dartthrowingchimp.shinyapps.io/covid19-app/
+
+# Clean up footnotes
+
+DF$County <- str_replace(DF$County, "\\d", "")
+
+# drop rows with zero or NA cases
+
+DF <- DF %>% filter(Cases>0, !is.na(Cases))
+
+# Add Statewide Totals per day
+
+DF <- DF %>% select(-LastUpdate) %>% bind_rows(
+                  DF %>%
+                  group_by(Date) %>% 
+                  summarise(Cases = sum(Cases), Deaths=sum(Deaths)) %>% 
+                  mutate(County="Total")
+                 ) %>% 
+    arrange(Date)
+
+# Calc days since March 10
+
+DF <- DF %>% 
+    mutate(Days=as.integer(Date-ymd("2020-03-10")))
+
+DeathData <- DeathData %>% 
+    mutate(Days=as.integer(Date-ymd("2020-03-10")))
+
+# Fix Deaths field
+
+DF$Deaths <- str_replace(DF$Deaths,"-", "na")
+
+DF <- DF %>% 
+  mutate(Deaths=as.numeric(Deaths)) %>% 
+  mutate(Deaths=na_if(Deaths, 0))
+
+
+# Add dummy Estimate field
+
+#DF <- DF %>% 
+#    mutate(Estimate=Cases)
+
+
+#   Last date in dataset formatted for plotting
+
+sf <- stamp_date("Sunday, Jan 17, 1999")
+lastdate <- sf(DF$Date[nrow(DF)])
+
+LastDate <- DF[nrow(DF),]$Date
+
+
+# Load population of counties into tibble
+Counties <- tribble(
+    ~County, ~Population,
+    "Harris", 4602523, "Dallas", 2586552, "Tarrant", 2019977,
+    "Bexar", 1925865, "Travis", 1203166, "Collin", 944350, "Hidalgo", 849389,
+    "El Paso", 837654, "Denton", 807047, "Fort Bend", 739342,
+    "Montgomery", 554445, "Williamson", 527057, "Cameron", 421750,
+    "Nueces", 360486, "Brazoria", 353999, "Bell", 342236,
+    "Galveston", 327089, "Lubbock", 301454, "Webb", 272053,
+    "Jefferson", 255210, "McLennan", 248429, "Smith", 225015,
+    "Brazos", 219193, "Hays", 204150, "Ellis", 168838,
+    "Midland", 164194, "Johnson", 163475, "Ector", 158342,
+    "Guadalupe", 155137, "Taylor", 136348, "Comal", 135097,
+    "Randall", 132475, "Wichita", 131818, "Parker", 129802,
+    "Grayson", 128560, "Gregg", 123494, "Potter", 120899,
+    "Kaufman", 118910, "Tom Green", 117466, "Bowie", 93858,
+    "Rockwall", 93642, "Hunt", 92152, "Victoria", 91970,
+    "Angelina", 87607, "Orange", 84047, "Bastrop", 82577,
+    "Liberty", 81862, "Henderson", 80460, "Coryell", 75389,
+    "Walker", 71539, "San Patricio", 67046, "Harrison", 66645,
+    "Nacogdoches", 65558, "Wise", 64639, "Starr", 63894,
+    "Maverick", 57970, "Anderson", 57863, "Hood", 56901,
+    "Hardin", 56379, "Van Zandt", 54368, "Rusk", 53595,
+    "Cherokee", 51903, "Kerr", 51365, "Waller", 49987,
+    "Lamar", 49532, "Medina", 49334, "Val Verde", 49027,
+    "Atascosa", 48828, "Navarro", 48583, "Wilson", 48198,
+    "Polk", 47837, "Burnet", 45750, "Wood", 43815,
+    "Kendall", 41982, "Wharton", 41551, "Erath", 41482,
+    "Caldwell", 41401, "Jim Wells", 41192, "Upshur", 40769,
+    "Chambers", 40292, "Cooke", 39571, "Brown", 37834,
+    "Matagorda", 36743, "Howard", 36667, "Hopkins", 36240,
+    "Jasper", 35504, "Hill", 35399, "Washington", 34796,
+    "Fannin", 34175, "Hale", 34113, "Titus", 32730,
+    "Bee", 32691, "Kleberg", 31425, "Cass", 30087,
+    "Austin", 29565, "Palo Pinto", 28317, "San Jacinto", 27819,
+    "Grimes", 27630, "Uvalde", 27009, "Gillespie", 26208,
+    "Shelby", 25478, "Fayette", 25066, "Aransas", 24763,
+    "Milam", 24664, "Limestone", 23515, "Panola", 23440,
+    "Hockley", 23162, "Houston", 22955, "Gray", 22685,
+    "Calhoun", 21807, "Moore", 21801, "Bandera", 21763,
+    "Willacy", 21754, "Hutchinson", 21571, "Tyler", 21496,
+    "Colorado", 21022, "Gonzales", 20667, "Lampasas and Llano", 20640,
+    "DeWitt", 20435, "Gaines", 20321, "Lavaca", 19941,
+    "Jones", 19891, "Freestone", 19709, "Montague", 19409,
+    "Frio", 19394, "Deaf Smith", 18899, "Eastland", 18270,
+    "Bosque", 18122, "Young", 18114, "Burleson", 17863,
+    "Andrews", 17818, "Falls", 17299, "Scurry", 17239,
+    "Leon", 17098, "Lee", 16952, "Robertson", 16890,
+    "Pecos", 15797, "Karnes", 15387, "Reeves", 15125,
+    "Nolan", 14966, "Jackson", 14820, "Trinity", 14569,
+    "Zapata", 14369, "Madison", 14128, "Newton", 14057,
+    "Callahan", 13770, "Comanche", 13495, "Lamb", 13262,
+    "Dawson", 12964, "Wilbarger", 12906, "Camp", 12813,
+    "Terry", 12615, "Morris", 12424, "Red River", 12275,
+    "Zavala", 12131, "Live Oak", 12123, "Ward", 11586,
+    "Rains", 11473, "Duval", 11355, "Blanco", 11279,
+    "Franklin", 10679, "Dimmit", 10663, "Sabine", 10458,
+    "Clay", 10387, "Ochiltree", 10348, "Runnels", 10310,
+    "Marion", 10083, "Parmer", 9852, "Stephens", 9372,
+    "Brewster", 9216, "Jack", 8842, "Archer", 8789,
+    "Somervell", 8743, "Yoakum", 8571, "Mitchell", 8558,
+    "Coleman", 8391, "San Augustine", 8327, "Hamilton", 8269,
+    "McCulloch", 8098, "Winkler", 7802, "Castro", 7787,
+    "Goliad", 7531, "Swisher", 7484, "La Salle", 7409,
+    "Dallam", 7243, "Refugio", 7236, "Childress", 7226,
+    "Brooks", 7180, "Presidio", 7123, "Bailey", 7092,
+    "Garza", 6288, "Carson", 6032, "San Saba", 5962,
+    "Floyd", 5872, "Crosby", 5861, "Haskell", 5809,
+    "Lynn", 5808, "Hartley", 5767, "Martin", 5614,
+    "Hansford", 5547, "Wheeler", 5482, "Jim Hogg", 5282,
+    "Delta", 5215, "Mills", 4902, "Crane", 4839,
+    "Kimble", 4408, "Concho", 4233, "Mason", 4161,
+    "Hudspeth", 4098, "Hemphill", 4061, "Hardeman", 3952,
+    "Fisher", 3883, "Sutton", 3865, "Reagan", 3752,
+    "Knox", 3733, "Kinney", 3675, "Upton", 3634,
+    "Crockett", 3633, "Baylor", 3591, "Lipscomb", 3469,
+    "Real", 3389, "Donley", 3387, "Shackelford", 3311,
+    "Coke", 3275, "Hall", 3074, "Schleicher", 3061,
+    "Sherman", 3058, "Collingsworth", 2996, "Cochran", 2904,
+    "Culberson", 2241, "Jeff Davis", 2234, "Dickens", 2216,
+    "Menard", 2123, "Oldham", 2090, "Edwards", 2055,
+    "Armstrong", 1916, "Cottle", 1623, "Throckmorton", 1567,
+    "Briscoe", 1546, "Irion", 1524, "Glasscock", 1430,
+    "Foard", 1408, "Stonewall", 1385, "Motley", 1156,
+    "Sterling", 1141, "Roberts", 885, "Terrell", 862,
+    "Kent", 749, "Borden", 665, "McMullen", 662,
+    "Kenedy", 595, "King", 228, "Loving", 102
+)
+
+#   Sort counties with 20 largest first, then alphabetical
+
+ByPop <- arrange(Counties, -Population)
+ByAlpha <- arrange(ByPop[21:nrow(ByPop),], County)
+Counties <- bind_rows(ByPop[1:20,], ByAlpha)
+ByPop <- ByAlpha <- NULL
+
+Regions <- tribble(
+            ~Region, ~Population, ~Label,
+            "Texas", 27864555, "Texas",
+            "Houston-Galv", 6779104, "Houston/Galveston Metro Region",
+            "Dallas-Fort Worth", 4938225, "Dallas/Fort Worth Metro Region",
+            "San Antonio", 2426204, "San Antonio Metro Region",
+            "Austin", 2058351, "Austin Metro Region")
+
+DefineRegions <- tribble(
+    ~Region, ~List,
+    "Texas", c("Total"),
+    "Houston-Galv", c("Harris", "Fort Bend", "Galveston", "Waller", "Montgomery", "Liberty", "Brazoria", "Chambers", "Austin"),
+    "Dallas-Fort Worth", c("Collin", "Dallas", "Denton", "Ellis", "Hood", "Hunt", "Johnson", "Kaufman", "Parker", "Rockwall", "Somervell", "Tarrant", "Wise"),
+    "San Antonio", c("Atascosa", "Bandera", "Bexar", "Comal", "Guadalupe", "Kendall", "Medina", "Wilson"), 
+    "Austin", c("Bastrop", "Caldwell", "Hays", "Travis", "Williamson")
+)
+
+# https://docs.google.com/document/d/1ETeXAfYOvArfLvlxExE0_xrO5M4ITC0_Am38CRusCko/edit#
+Disease <- tibble::tribble(
+              ~Demographics, "% Hosp", "% Hosp ICU", "% CFR",
+                      "12%", "0-9", "0.1%", "5.0%", "0.002%",
+                      "13%", "10-19", "0.3%", "5.0%", "0.006%",
+                      "14%", "20-29", "1.2%", "5.0%", "0.03%",
+                      "13%", "30-39", "3.2%", "5.0%", "0.08%",
+                      "12%", "40-49", "4.9%", "6.3%", "0.15%",
+                      "13%", "50-59", "10.2%", "12.2%", "0.60%",
+                      "11%", "60-69", "16.6%", "27.4%", "2.20%",
+                       "7%", "70-79", "24.3%", "43.2%", "5.10%",
+                       "4%", "80+", "27.3%", "70.9%", "9.30%"
+                            )
+
+# prep mapping polygons
+
+TodayData <- DF %>% filter(Date==LastDate) %>% 
+  filter(County!="Pending County Assignment") %>% 
+  left_join(., Counties, by="County") %>% 
+  mutate(percapita=Cases/Population*100000)
+
+MappingData <-  merge(Texas, TodayData,
+                      by.x = c("County"), by.y = c("County"),
+                      all.x = TRUE) 
+
+# Build labels for map
+
+MappingData <- MappingData %>%
+  mutate(percapita=signif(percapita,3)) %>% 
+  mutate(Deaths=na_if(Deaths, 0)) %>% 
+  mutate(DPerC=na_if(signif(Deaths/Cases,2),0))
+
+MapLabels <- lapply(seq(nrow(MappingData)), function(i) {
+  htmltools::HTML(
+    str_replace_all(
+      paste0( MappingData[i,]$County, ' County<br>', 
+              MappingData[i,]$Cases,' Cases Total<br>', 
+              MappingData[i,]$percapita, " per 100,000<br>",
+              MappingData[i,]$Deaths, " Deaths<br>",
+              MappingData[i,]$DPerC, " Deaths per Case"),
+      "NA", "Zero"))
+})
+
+span <- function(vector){
+  foo <- range(vector, na.rm=TRUE)
+  return(max(foo) - min(foo))
+}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r prep}
+  #---------------------------------------------------    
+  #------------------- Prep Data ---------------------
+  #---------------------------------------------------    
+  prep_data <- function(in_dataset="Region", 
+                        in_area="Texas"
+                        ) { 
+    print(":::::::  prep_data")
+    if (in_dataset=="Region") { # work with regions
+      PopLabel <<- Regions %>% filter(Region==in_area)
+      target <- unlist(DefineRegions$List[DefineRegions$Region==in_area])
+      subdata <<- DF %>% 
+          filter(County %in% target) %>% 
+          group_by(Date) %>% 
+          summarise(Cases=sum(Cases), 
+                    Days=mean(Days), 
+                    Deaths=sum(Deaths, na.rm=TRUE)) %>% 
+          mutate(actual_deaths=Deaths-lag(Deaths, 1, 0)) %>%  
+          mutate(Deaths=na_if(Deaths, 0)) 
+      return()
+      
+    } else { # select a county
+      #   Is there any data?
+      if (! in_area %in% DF$County) {
+        showNotification(paste("No reported cases in", in_area),
+                         duration=2)
+        return()
+      }
+      
+      PopLabel <<- Counties %>% filter(County==in_area) %>% 
+                     mutate(Label=paste(in_area, "County"))
+      subdata <<- DF %>% filter(County==in_area) %>% 
+                         mutate(actual_deaths=Deaths-lag(Deaths, 1, 0))  
+      return()
+    }
+  } # end prep_data
+```
+
+
+
+
+
+```{r exponential}
+  #---------------------------------------------------    
+  #-----------Fit an exponential model ---------------
+  #---------------------------------------------------    
+  
+ fit_exponential <- function(indep="Cases", # independent variable
+                             fit_type=c('all', 'none', "b_only", "m_only"),
+                             m=1.3,
+                             b=1,
+                             cutoff=1,
+                             projection=10,
+                             calc_conf=TRUE) {
+   
+    print(":::::::  fit_exponential")
+   #  Drop rows that are zero
+   data <- subdata %>% filter((!!sym(indep))>0) 
+   #  Drop rows that are equal to previous row
+   data <- subdata %>% 
+     filter((!!sym(indep))>0) %>% 
+     filter(!is.na((!!sym(indep)))) %>% 
+     mutate(actual=!!as.name(indep)-lag(!!as.name(indep), 1, 0)) %>% 
+     filter(actual>0) %>% 
+     mutate(!!indep:=cumsum(actual))
+   
+   #    Too few cases to do a fit
+   
+        if (sum(!is.na(subdata[,indep][[1]]))<3) {
+          return()
+        }
+   #   Go projection days into future
+   begin <- data$Date[1] # date of first reported case
+   LastDate <- data[nrow(data),]$Date
+   lastday <- as.integer(LastDate - begin) + 1 # last day of real data
+   dayseq <- data$Days
+   dayseq <- c(dayseq,(dayseq[length(dayseq)]+1):
+                 (dayseq[length(dayseq)]+projection))
+   dateseq <- data$Date
+   dateseq <- as_date(c(dateseq,(dateseq[length(dateseq)]+1): 
+                          (dateseq[length(dateseq)]+projection)))
+   x <- data$Days
+   y <- data[,indep][[1]] 
+   my_data <- tibble(x=x, y=y)
+   
+   if (fit_type=="all") { 
+     model <- lm(log10(y)~x, data=my_data)
+     m <- model[["coefficients"]][["x"]]
+     b <- model[["coefficients"]][["(Intercept)"]]
+     Rsqr <- summary(model)$adj.r.squared
+     std_dev <- sigma(model)
+   } else if (fit_type=="none") {
+     m <- m
+     b <- b
+     Rsqr <- 1
+     std_dev <- 0
+   } else if (fit_type=="b_only") {
+     model <- lm(log10(y) - m*x ~ 1, data=my_data)
+     b <- model[["coefficients"]][["(Intercept)"]]
+     Rsqr <- summary(model)$adj.r.squared
+     std_dev <- sigma(model)
+     print(paste("----b only ----", m, b, lastday, data$Cases[lastday]))
+   } else if (fit_type=="m_only") {
+     model <- lm(I(x - b) ~ 0 + log10(y), data=my_data)
+     m <- model[["coefficients"]][["x"]]
+     b <- model[["coefficients"]][["(Intercept)"]]
+     Rsqr <- summary(model)$adj.r.squared
+     std_dev <- sigma(model)
+   } else {print("serious error in fit_exponential")}
+   
+   #  Estimate confidence bands 
+   if(calc_conf & (fit_type=="all" | fit_type=="m_only")) {
+     DayFrame <- data.frame(x=dayseq)
+     pred.int <- cbind(DayFrame, 
+                       predict(model, 
+                               newdata = DayFrame, 
+                               interval = "confidence", 
+                               level = 0.975))
+     fits <- tibble(Days=dayseq, 
+                         Date=dateseq,
+                         !!indep:=10**pred.int$fit,
+                         lower_conf=10**pred.int$lwr,
+                         upper_conf=10**pred.int$upr)
+     params <- list(m=m, b=b, Rsqr=Rsqr)
+        
+     if (indep=="Cases") {
+       case_fit <<- fits
+       case_params <<- params
+     } else if (indep=="Deaths") {
+       death_fit <<- fits
+       death_params <<- params
+     }
+   } else {
+     Cases <- 10**(m*dayseq+b)
+     if (indep=="Cases") {
+       case_fit <<- tibble( Days=dayseq, Date=dateseq,!!indep:=Cases,
+                          upper_conf=NA, lower_conf=NA) 
+       case_params <<- list(m=m, b=b, Rsqr=Rsqr)
+     } else if (indep=="Deaths") {
+       death_fit <<- tibble( Days=dayseq, Date=dateseq,!!indep:=Cases,
+                            upper_conf=NA, lower_conf=NA) 
+       death_params <<- list(m=m, b=b, Rsqr=Rsqr)
+     }
+   }
+ } 
+```
+  
+  
+  
+  
+```{r logistic}  
+  #---------------------------------------------------    
+  #------------------- Fit Logistic function ---------
+  #---------------------------------------------------    
+  fit_logistic <- function(indep="Cases", # independent variable
+                           r=0.24,
+                           projection=10){
+    
+    print(":::::::  logistic")
+    df <- subdata
+
+    Asym <- max(df$Cases)*5
+    xmid <- max(df$Days)*2
+    scal <- 1/r
+    my_formula <- as.formula(paste0(indep, " ~ SSlogis(Days, Asym, xmid, scal)"))
+    
+    print("----1----")
+    
+    ## using a selfStart model
+      
+      logistic_model <- NULL
+      try(logistic_model <- nls(Cases ~ SSlogis(Days, Asym, xmid, scal), 
+                                data=df)); # does not stop in the case of error
+      
+      if(is.null(logistic_model)) {
+         case_params <<- list(K=NA, 
+                              r=NA, 
+                              xmid=NA,
+                              xmid_se=NA)
+        return()
+      }
+      
+    print("----2----")
+    print(logistic_model)
+    coeffs <- coef(logistic_model)
+    xmid_sigma <- 2*summary(logistic_model)$parameters[2,2] # 2 sigma
+    print("----3----")
+    #print(coeffs)
+    
+    dayseq <- df$Days
+    dayseq <- c(dayseq,(dayseq[length(dayseq)]+1):
+                       (dayseq[length(dayseq)]+projection))
+    dateseq <- df$Date
+    dateseq <- as_date(c(dateseq,(dateseq[length(dateseq)]+1): 
+                                 (dateseq[length(dateseq)]+projection)))
+    
+    Cases <- predict(logistic_model, data.frame(Days=dayseq))
+    foo <- tibble(Date=dateseq, Days=dayseq, Cases=Cases )
+    
+    ###############   tidy bootstrap start
+    
+    # Make 100 datasets for bootstrap
+    boots <- bootstraps(df, times = 100)
+    
+    fit_nls_on_bootstrap <- function(split) {
+      nls(my_formula, analysis(split))
+    }
+     f_safe <- purrr::safely(fit_nls_on_bootstrap)
+    
+    # Fit 100 models
+    boot_models <- boots %>% 
+      mutate(model = map(splits, f_safe)) %>% 
+      mutate(no_error = model %>% purrr::map_lgl(.f = ~ is.null(.x$error))) %>% 
+      filter(no_error) %>% 
+      mutate(model = model %>% purrr::map("result")) %>% 
+      mutate(coef_info = map(model, tidy))
+    
+    print("---------  boot models -----------")
+    
+    pred2 <- function(model, foo){
+      list(predict(model, foo)[0:nrow(foo)])
+    }
+    
+    # Create predictions from each model and extract confidence
+    # limits at each day
+    df2 <- boot_models %>% 
+      rowwise() %>% 
+      transmute(predicted = pred2(model, foo)) %>% 
+      as_data_frame() %>%  transpose(.names="1":nrow(boot_models)) %>% 
+      lapply(FUN = unlist) %>%
+      as_tibble() %>% 
+      as.matrix() %>% # convert to matrix for rapid quantile calc
+      apply(., 1, quantile, c(0.025, 0.975)) %>% 
+      as_tibble() %>% 
+      rownames_to_column %>% # turn into 2 columns with many rows
+      gather(var, value, -rowname) %>% 
+      pivot_wider(names_from=rowname, values_from=value) %>% 
+      select(lower_conf=2, upper_conf=3) %>% 
+      tibble(foo, .)
+    
+    ###############   tidy bootstrap end
+    #Cases <- predict(logistic_model, foo)
+    print(paste("Cases",length(Cases)))
+    print(paste("dayseq",length(dayseq)))
+    print(paste("dateseq",length(dateseq)))
+     #####   set global
+     case_fit <<- tibble(Days=dayseq, 
+                         Date=dateseq,
+                        !!indep:=Cases,
+                        lower_conf=df2$lower_conf,
+                        upper_conf=df2$upper_conf)
+     
+     case_params <<- list(K=coeffs[["Asym"]], 
+                          r=1/coeffs[["scal"]], 
+                          xmid=coeffs[["xmid"]],
+                          xmid_se=xmid_sigma)
+  }
+```
+
+## Build dataset of counties for plotting
+
+```{r dataset}
+
+case_start <- 30 # number of cases to start plotting with 
+CFR <- 1.9
+Death_lag <- 18
+
+#' log scale
+#'
+#' Creates a function which returns ticks for a given data range. It uses some
+#' code from scales::log_breaks, but in contrast to that function it not only
+#' the exponentials of the base b, but log minor ticks (f*b^i, where f and i are 
+#' integers), too.
+#'
+#' @param n Approximate number of ticks to produce
+#' @param base Logarithm base
+#'
+#' @return
+#'
+#' A function which expects one parameter:
+#'
+#' * **x**: (numeric vector) The data for which to create a set of ticks.
+#'
+#' @export
+logTicks <- function(n = 5, base = 10){
+  # Divisors of the logarithm base. E.g. for base 10: 1, 2, 5, 10.
+  divisors <- which((base / seq_len(base)) %% 1 == 0)
+  mkTcks <- function(min, max, base, divisor){
+    f <- seq(divisor, base, by = divisor)
+    return(unique(c(base^min, as.vector(outer(f, base^(min:max), `*`)))))
+  }
+
+  function(x) {
+    rng <- range(x, na.rm = TRUE)
+    lrng <- log(rng, base = base)
+    min <- floor(lrng[1])
+    max <- ceiling(lrng[2])
+
+    tck <- function(divisor){
+      t <- mkTcks(min, max, base, divisor)
+      t[t >= rng[1] & t <= rng[2]]
+    }
+    # For all possible divisors, produce a set of ticks and count how many ticks
+    # result
+    tcks <- lapply(divisors, function(d) tck(d))
+    l <- vapply(tcks, length, numeric(1))
+
+    # Take the set of ticks which is nearest to the desired number of ticks
+    i <- which.min(abs(n - l))
+    if(l[i] < 2){
+      # The data range is too small to show more than 1 logarithm tick, fall
+      # back to linear interpolation
+      ticks <- pretty(x, n = n, min.n = 2)
+    }else{
+      ticks <- tcks[[i]]
+    }
+    return(ticks)
+  }
+}
+monotone <- function(a){ # make a vector monotonic by setting value=previous
+  a-((a-lag(a,default=0))-abs(a-lag(a,default=0)))/2
+}
+
+#   Create a tibble of county summary information
+
+window <- 5
+counties <- DF %>% 
+  select(County, Cases, Deaths, Date) %>% 
+  filter(County!="Total") %>% 
+  filter(County!="Pending County Assignment") %>% 
+  left_join(Counties, by="County") %>% 
+  group_by(County) %>% 
+    mutate(change=(Cases-lag(Cases, default=0, order_by = Date))) %>% 
+    mutate(change=pmax(change, 0)) %>% 
+    mutate(Pct_change=100*change/lag(Cases, order_by = Date)) %>% 
+    mutate(avg_pct_chg=rollmean(Pct_change, window, 
+                                fill=c(0, NA, last(Pct_change)))) %>% 
+    mutate(avg_chg=rollmean(change, window, 
+                                fill=c(0, NA, last(change)))) %>% 
+  ungroup() %>% 
+  mutate(percapita=Cases/Population*100000) %>% 
+  mutate(Deaths=na_if(Deaths, 0)) %>% 
+  mutate(avg_pct_chg=na_if(avg_pct_chg, 0)) %>% 
+  mutate(Pct_change=na_if(Pct_change, 0)) %>% 
+  mutate(change=na_if(change, 0)) %>% 
+  mutate(chgpercapita=1.e5*change/Population) %>% 
+  mutate(avg_chgpercapita=1.e5*avg_chg/Population) %>% 
+  mutate(DPerC=na_if(Deaths/Cases,0)) %>% 
+  mutate(avg_pct_chg=replace(avg_pct_chg, avg_pct_chg>30, NA)) %>% 
+  mutate(Pct_change=replace(Pct_change, Pct_change>30, NA))
+
+# Create estimated number of cases and merge back into original data
+#foo <- 
+#counties %>% 
+#  select(County, Date, Deaths ) %>% 
+#  filter(!is.na(Deaths)) %>% 
+#  group_by(County) %>% 
+#    add_tally() %>% 
+#  ungroup() %>% 
+#  filter(n>5) %>% 
+#  mutate(est_cases=round(100*Deaths/CFR)) %>% 
+#  mutate(lagDate=Date-Death_lag) %>% 
+#  select(County, lagDate, est_cases )
+#
+#counties <- full_join(counties, foo, by=c(
+#                                "County"="County", "Date"="lagDate")) %>% 
+#  mutate(est_cases_percapita = 1e5*est_cases/Population)
+
+#counties <- counties %>% 
+#  filter(est_cases>case_start | is.na(est_cases)) %>% 
+#  group_by(County) %>% 
+#  arrange(Date) %>% 
+#  mutate(Days_since_est = row_number()-1) %>% 
+#  ungroup()
+  
+  
+#counties_estcase <- counties %>% 
+#  group_by(County) %>% 
+#  mutate(Cases_percapita = 1e5*Cases/Population) %>% 
+#  mutate(est_cases_percapita = 1e5*est_cases/Population) %>% 
+#  add_tally(wt=est_cases) %>% 
+#  filter(n>500) %>% 
+#  ungroup()
+
+
+# Start each county at the minimum case spot and create an x-axis variable
+counties_case <- counties %>% 
+  filter(Cases>case_start) %>%  
+  group_by(County) %>% 
+    arrange(Date) %>% 
+    mutate(day = row_number()) %>% 
+    add_tally() %>% 
+  ungroup() %>% 
+  filter(n>5)
+
+value <- c("Pct_change",
+                 "Cases",
+                 "Deaths",
+                 "percapita",
+                 "change",
+                 "DPerC",
+                 "avg_chg",
+                 "chgpercapita",
+                 "avg_chgpercapita",
+                 "avg_pct_chg")
+
+y_axis <- "avg_chgpercapita"
+selector <- "Cases"
+y_labels <- list("Pct_change"="Percent Change",
+                 "Cases"="Number of Cases",
+                 "Deaths"="Number of Deaths",
+                 "percapita"="Cases per 100,000",
+                 "change"="New Cases",
+                 "DPerC"="Deaths per 100,000",
+                 "avg_chg"="Avg New Cases",
+                 "chgpercapita"="New Cases per 100,000",
+                 "avg_chgpercapita"="Avg New Cases per 100,000",
+                 "avg_pct_chg"="5-day Avg Percent Change")
+#p <- list()
+#for (i in 1:9) {
+#  for (j in 1:9) {
+#    y_axis <- value[i]
+#    selector <- value[j]
+#    print (paste("---",i,j))
+
+#     Apply selector
+counties_case %>% 
+  arrange(Date) %>% 
+  group_by(County) %>% 
+    mutate(Mselect=last(!!as.name(selector))) %>% 
+    mutate(end_case=last(!!as.name(y_axis)), end_day=max(day)) %>% 
+    arrange(-Mselect) %>% 
+  ungroup() %>% 
+  filter(Mselect>(unique(Mselect)[7])) %>% 
+  select(-Mselect) -> counties_case_filt
+
+#   Stretch scale
+daylimit <- max(counties_case_filt$day)*1.1
+
+#   Plot county data
+#p[[i*10+j]] <- 
+counties_case %>% 
+ggplot(aes(x=day, y=!!as.name(y_axis))) + 
+  scale_y_log10(breaks = logTicks(n = 4), minor_breaks = logTicks(n = 40)) +
+  theme(legend.position = "none") +
+  geom_line(aes(group=County),colour = alpha("grey", 0.7)) +
+  geom_line(data=counties_case_filt,
+            aes(color=County)) + 
+  geom_label(data=counties_case_filt,
+            aes(y=end_case,x=end_day,label=County, color=County),
+                size=3.0,
+            label.size = 0.15,
+             vjust="top", hjust="left") +
+  expand_limits(x=daylimit) + # make room for labels
+  labs(title=paste("Counties With Greatest ",y_labels[[selector]]),
+       x="Days after reaching 30 Cases",
+       y=paste(y_labels[[y_axis]]))
+#  }}
+
+```
+
+
+##  Plot log(cases) for all counties
+
+```{r plot log cases}
+
+p <- 
+  ggplot(data=counties_case,
+         aes(x=Days_since_est, y=Cases, color=County)) +
+  geom_smooth(se=FALSE) +
+  coord_trans(y="log10") +
+  #theme(legend.position = "none")
+  labs(x=paste0("Days Since ", case_start,"th Case")) +
+  geom_line(data=counties_estcase, linetype="dashed",
+         aes(x=Days_since_est, y=est_cases, color=County)) +
+  geom_point()
+
+print(p)
+
+
+
+
+
+
+
+
+
+
+
+      #count <- sort(unique(dat$Country.Region))
+      #for (i in countries) {
+      #  tmp <- filter(dat, Country.Region == i)
+      #  p <- p %>% add_lines(data = tmp, x = ~days_since_100th_case, y = ~level,
+      #                       hoverinfo = "text", text = ~hover_label,
+      #                       alpha = 1/2, name = i)
+      #}
+
+```
+
+## look at differences between estimated cases and actual tested cases
+
+```{r tests vs est}
+
+counties %>% 
+  mutate(undercount=est_cases/Cases) %>% 
+  ggplot(aes(x=Date, y=undercount)) + 
+  #coord_trans(y="log10") +
+  geom_point() +
+  geom_smooth(method='lm')
+  #ggplot(aes(x=Date, y=undercount, fill = ..x..)) +
+  #ggplot(aes(x=Date, y=undercount, group=undercount)) +
+  #geom_density_ridges()
+  #scale_x_continuous(labels = scales::comma) +
+  #geom_density_ridges_gradient(scale = 3, rel_min_height = 0.01) +
+  #scale_fill_viridis(name = "Median Income", option = "C", labels = scales::comma) 
+
+counties %>% 
+  mutate(undercount=est_cases/Cases) %>% 
+  filter(Date>as_date("2020-03-20")) %>% 
+  filter(Date<as_date("2020-03-25")) %>%
+  group_by(Date) %>% 
+  mutate(med=median(undercount, na.rm=T)) %>%
+  ungroup() %>% 
+  ggplot(aes(x=undercount)) +
+  geom_histogram(position="identity", colour="grey40", alpha=0.2, bins = 20) +
+  geom_vline(aes(xintercept=med),   # Ignore NA values 
+               color="red", linetype="dotted", size=1)+
+    facet_grid(. ~ Date)
+
+  
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

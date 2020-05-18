@@ -3,6 +3,7 @@
 print(paste("Starting run ---------------------", lubridate::now()))
 library(tidyverse)
 library(stringr)
+library(lubridate)
 library(RCurl)
 library(rvest)
 library(httr)
@@ -55,7 +56,8 @@ path <- "/home/ajackson/Dropbox/Rprojects/Covid/TexasDataXcel/"
 writeBin(casecounts, paste0(path, "Cases_by_County_", lubridate::today(),".xlsx"))
 casecounts_path <- paste0(path, "Cases_by_County_", lubridate::today(),".xlsx")
 
-url <- "https://www.dshs.texas.gov/chs/data/COVID-19CumulativeTestTotalsbyCounty.xlsx"
+url <- "https://dshs.texas.gov/coronavirus/TexasCOVID-19CumulativeTestsOverTimebyCounty.xlsx"
+#url <- "https://www.dshs.texas.gov/chs/data/COVID-19CumulativeTestTotalsbyCounty.xlsx"
 Tests <- getBinaryURL(url, ssl.verifyhost=FALSE, ssl.verifypeer=FALSE)
 
 path <- "/home/ajackson/Dropbox/Rprojects/Covid/TexasDataXcel/"
@@ -148,25 +150,43 @@ saveRDS(CovidData,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Covid.rds")
 #
 print("--test--")
 
-foo <- read_excel(Tests_path) %>% 
-  rename(County=1, total_tests=2) %>% 
-  filter(County!="County", 
-         County!="Unknown", 
-         County!="Pending Assignments",
-         County!="Notes:") %>% 
-  filter(!grepl("[1-9]", County)) %>% 
-  mutate(Date=lubridate::today()-1) 
+Tests_path <- "/home/ajackson/Dropbox/Rprojects/Covid/TexasDataXcel/Tests_by_County_2020-05-16.xlsx"
+foo <- read_excel(Tests_path) #%>% 
 
-total_tests <- last(foo$total_tests)
+# No data for May 5
+
+my_colnames <- c(
+  ymd("2020-04-21")+0:13,  
+  ymd("2020-05-06")+0:(ncol(foo)-17))
+
+my_colnames <- my_colnames %>% 
+  format('%Y-%m-%d')
+my_colnames <- c("County", my_colnames)
+
+my_columns <- c(1:15, 17:ncol(foo))
+
+foo <- foo %>% 
+  rename_at(my_columns,~ my_colnames)
+
+foo <- foo[2:258,] # delete bad rows
+foo <- foo[-16] # delete bad column
+
+foo <- foo %>% pivot_longer(-County, names_to="Date", values_to="Tests")
+
+foo <- foo %>% mutate(Tests=as.numeric(Tests))
+
+total_tests <- last(foo$Tests[foo$County=="TOTAL"])
 
 testing_status <- tribble(
   ~Total, ~Public, ~Private,
   total_tests, NA, NA
 )   
 
-foo
+tail(foo)
 
-testing_status <- testing_status %>% mutate(Date=lubridate::today()-1)
+testing_status <- testing_status %>% 
+  mutate(Date=lubridate::today()-1) %>% 
+  mutate(Total=as.character(Total))
 ################   Testing data
 # Read in the old data
 TestingData <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Testing.rds")

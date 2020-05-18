@@ -1,0 +1,25 @@
+April 8
+
+Location,  Total Cases,  Deaths,  Recoveries
+
+Austin County	6	0 0	
+Brazoria County	173	1	44
+Brazos County	97	7	14
+Calhoun County	12 0 0		
+Chambers County	19	0	4
+Colorado County	6	0 0	
+Fort Bend County	418	7	15
+Galveston County	272	5	78
+Grimes County	4	0	3
+Harris County	826	12	204
+Houston (city)	1320	11	99
+Liberty County	13	0 0	
+Matagorda County	42	3 0	
+Montgomery County	197	4	33
+Polk County	8		0 0
+San Jacinto County	1 0 0		
+Walker County	15	0	3
+Waller County	11	0	5
+Washington County	24	1	1
+Wharton County	18	0	5
+TOTAL	3482	51	509
