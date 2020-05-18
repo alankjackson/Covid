@@ -515,6 +515,12 @@ Prison_covid <- Prison_covid %>%
     mutate(new_cases=pmax(new_cases, 0)) %>% # truncate negative numbers
   ungroup()
 
+#   What if update to website got delayed? Just delete last date
+
+if (sum(Prison_covid$new_cases[Prison_covid$Date==max(Prison_covid$Date)])==0){
+  Prison_covid <- Prison_covid %>% filter(!Date==max(Prison_covid$Date))
+}
+
  prep_prisons <- function() { 
   
   window <- 5
