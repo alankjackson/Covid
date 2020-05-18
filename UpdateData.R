@@ -3,6 +3,7 @@
 print(paste("Starting run ---------------------", lubridate::now()))
 library(tidyverse)
 library(stringr)
+library(lubridate)
 library(RCurl)
 library(rvest)
 library(httr)
@@ -181,9 +182,11 @@ testing_status <- tribble(
   total_tests, NA, NA
 )   
 
-foo
+tail(foo)
 
-testing_status <- testing_status %>% mutate(Date=lubridate::today()-1)
+testing_status <- testing_status %>% 
+  mutate(Date=lubridate::today()-1) %>% 
+  mutate(Total=as.character(Total))
 ################   Testing data
 # Read in the old data
 TestingData <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Testing.rds")
