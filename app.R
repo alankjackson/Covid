@@ -464,7 +464,7 @@ foo <- left_join(MappingData, Prison_load, by="County") %>%
   select(County, prison_size)
 
   MappingData$prison_size <- foo$prison_size
-
+  
 Prison_covid <- Prison_covid %>% 
   mutate(Unit=str_replace(Unit, "ETTF", "East Texas")) %>% 
   mutate(Unit=str_replace(Unit, "Fort Stockton", "Ft. Stockton")) %>% 
@@ -484,6 +484,14 @@ Prison_covid <- Prison_covid %>%
     mutate(new_cases=(Cases-lag(Cases, default=Cases[1]))) %>%
     mutate(new_cases=pmax(new_cases, 0)) %>% # truncate negative numbers
   ungroup()
+
+#   What if update to website got delayed? Just delete last date
+
+if (sum(Prison_covid$new_cases[Prison_covid$Date==max(Prison_covid$Date)])==0){
+  Prison_covid <- Prison_covid %>% filter(!Date==max(Prison_covid$Date))
+}
+
+#browser()
 
  prep_prisons <- function() { 
   
@@ -1043,7 +1051,7 @@ ui <- basicPage(
             column( 9, # Plot           
               plotOutput("plot_Regions",
                     height = "700px"),
-              h4("Details on displayed data"),
+              #h4("Details on displayed data"),
               #htmlOutput("counties_details")
               gt::gt_output("regions_details")
             ), # end of column Plot
@@ -2615,7 +2623,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                            " and Total Cases = ", Total_Cases))
     print("-------------  counties plot 7")
       
-    details %>% select(-label, -text) %>%
+    tab <-  details %>% select(-label, -text) %>%
       gt::gt() %>%
       gt::tab_header(title="Highlighted Details") %>% 
       gt::cols_label(MSA=gt::md("**Region**"), 
@@ -2625,6 +2633,15 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                     locations=gt::cells_title())
     
      # HTML(paste(details$text[1:6], collapse = '<br/>'))
+    
+    ###############    time
+    etime <- proc.time() - ptm
+    print(paste("time 3:", etime[[3]]))
+    ptm <<- proc.time()
+    ###############    time
+    
+    
+    tab
       
     })
     
@@ -3342,12 +3359,12 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                 input$Regions_log
                 1} , { # 
     print(":::::::  observe_event RegionsTab")
+    
+    ###############    time
+    ptm <<- proc.time()
+    ###############    time
+    
                   
-    
-    ###############    time
-    ptm <- proc.time()
-    ###############    time
-    
     p <- build_Regions_plot(Regions_y_axis()$y_axis,
                              input$Regions_selector,
                              input$Regions_case_start,
@@ -3358,7 +3375,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     ###############    time
     etime <- proc.time() - ptm
     print(paste("time 1:", etime[[3]]))
-    ptm <- proc.time()
+    ptm <<- proc.time()
     ###############    time
     
                   
@@ -3367,7 +3384,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     ###############    time
     etime <- proc.time() - ptm
     print(paste("time 2:", etime[[3]]))
-    ptm <- proc.time()
+    ptm <<- proc.time()
     ###############    time
     
   })
