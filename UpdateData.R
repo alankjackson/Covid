@@ -244,46 +244,46 @@ print("--5--")
 #   Extract Prison information
 #---------------------------------------------------------------------
 
-url="https://www.tdcj.texas.gov/covid-19/offender_mac.html"
+#url="https://www.tdcj.texas.gov/covid-19/offender_mac.html"
 
-webpage <- 
-  read_html(url) 
+#webpage <- 
+#  read_html(url) 
 
-tbls_ls <- read_html(url) %>%
-  html_nodes("table") %>%
-  html_table(fill = TRUE)
-
+#tbls_ls <- read_html(url) %>%
+#  html_nodes("table") %>%
+#  html_table(fill = TRUE)
+#
 # Unpack all ten tables and combine where needed
 
-col.names <- c("Pending_Tests",
-               "Negative_Tests", 
-               "Positive_Tests", 
-               "Medical_Restriction",
-               "Medical_Isolation")
+#col.names <- c("Pending_Tests",
+#               "Negative_Tests", 
+#               "Positive_Tests", 
+#               "Medical_Restriction",
+#               "Medical_Isolation")
 
-df <- tbls_ls[[1]] %>% 
-  rename(Unit=X1, Pending_Tests=X2) %>% 
-  mutate(Unit=str_squish(Unit))
+#df <- tbls_ls[[1]] %>% 
+#  rename(Unit=X1, Pending_Tests=X2) %>% 
+#  mutate(Unit=str_squish(Unit))
 
-for (i in 2:5){
-  tmp <- tbls_ls[[i]] %>% 
-    rename(Unit=X1, !!col.names[i] := X2) %>% 
-    mutate(Unit=str_squish(Unit))
-  df <- left_join(df, tmp, by="Unit")
-}
+#for (i in 2:5){
+#  tmp <- tbls_ls[[i]] %>% 
+#    rename(Unit=X1, !!col.names[i] := X2) %>% 
+#    mutate(Unit=str_squish(Unit))
+#  df <- left_join(df, tmp, by="Unit")
+#}
 
-staff <- tbls_ls[[6]] %>% 
-  rename(Unit=X1, Staff_Positive_Tests=X2) %>% 
-  mutate(Unit=str_squish(Unit))
+#staff <- tbls_ls[[6]] %>% 
+#  rename(Unit=X1, Staff_Positive_Tests=X2) %>% 
+#  mutate(Unit=str_squish(Unit))
 
-for (i in 7:10) {
-  tmp <- tbls_ls[[i]] %>% 
-    rename(Unit=X1, Staff_Positive_Tests=X2) %>% 
-    mutate(Unit=str_squish(Unit))
-  staff <- bind_rows(staff, tmp)
-}
-new_prisons <- left_join(df, staff, by="Unit")
-new_prisons <- new_prisons %>% mutate(Date=lubridate::today()-1)
+#for (i in 7:10) {
+#  tmp <- tbls_ls[[i]] %>% 
+#    rename(Unit=X1, Staff_Positive_Tests=X2) %>% 
+#    mutate(Unit=str_squish(Unit))
+#  staff <- bind_rows(staff, tmp)
+#}
+#new_prisons <- left_join(df, staff, by="Unit")
+#new_prisons <- new_prisons %>% mutate(Date=lubridate::today()-1)
 
 
 
@@ -295,15 +295,15 @@ new_prisons <- new_prisons %>% mutate(Date=lubridate::today()-1)
 
 ################   Prison data
 # Read in the old data
-prisons <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Prisons.rds")
+#prisons <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Prisons.rds")
 # append the new data
-prisons <- bind_rows(prisons, new_prisons)
+#prisons <- bind_rows(prisons, new_prisons)
 # Save an accumulated file in case of a failure
-saveRDS(prisons ,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),"_Prisons.rds"))
+#saveRDS(prisons ,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),"_Prisons.rds"))
 # Save the real file for later use
-saveRDS(prisons,"/home/ajackson/Dropbox/Rprojects/Covid/Prisons.rds")
+#saveRDS(prisons,"/home/ajackson/Dropbox/Rprojects/Covid/Prisons.rds")
 # Also save to mirror site
-saveRDS(prisons,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Prisons.rds")
+#saveRDS(prisons,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Prisons.rds")
 
 
 
