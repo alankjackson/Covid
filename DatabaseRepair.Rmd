@@ -464,6 +464,37 @@ saveRDS(TestingData,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Testing.rds")
 ```
 
 
+##  prison data doubled - fix it
+
+```{r double prisons}
+
+
+# Read in the old data
+prisons <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Prisons.rds")
+
+newdate <- lubridate::ymd("2020-05-19")
+
+foo <- prisons %>% 
+  distinct() %>% # eliminate complete duplicates
+  mutate(id = as.numeric(rownames(.))) %>% # give row an id so we don't lose ordering
+  group_by(Unit, Date) %>% 
+    arrange(id) %>% 
+    mutate(Index=1:n()) %>% 
+  ungroup() %>% 
+  mutate(Date=if_else((Index==2)&(Date==lubridate::ymd("2020-05-18")), newdate, Date)) %>% 
+  arrange(id) %>% 
+  distinct(Unit, Date, .keep_all = TRUE) %>% 
+  select(-id, -Index)
+    
+# Save the real file for later use
+saveRDS(foo,"/home/ajackson/Dropbox/Rprojects/Covid/Prisons.rds")
+# Also save to mirror site
+saveRDS(foo,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Prisons.rds")
+
+
+```
+
+
 
 
 
