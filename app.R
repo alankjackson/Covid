@@ -325,16 +325,14 @@ print("--------3----------")
     select(!!Grouper, Cases, Deaths, Date, new_cases, new_deaths, Population, n) %>% 
     filter(!!Grouper!="Total") %>% 
     filter(!!Grouper!="Pending County Assignment") %>% 
-    #left_join(Counties, by="County") %>% 
-    #rename(Cases=Cases.x) %>% 
-    #select(-Cases.y) %>% 
+    replace_na(list(Cases=0, Deaths=0, new_cases=0, new_deaths=0)) %>% 
     group_by(!!Grouper) %>%
       arrange(Date) %>% 
       mutate(pct_chg=100*new_cases/lag(Cases, default=Cases[1])) %>%
       mutate(active_cases=Cases-lag(Cases, n=14, default=0)) %>%
       mutate(deaths_percase=Deaths/Cases) %>%
       mutate(doubling=doubling(Cases, window, !!Grouper)) %>% 
-    ungroup()
+    ungroup() 
 
 print("--------4----------")
   #----------------- Trim outliers and force to be >0
@@ -346,7 +344,7 @@ print("--------4----------")
   }
   for (base in calc_controls$base[calc_controls$positive]){
     foo[base] <- pmax(0, foo[[base]])
-    foo[base] <- na_if(foo[base], 0)
+    #foo[base] <- na_if(foo[base], 0)
   }
   
   #----------------- Calc Rolling Average
@@ -2407,12 +2405,12 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
         }
     }
     do_filter <- function(df, sorting) {
-      if (sorting){
+      if (sorting){# for doubling
         print("c")
-        dplyr::filter(df, Mselect<(unique(Mselect)[min(length(unique(Mselect))-2,7)]))
-      } else {
+        dplyr::filter(df, Mselect<=(unique(Mselect)[min(length(unique(Mselect))-2,5)]))
+      } else { # for all but doubling
         print("d")
-        dplyr::filter(df, Mselect>(unique(Mselect)[min(length(unique(Mselect))-2,7)]))
+        dplyr::filter(df, Mselect>=(unique(Mselect)[min(length(unique(Mselect))-2,5)]))
         }
     }
     #browser()
