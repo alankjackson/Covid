@@ -39,9 +39,9 @@ TestingData <- readRDS(z)
 close(z)
 TestingData$Total <- as.numeric(TestingData$Total)
 #   Death data
-z <- gzcon(url(paste0(DataLocation, "Deaths.rds")))
-DeathData <- readRDS(z)
-close(z)
+#z <- gzcon(url(paste0(DataLocation, "Deaths.rds")))
+#DeathData <- readRDS(z)
+#close(z)
 #   County Population data
 z <- gzcon(url(paste0(DataArchive, "Census_July1_2019_TexasCountyPop.rds")))
 Counties <- readRDS(z)
@@ -103,8 +103,8 @@ DF <- DF %>% bind_rows(
 DF <- DF %>% 
     mutate(Days=as.integer(Date-ymd("2020-03-10")))
 
-DeathData <- DeathData %>% 
-    mutate(Days=as.integer(Date-ymd("2020-03-10")))
+#DeathData <- DeathData %>% 
+#    mutate(Days=as.integer(Date-ymd("2020-03-10")))
 
 # Fix Deaths field
 
@@ -393,6 +393,12 @@ TodayData <- counties %>%
     filter(row_number()==n()) %>% 
     mutate_if(is.numeric, signif, 3) %>% 
   ungroup()
+
+# Add current cases to county for labeling selector
+
+Counties <- left_join(Counties, TodayData, by="County") %>% 
+  select(County, Population=Population.x, Cases) %>% 
+  replace_na(list(Cases=0))
 
 #  add county polygons
 MappingData <-  merge(Texas, TodayData,
@@ -1451,7 +1457,8 @@ server <- function(input, output, session) {
     coeffs <- coef(logistic_model)
     xmid_sigma <- 2*summary(logistic_model)$parameters[2,2] # 2 sigma
     print("----3----")
-    #print(coeffs)
+    print(coeffs)
+    print(summary(logistic_model))
     
     dayseq <- df$Days
     dayseq <- c(dayseq,(dayseq[length(dayseq)]+1):
