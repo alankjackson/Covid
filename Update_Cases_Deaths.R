@@ -14,6 +14,10 @@ library(lubridate)
 
 options(stringsAsFactors = FALSE)
 
+cat("\n\n=============== Cases and Deaths updates started =========\n\n")
+print(lubridate::now())
+cat("\n=============== Cases and Deaths updates started =========\n\n")
+
 check_url <- function(url, mail_message, action=c("stop", "warn")) {
   #  is file still there?
   
@@ -113,6 +117,11 @@ saveRDS(CovidData,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::to
 saveRDS(CovidData,"/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
 # Also save to mirror site
 saveRDS(CovidData,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Covid.rds")
+
+
+cat("\n\n=============== Cases and Deaths updates finished =========\n\n")
+print(lubridate::now())
+cat("\n=============== Cases and Deaths updates finished =========\n\n")
 
 
 print(paste("Ending run ---------------------", lubridate::now()))
