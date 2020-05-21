@@ -8,7 +8,9 @@ library(tidyverse)
 #   Extract Prison information
 #---------------------------------------------------------------------
 
-print("=============== Prison updates ==================")
+cat("\n\n=============== Prison updates started =========\n\n")
+print(lubridate::now())
+cat("\n=============== Prison updates started =========\n\n")
 
 # Read in the old data
 prisons <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Prisons.rds")
@@ -60,11 +62,11 @@ for (i in 3:6){
   df <- left_join(df, tmp, by="Unit")
 }
 
-#staff <- tbls_ls[[6]] %>% 
-#  rename(Unit=X1, Staff_Positive_Tests=X2) %>% 
-#  mutate(Unit=str_squish(Unit))
+staff <- tbls_ls[[7]] %>% 
+  rename(Unit=X1, Staff_Positive_Tests=X2) %>% 
+  mutate(Unit=str_squish(Unit))
 
-for (i in 7:11) {
+for (i in 8:11) {
   tmp <- tbls_ls[[i]] %>% 
     rename(Unit=X1, Staff_Positive_Tests=X2) %>% 
     mutate(Unit=str_squish(Unit))
@@ -106,4 +108,7 @@ saveRDS(prisons,"/home/ajackson/Dropbox/Rprojects/Covid/Prisons.rds")
 # Also save to mirror site
 saveRDS(prisons,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Prisons.rds")
 
-print("=============== Prison updates finished =========")
+
+cat("\n\n=============== Prison updates finished =========\n\n")
+print(lubridate::now())
+cat("\n=============== Prison updates finished =========\n\n")
