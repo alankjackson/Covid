@@ -7,9 +7,9 @@ library(tidyverse)
 #---------------------------------------------------------------------
 #   Extract Tests information
 #---------------------------------------------------------------------
-
-print("               ")
-print("=============== Tests updates ==================")
+cat("\n\n=============== Testing updates started =========\n\n")
+print(lubridate::now())
+cat("\n=============== Testing updates started =========\n\n")
 
 path <- "/home/ajackson/Dropbox/Rprojects/Covid/TexasDataXcel/"
 
@@ -93,5 +93,7 @@ saveRDS(foo,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),
 saveRDS(foo,"/home/ajackson/Dropbox/Rprojects/Covid/County_Testing.rds")
 
 cat("\n\n=============== Testing updates finished =========\n\n")
+print(lubridate::now())
+cat("\n=============== Testing updates finished =========\n\n")
 
 
