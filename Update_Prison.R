@@ -19,7 +19,7 @@ newest <- max(prisons$Date)
 
 # If that is today, then bye-bye
 
-if (newest==(lubridate::today()-1)) { # no change. Abort
+if (newest==(lubridate::today())) { # no change. Abort
   system(paste('echo ',newest,' | mail -s "file already current" alankjackson@gmail.com'))
   stop(">>>>>>>>>>>>>>>>>>> file already current")
 }
