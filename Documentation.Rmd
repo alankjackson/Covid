@@ -40,6 +40,15 @@ has helpfully provided a nice datafile at https://github.com/nytimes/covid-19-da
 
 For daily updates of the deaths by county, I use data from the Texas Division of Emergency Management website, which they get from the Health Department.
 
+#### Changes as of mid-May:
+
+The website for the Texas Division of Emergency Management is no longer being updated, but the state Health Department now puts data out in excel spreadsheets, so I have switched to using those.
+
+They may be found at https://dshs.texas.gov/coronavirus/AdditionalData.aspx
+
+Prison data is scraped from the [Texas Dept of Criminal Justice website.](https://www.tdcj.texas.gov/covid-19/offender_mac.html)
+
+
 ## Graph
 
 The Graph tab is designed to allow easy data analysis to understand the time progression of the epidemic.
@@ -231,21 +240,41 @@ If more smoothing is needed, there is a median smoothning filter that can be app
 In this tab we compare various measurements for all the relevant counties - 
 that is - those for which there is sufficient data. By that is meant at least 10 cases, otherwise the data is really pretty useless.
 
+Available measurements are the same as above. Averaging is done over a 5-day window.
+
+## Regions
+
+Here I will successively subtract metropolitan regions from the state total based on user selection. This is a convenient way to compare various regions. Again, averaging is over a 5-day window.
+
+## Prisons
+
+Similar to the Counties tab, but for prisons in the state. Fewer displays, to fit the
+dataset for prisons.
+
 ## Map
 
 The map is pretty simple. You can color counties by:
 * total reported cases
-* cases per 100,000 population
+* new cases
+* active cases
 * deaths
-* deaths per 100,000 population
-* deaths/cases
-* doubling time in the last 5 days
+* new deaths
+* deaths/case
 * average percent change in case numbers, from the last 5 days
+* doubling time in the last 5 days
+
+with most measurements available as per 100,000 as well as averaged over a 5-day window.
 
 The item, deaths divided by number of cases, should expose testing issues.
 We know the mortality rate is on the order of 1%, so even allowing for 
 a 2-3 week lag from infection to death, the deaths/cases should be less
 than or around 1%. Really quite a bit less. 
+
+Active cases assumes a 14 day recovery time.
+
+You can also flag which counties contain prisons or meat-packing plants.
+
+Note that the numbers of cases in prison are not, so far as I know, reflected in the county totals.
 
 
 
