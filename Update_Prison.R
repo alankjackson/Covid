@@ -45,14 +45,14 @@ saveRDS(tbls_ls ,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::tod
 
 # Unpack all ten tables and combine where needed
 
-col.names <- c("Pending_Tests",
+col.names <- c("Recovered",
                "Negative_Tests", 
                "Positive_Tests", 
                "Medical_Restriction",
                "Medical_Isolation")
 
 df <- tbls_ls[[1]] %>% 
-  rename(Unit=X1, Pending_Tests=X2) %>% 
+  rename(Unit=X1, Recovered=X2) %>% 
   mutate(Unit=str_squish(Unit))
 
 for (i in 3:6){
@@ -73,7 +73,8 @@ for (i in 8:11) {
   staff <- bind_rows(staff, tmp)
 }
 new_prisons <- left_join(df, staff, by="Unit")
-new_prisons <- new_prisons %>% mutate(Date=lubridate::today()-1)
+new_prisons <- new_prisons %>% mutate(Date=lubridate::today()) %>% 
+  mutate(Pending_Tests=NA)
 
 
 # Has anything changed?
