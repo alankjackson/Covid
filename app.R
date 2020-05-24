@@ -117,7 +117,6 @@ DF$Deaths <- str_replace(DF$Deaths,"-", "na")
 DF <- DF %>% 
   mutate(Deaths=as.numeric(Deaths)) %>% 
   replace_na(list(Deaths=0))
-  #mutate(Deaths=na_if(Deaths, 0))
 
 # Calculate new cases
 
@@ -158,8 +157,6 @@ print("--------d----------")
 sf <- stamp_date("Sunday, Jan 17, 1999")
 lastdate <- sf(DF$Date[nrow(DF)])
 
-###LastDate <- DF[nrow(DF),]$Date
-
 #   Sort counties with 20 largest first, then alphabetical
 
 ByPop <- arrange(County_pop, -Population)
@@ -167,33 +164,6 @@ ByAlpha <- arrange(ByPop[21:nrow(ByPop),], County)
 County_pop <- bind_rows(ByPop[1:20,], ByAlpha)
 ByPop <- ByAlpha <- NULL #  free up some memory
 
-#Regions <- tribble(
-#            ~Region, ~Population, ~Label,
-#            "Texas", 27864555, "Texas",
-#            "Houston-Galv", 6779104, "Houston/Galveston Metro Region",
-#            "Dallas-Fort Worth", 4938225, "Dallas/Fort Worth Metro Region",
-#            "San Antonio", 2426204, "San Antonio Metro Region",
-#            "Austin", 2058351, "Austin Metro Region",
-#            "Lubbock", 290805, "Lubbock Metro Region",
-#            "Corpus Christi", 429024, "Corpus Christi Region", 
-#            "Killeen-Temple", 460303, "Killeen-Temple Region", 
-#            "Beaumont-Port Arthur", 392563, "Beaumont-Port Arthur Region", 
-#            "Amarillo", 249881, "Amarillo Metro Region")
-#
-#DefineRegions <- tribble(
-#    ~Region, ~List,
-#    "Texas", c("Total"),
-#    "Houston-Galv", c("Harris", "Fort Bend", "Galveston", "Waller", "Montgomery", "Liberty", "Brazoria", "Chambers", "Austin"),
-#    "Dallas-Fort Worth", c("Collin", "Dallas", "Denton", "Ellis", "Hood", "Hunt", "Johnson", "Kaufman", "Parker", "Rockwall", "Somervell", "Tarrant", "Wise"),
-#    "San Antonio", c("Atascosa", "Bandera", "Bexar", "Comal", "Guadalupe", "Kendall", "Medina", "Wilson"), 
-#    "Austin", c("Bastrop", "Caldwell", "Hays", "Travis", "Williamson"),
-#    "Lubbock", c("Crosby", "Lubbock", "Lynn"),
-#    "Corpus Christi", c("Aransas", "Nueces", "San Patricio"),
-#    "Killeen-Temple", c("Bell", "Coryell", "Lampasas"),
-#    "Beaumont-Port Arthur", c("Hardin", "Jefferson", "Orange"),
-#    "Amarillo", c("Armstrong", "Carson", "Potter", "Randall", "Oldham")
-#)
-#
 # https://docs.google.com/document/d/1ETeXAfYOvArfLvlxExE0_xrO5M4ITC0_Am38CRusCko/edit#
 Disease <- tibble::tribble(
               ~Demographics, "% Hosp", "% Hosp ICU", "% CFR",
@@ -268,13 +238,11 @@ doubling <- function(cases, window, County) {
 
 #     Calculate a rolling average
 attribute <- function(foo, attribute, grouper){
-  #   group = grouping variable (County)
+  #   grouper = grouping variable (County)
   #   attribute = column in data frame to rolling average
   foo %>% 
     group_by(!!grouper) %>% 
     arrange(Date) %>% 
-    #mutate(avg=zoo::rollmean(!!attribute, window, 
-    #                         fill=c(0, NA, last(!!attribute)))) %>% 
     mutate(avg=zoo::rollapply(!!attribute, window, 
                               FUN=function(x) mean(x, na.rm=TRUE),
                               partial=TRUE,
@@ -348,7 +316,6 @@ print("--------4----------")
   }
   for (base in calc_controls$base[calc_controls$positive]){
     foo[base] <- pmax(0, foo[[base]])
-    #foo[base] <- na_if(foo[base], 0)
   }
   
   #----------------- Calc Rolling Average
@@ -383,15 +350,15 @@ print("--------4----------")
   
  }
 
-counties <- prep_counties(DF, "County")
+County_calc <- prep_counties(DF, "County")
 MSAs <- prep_counties(MSA, "MSA")
 
   #---------------------------------------------------    
   #------------------- Mapping Data -------------------
   #---------------------------------------------------    
   
-#   Select off latest values from counties
-TodayData <- counties %>% 
+#   Select off latest values from County_calc
+TodayData <- County_calc %>% 
   group_by(County) %>% 
     mutate_at(vars(matches("avg_")), nth, -3) %>% 
     filter(row_number()==n()) %>% 
@@ -426,9 +393,9 @@ MapLabels <- lapply(seq(nrow(MappingData)), function(i) {
       "NA", "Zero"))
 })
 
-#     Trim counties now that mappingdata is made
+#     Trim County_calc now that mappingdata is made
 
-counties <<- counties %>% filter(n>5)
+County_calc <<- County_calc %>% filter(n>5)
 
 #     Meat packing in the county?
 meat <- meat_packing %>% 
@@ -901,7 +868,7 @@ ui <- basicPage(
                               "An_CFR",
                               label = h5("CFR (%)"),
                               step = 0.1,
-                              value = 1.0
+                              value = 2.5
                           ),
                           numericInput(
                               "An_DeathLag",
@@ -1301,7 +1268,7 @@ server <- function(input, output, session) {
     } else { # select a county
       #   Is there any data?
       county <- str_extract(in_area, "[A-Za-z ]+")
-      if (! county %in% DF$County) {
+      if (! county %in% County_calc$County) {
         showNotification(paste("No reported cases in", county),
                          duration=2)
         return()
@@ -1309,8 +1276,8 @@ server <- function(input, output, session) {
       
       PopLabel <<- County_pop %>% filter(County==county) %>% 
                      mutate(Label=paste(county, "County"))
-      subdata <<- DF %>% filter(County==county) %>% 
-                         mutate(actual_deaths=Deaths-lag(Deaths, 1, 0)) %>% 
+      subdata <<- County_calc %>% filter(County==county) %>% 
+                         #mutate(actual_deaths=Deaths-lag(Deaths, 1, 0)) %>% 
                          filter(between(Date, 
                                         ymd(in_dateRange[1]), 
                                         ymd(in_dateRange[2])))
@@ -1982,6 +1949,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                                 ){
       # Build exponential line for plot
     print(":::::::  build_death_plot")
+    LastDate <- subdata[nrow(subdata),]$Date
     # Get rid of duplicate cumulative entries.
     data <- subdata %>% 
       filter(Deaths>0) %>% 
@@ -2079,9 +2047,10 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                                      aes(x, y, 
                                          label = signif(ExpLine_est$est_cases[indx], 3) ))
       #     Add actual cases
-      p <- p + geom_point(data=subdata, aes(y=Cases, x=Date, color="data"), size=2) +
-               geom_text(data=subdata, aes(y=Cases, x=Date, label=Cases),
-                         nudge_x=-1.50, nudge_y=0.0)
+      p <- p + geom_point(data=subdata, aes(y=Cases, x=Date, color="data"), 
+                          size=2, shape=4)# +
+               #geom_text(data=subdata, aes(y=Cases, x=Date, label=Cases),
+               #          nudge_x=-1.50, nudge_y=0.0)
       
       p <-  build_legend(p, "Deaths",
                              c("Data", "Fit", "Est Cases"), # Labels for legend
@@ -2372,7 +2341,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     
     print("-------------  counties plot 2")
     # Start each county at the minimum case spot and create an x-axis variable
-    counties_case <- counties %>% 
+    counties_case <- County_calc %>% 
       filter(Cases>in_case_start) %>%  
       group_by(County) %>% 
         arrange(Date) %>% 
