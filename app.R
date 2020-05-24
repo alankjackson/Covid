@@ -68,6 +68,10 @@ bottom <- MSA_raw %>% filter(MSA %in% c("tiny", "small", "moderate")) %>%
 top <-  MSA_raw %>% filter(!(MSA %in% c("tiny", "small", "moderate"))) %>% 
   arrange(MSA)
 MSA_raw <- bind_rows(top, bottom)
+MSA_raw <- MSA_raw %>% 
+  add_row(MSA="Texas", Population=27864555, Counties=list("Texas"),
+          .before=1)
+
 
 #   County polygons
 Texas <- readRDS(gzcon(url(paste0(DataArchive, "Texas_County_Outlines_lowres.rds"))))
@@ -163,33 +167,33 @@ ByAlpha <- arrange(ByPop[21:nrow(ByPop),], County)
 Counties <- bind_rows(ByPop[1:20,], ByAlpha)
 ByPop <- ByAlpha <- NULL
 
-Regions <- tribble(
-            ~Region, ~Population, ~Label,
-            "Texas", 27864555, "Texas",
-            "Houston-Galv", 6779104, "Houston/Galveston Metro Region",
-            "Dallas-Fort Worth", 4938225, "Dallas/Fort Worth Metro Region",
-            "San Antonio", 2426204, "San Antonio Metro Region",
-            "Austin", 2058351, "Austin Metro Region",
-            "Lubbock", 290805, "Lubbock Metro Region",
-            "Corpus Christi", 429024, "Corpus Christi Region", 
-            "Killeen-Temple", 460303, "Killeen-Temple Region", 
-            "Beaumont-Port Arthur", 392563, "Beaumont-Port Arthur Region", 
-            "Amarillo", 249881, "Amarillo Metro Region")
-
-DefineRegions <- tribble(
-    ~Region, ~List,
-    "Texas", c("Total"),
-    "Houston-Galv", c("Harris", "Fort Bend", "Galveston", "Waller", "Montgomery", "Liberty", "Brazoria", "Chambers", "Austin"),
-    "Dallas-Fort Worth", c("Collin", "Dallas", "Denton", "Ellis", "Hood", "Hunt", "Johnson", "Kaufman", "Parker", "Rockwall", "Somervell", "Tarrant", "Wise"),
-    "San Antonio", c("Atascosa", "Bandera", "Bexar", "Comal", "Guadalupe", "Kendall", "Medina", "Wilson"), 
-    "Austin", c("Bastrop", "Caldwell", "Hays", "Travis", "Williamson"),
-    "Lubbock", c("Crosby", "Lubbock", "Lynn"),
-    "Corpus Christi", c("Aransas", "Nueces", "San Patricio"),
-    "Killeen-Temple", c("Bell", "Coryell", "Lampasas"),
-    "Beaumont-Port Arthur", c("Hardin", "Jefferson", "Orange"),
-    "Amarillo", c("Armstrong", "Carson", "Potter", "Randall", "Oldham")
-)
-
+#Regions <- tribble(
+#            ~Region, ~Population, ~Label,
+#            "Texas", 27864555, "Texas",
+#            "Houston-Galv", 6779104, "Houston/Galveston Metro Region",
+#            "Dallas-Fort Worth", 4938225, "Dallas/Fort Worth Metro Region",
+#            "San Antonio", 2426204, "San Antonio Metro Region",
+#            "Austin", 2058351, "Austin Metro Region",
+#            "Lubbock", 290805, "Lubbock Metro Region",
+#            "Corpus Christi", 429024, "Corpus Christi Region", 
+#            "Killeen-Temple", 460303, "Killeen-Temple Region", 
+#            "Beaumont-Port Arthur", 392563, "Beaumont-Port Arthur Region", 
+#            "Amarillo", 249881, "Amarillo Metro Region")
+#
+#DefineRegions <- tribble(
+#    ~Region, ~List,
+#    "Texas", c("Total"),
+#    "Houston-Galv", c("Harris", "Fort Bend", "Galveston", "Waller", "Montgomery", "Liberty", "Brazoria", "Chambers", "Austin"),
+#    "Dallas-Fort Worth", c("Collin", "Dallas", "Denton", "Ellis", "Hood", "Hunt", "Johnson", "Kaufman", "Parker", "Rockwall", "Somervell", "Tarrant", "Wise"),
+#    "San Antonio", c("Atascosa", "Bandera", "Bexar", "Comal", "Guadalupe", "Kendall", "Medina", "Wilson"), 
+#    "Austin", c("Bastrop", "Caldwell", "Hays", "Travis", "Williamson"),
+#    "Lubbock", c("Crosby", "Lubbock", "Lynn"),
+#    "Corpus Christi", c("Aransas", "Nueces", "San Patricio"),
+#    "Killeen-Temple", c("Bell", "Coryell", "Lampasas"),
+#    "Beaumont-Port Arthur", c("Hardin", "Jefferson", "Orange"),
+#    "Amarillo", c("Armstrong", "Carson", "Potter", "Randall", "Oldham")
+#)
+#
 # https://docs.google.com/document/d/1ETeXAfYOvArfLvlxExE0_xrO5M4ITC0_Am38CRusCko/edit#
 Disease <- tibble::tribble(
               ~Demographics, "% Hosp", "% Hosp ICU", "% CFR",
@@ -379,8 +383,8 @@ print("--------4----------")
   
  }
 
-counties <<- prep_counties(DF, "County")
-MSAs <<- prep_counties(MSA, "MSA")
+counties <- prep_counties(DF, "County")
+MSAs <- prep_counties(MSA, "MSA")
 
   #---------------------------------------------------    
   #------------------- Mapping Data -------------------
@@ -771,7 +775,8 @@ ui <- basicPage(
                    #    Select Region
                    condition = "input.dataset == 'Region'",
                    selectInput("region", "Choose a Region:",
-                               Regions$Region,
+                               #Regions$Region,
+                               MSA_raw$MSA[1:(nrow(MSA_raw)-3)],
                                selected = "Texas")
                  ), # end conditional panel
                  conditionalPanel(
@@ -1066,19 +1071,12 @@ ui <- basicPage(
                     h4("Select Regions:"),
                     selectInput('Regions_selector', 
                                 label=NULL, 
-                                choices=MSA_raw$MSA[1:nrow(MSA_raw)],
+                                choices=MSA_raw$MSA[2:nrow(MSA_raw)],
                                 multiple=TRUE, 
                                 selectize=TRUE)
                     
                   ), # end highlight panel
                   wellPanel( # Misc controls
-#                    tags$div(class = "inline", 
-#                             numericInput(inputId = "Regions_case_start", 
-#                                          step = 1,
-#                                          value = 30,
-#                                          min=10,
-#                                          label = "Start:")
-#                    ),
                     checkboxInput(
                       inputId = "Regions_log",
                       label = strong("Log Scale"),
@@ -1267,20 +1265,37 @@ server <- function(input, output, session) {
       print(in_dateRange)
       print("-----------  dateRange")
     if (in_dataset=="Region") { # work with regions
-      PopLabel <<- Regions %>% filter(Region==in_area)
-      target <- unlist(DefineRegions$List[DefineRegions$Region==in_area])
-      subdata <<- DF %>% 
-          filter(County %in% target) %>% 
-          group_by(Date) %>% 
-          summarise(Cases=sum(Cases), 
-                    new_cases=sum(new_cases), 
-                    Days=mean(Days), 
-                    Deaths=sum(Deaths, na.rm=TRUE)) %>% 
-          mutate(actual_deaths=Deaths-lag(Deaths, 1, 0)) %>%  
-          mutate(Deaths=na_if(Deaths, 0)) %>% 
-          filter(between(Date, 
-                         ymd(in_dateRange[1]), 
-                         ymd(in_dateRange[2])))
+      PopLabel <<- tibble(Region=in_area, 
+                          Population=MSA_raw$Population[MSA_raw$MSA==in_area], 
+                          Label=in_area)
+      target <- unlist(MSA_raw$Counties[MSA_raw$MSA==in_area])
+      subdata <<- MSAs %>% 
+        filter(MSA == in_area) %>% 
+        mutate(Days=as.integer(Date-ymd("2020-03-10"))) %>% 
+      #    summarise(Cases=sum(Cases), 
+      #              new_cases=sum(new_cases), 
+      #              Days=mean(Days), 
+      #              Deaths=sum(Deaths, na.rm=TRUE)) %>% 
+      #    mutate(actual_deaths=Deaths-lag(Deaths, 1, 0)) %>%  
+      #    mutate(Deaths=na_if(Deaths, 0)) %>% 
+        mutate(actual_deaths=new_deaths) %>% 
+        filter(between(Date, 
+                       ymd(in_dateRange[1]), 
+                       ymd(in_dateRange[2])))
+      #PopLabel <<- Regions %>% filter(Region==in_area)
+      #target <- unlist(DefineRegions$List[DefineRegions$Region==in_area])
+      #subdata <<- DF %>% 
+      #    filter(County %in% target) %>% 
+      #    group_by(Date) %>% 
+      #    summarise(Cases=sum(Cases), 
+      #              new_cases=sum(new_cases), 
+      #              Days=mean(Days), 
+      #              Deaths=sum(Deaths, na.rm=TRUE)) %>% 
+      #    mutate(actual_deaths=Deaths-lag(Deaths, 1, 0)) %>%  
+      #    mutate(Deaths=na_if(Deaths, 0)) %>% 
+      #    filter(between(Date, 
+      #                   ymd(in_dateRange[1]), 
+      #                   ymd(in_dateRange[2])))
       return()
       
     } else { # select a county
