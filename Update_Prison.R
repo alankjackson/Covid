@@ -44,6 +44,7 @@ tbls_ls <- xml2::read_html(url) %>%
 saveRDS(tbls_ls ,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),"_Prisons_rawtable.rds"))
 
 # Unpack all ten tables and combine where needed
+print("--1--")
 
 col.names <- c("Recovered",
                "Negative_Tests", 
@@ -55,37 +56,46 @@ df <- tbls_ls[[1]] %>%
   rename(Unit=X1, Recovered=X2) %>% 
   mutate(Unit=str_squish(Unit))
 
+print("--2--")
 for (i in 3:6){
   tmp <- tbls_ls[[i]] %>% 
     rename(Unit=X1, !!col.names[i-1] := X2) %>% 
     mutate(Unit=str_squish(Unit))
   df <- left_join(df, tmp, by="Unit")
 }
+print("--3--")
 
 staff <- tbls_ls[[7]] %>% 
   rename(Unit=X1, Staff_Positive_Tests=X2) %>% 
   mutate(Unit=str_squish(Unit))
 
+print("--4--")
 for (i in 8:11) {
   tmp <- tbls_ls[[i]] %>% 
     rename(Unit=X1, Staff_Positive_Tests=X2) %>% 
     mutate(Unit=str_squish(Unit))
   staff <- bind_rows(staff, tmp)
 }
+print("--5--")
 new_prisons <- left_join(df, staff, by="Unit")
 new_prisons <- new_prisons %>% mutate(Date=lubridate::today()) %>% 
-  mutate(Pending_Tests=NA)
+  mutate(Pending_Tests=NA) %>% 
+  replace_na(list("Recovered"=0, "Positive_Tests"=0))
 
 
+print("--6--")
 # Has anything changed?
 
 new_totals <- new_prisons %>%
   summarise_if(is.numeric, sum, na.rm = TRUE)
+print("--7--")
 
 totals <- prisons %>% 
   filter(Date==max(Date)) %>% 
+  select(-Pending_Tests) %>% 
   summarise_if(is.numeric, sum, na.rm = TRUE)
   
+print("--8--")
 if(sum(near(new_totals, totals))==6) { # no change. Abort
   system(paste('echo ',new_totals,' | mail -s "prison unchanged" alankjackson@gmail.com'))
   stop(">>>>>>>>>>>>>>>>>>> No change seen in file")
