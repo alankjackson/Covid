@@ -44,7 +44,7 @@ TestingData$Total <- as.numeric(TestingData$Total)
 #close(z)
 #   County Population data
 z <- gzcon(url(paste0(DataArchive, "Census_July1_2019_TexasCountyPop.rds")))
-Counties <- readRDS(z)
+County_pop <- readRDS(z)
 close(z)
 #   Prison Population data
 z <- gzcon(url(paste0(DataArchive, "Prison_Pop2020.rds")))
@@ -130,7 +130,7 @@ DF <- DF %>%
     mutate(new_deaths=(Deaths-lag(Deaths, default=Deaths[1]))) %>%
     mutate(new_deaths=pmax(new_deaths, 0)) %>% # truncate negative numbers
   ungroup() %>% 
-  left_join(Counties, by="County") 
+  left_join(County_pop, by="County") 
 
 # Add cases and deaths to MSA
 
@@ -158,14 +158,14 @@ print("--------d----------")
 sf <- stamp_date("Sunday, Jan 17, 1999")
 lastdate <- sf(DF$Date[nrow(DF)])
 
-LastDate <- DF[nrow(DF),]$Date
+###LastDate <- DF[nrow(DF),]$Date
 
 #   Sort counties with 20 largest first, then alphabetical
 
-ByPop <- arrange(Counties, -Population)
+ByPop <- arrange(County_pop, -Population)
 ByAlpha <- arrange(ByPop[21:nrow(ByPop),], County)
-Counties <- bind_rows(ByPop[1:20,], ByAlpha)
-ByPop <- ByAlpha <- NULL
+County_pop <- bind_rows(ByPop[1:20,], ByAlpha)
+ByPop <- ByAlpha <- NULL #  free up some memory
 
 #Regions <- tribble(
 #            ~Region, ~Population, ~Label,
@@ -400,7 +400,7 @@ TodayData <- counties %>%
 
 # Add current cases to county for labeling selector
 
-Counties <- left_join(Counties, TodayData, by="County") %>% 
+County_pop <- left_join(County_pop, TodayData, by="County") %>% 
   select(County, Population=Population.x, Cases) %>% 
   replace_na(list(Cases=0))
 
@@ -785,7 +785,7 @@ ui <- basicPage(
                    selectInput(
                      "county",
                      label = "Choose a County:",
-                     paste0(Counties$County, ": ", Counties$Cases),
+                     paste0(County_pop$County, ": ", County_pop$Cases),
                      selected = "Harris"
                    )
                  ), # end select county 
@@ -1307,7 +1307,7 @@ server <- function(input, output, session) {
         return()
       }
       
-      PopLabel <<- Counties %>% filter(County==county) %>% 
+      PopLabel <<- County_pop %>% filter(County==county) %>% 
                      mutate(Label=paste(county, "County"))
       subdata <<- DF %>% filter(County==county) %>% 
                          mutate(actual_deaths=Deaths-lag(Deaths, 1, 0)) %>% 
@@ -1603,6 +1603,7 @@ server <- function(input, output, session) {
     print(head(case_fit))
     print(tail(case_fit,10))
     xform <- 2*signif(max(TestingData$Total)/(8*max(subdata$Cases)),3)
+    LastDate <- subdata[nrow(subdata),]$Date
  
     #  Basic canvas     
     p <- subdata %>% 
@@ -2927,6 +2928,8 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                           domain = MappingData[[in_county_color]])
     }
     
+    print("---Map   1")
+    
     # Draw the map
     
     output$TexasMap <- renderLeaflet({
@@ -2943,14 +2946,17 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                     label = MapLabels,
                     fillColor = ~pal(MappingData[[in_county_color]]))  
       
+    print("---Map   2")
       if (in_map_prisons) {
         my_map <- my_map %>% 
                   addPolylines(data=prisons, color="black", weight=2, opacity=1)
       }
+    print("---Map   3")
       if (in_map_meat_packers) {
         my_map <- my_map %>% 
                   addPolylines(data=meat, color="blue", weight=2, opacity=1)
       }
+    print("---Map   4")
       
       if (QuantScale) {
         my_map %>% 
