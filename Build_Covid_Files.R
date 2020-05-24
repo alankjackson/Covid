@@ -7,15 +7,16 @@
 #   TestingData - Total tests by date
 #          MSAs - Metro areas with all calculations
 #       MSA_raw - Metro areas, counties, and Population
-#  Prison_covid - All data by prison
+#   Prison_data - All data by prison
+#  Prison_county - All prison data by county
+#    MappingData - Data for drawing map
+#      MapLabels - Labels for each county on map
 
 library(tidyverse)
 library(stringr)
 library(lubridate)
-#library(rsample)
 library(broom)
 library(purrr)
-#library(slider)
 
 
 ###################################
@@ -60,6 +61,8 @@ Texas <- readRDS(paste0(DataArchive, "Texas_County_Outlines_lowres.rds"))
 #global_slope <- 0.13
 # https://dartthrowingchimp.shinyapps.io/covid19-app/
 
+print("--1--")
+
 # Clean up footnotes
 
 DF$County <- str_replace(DF$County, "\\d", "")
@@ -101,6 +104,7 @@ DF <- DF %>%
 # Keep prison and county data separate until more is known
 ##########################################
 
+print("--2--")
 # Calculate new cases
 
 DF <- DF %>% 
@@ -132,6 +136,7 @@ MSA <- MSA_raw %>%
 
 MSA$Population[MSA$MSA=="Texas"] <- 28995881 
 
+print("--3--")
 #   Last date in dataset formatted for plotting
 
 #sf <- stamp_date("Sunday, Jan 17, 1999")
@@ -294,6 +299,7 @@ calc_controls <<- tribble(
   "new_deaths",      TRUE,  TRUE,  FALSE,  TRUE
 )
 
+print("--4--")
 ######################################################################
 #       Calculate everything by grouping variable (County, MSA)
 ######################################################################
@@ -382,6 +388,7 @@ TodayData <- Counties %>%
   mutate_if(is.numeric, signif, 3) %>% 
   ungroup()
 
+print("--5--")
 # Add current cases to county for labeling selector
 
 County_pop <- left_join(County_pop, TodayData, by="County") %>% 
@@ -410,7 +417,9 @@ MapLabels <- lapply(seq(nrow(MappingData)), function(i) {
       "NA", "Zero"))
 })
 
+print("--6--")
 #     Trim Counties now that mappingdata is made
+################    why do I do this?
 
 Counties <<- Counties %>% filter(n>5)
 
@@ -429,6 +438,7 @@ span <- function(vector){
   foo <- range(vector, na.rm=TRUE)
   return(max(foo) - min(foo))
 }
+print("--7--")
 #---------------------------------------------------    
 #------------------- Prison Data -------------------
 #---------------------------------------------------    
@@ -438,9 +448,9 @@ Prison <- left_join(Prison_loc, Prison_pop, by="Unit_Name")
 Prison <- Prison %>% 
   select(Unit_Name, County, Population)
 
-Prison_load <- Prison %>% 
+Prison_load <- Prison %>% # inmates per county
   group_by(County) %>% 
-  summarise(Population=sum(Population)) %>% 
+    summarise(Population=sum(Population)) %>% 
   ungroup
 
 foo <- left_join(MappingData, Prison_load, by="County") %>% 
@@ -455,6 +465,7 @@ foo <- left_join(MappingData, Prison_load, by="County") %>%
   mutate(prison=factor(prison_size, levels=c("Small Inmate Pop", "Large Inmate Pop"))) %>% 
   select(County, prison_size)
 
+print("--8--")
 MappingData$prison_size <- foo$prison_size
 
 Prison_covid <- Prison_covid %>% 
@@ -466,15 +477,15 @@ Prison_covid <- Prison_covid %>%
   mutate(Unit=str_replace(Unit, "Sansaba", "San Saba")) %>% 
   filter(Unit!="No Longer in Custody") %>% 
   filter(Unit!="Bambi") %>% 
-  rename(Cases=Positive_Tests)
+  mutate(Cases=Positive_Tests+Recovered)
 
 Prison_covid <- left_join(Prison_covid, Prison, by=c("Unit"="Unit_Name"))
 
 Prison_covid <- Prison_covid %>% 
   group_by(Unit) %>% 
-  arrange(Cases) %>% 
-  mutate(new_cases=(Cases-lag(Cases, default=Cases[1]))) %>%
-  mutate(new_cases=pmax(new_cases, 0)) %>% # truncate negative numbers
+    arrange(Cases) %>% 
+    mutate(new_cases=(Cases-lag(Cases, default=Cases[1]))) %>%
+    mutate(new_cases=pmax(new_cases, 0)) %>% # truncate negative numbers
   ungroup()
 
 #   What if update to website got delayed? Just delete last date
@@ -483,6 +494,7 @@ if (sum(Prison_covid$new_cases[Prison_covid$Date==max(Prison_covid$Date)])==0){
   Prison_covid <- Prison_covid %>% filter(!Date==max(Prison_covid$Date))
 }
 
+print("--9--")
 prep_prisons <- function() { 
   
   window <- 5
@@ -557,12 +569,43 @@ prep_prisons <- function() {
 
 prep_prisons()
 
+print("--10--")
+Prison_county <- Prison_data %>% 
+  group_by(Date, County) %>% 
+    summarise(Population=sum(Population),
+              Cases=sum(Cases, na.rm = TRUE),
+              new_cases=sum(new_cases, na.rm = TRUE)
+              ) %>% 
+  ungroup() %>% 
+  select(County, Date, Cases, new_cases, Inmates=Population)
+
+print("--11--")
 
 ######################################################################
 #                               save files
 ######################################################################
 
+#      Counties - County level data with all calculations
+#    County_pop - Counties and Population, largest first
+#   TestingData - Total tests by date
+#          MSAs - Metro areas with all calculations
+#       MSA_raw - Metro areas, counties, and Population
+#   Prison_data - All data by prison
+#  Prison_county - All prison data by county
+#    MappingData - Data for drawing map
+#      MapLabels - Labels for each county on map
 
+path <- "/home/ajackson/Dropbox/Rprojects/Covid/Today_Data/"
+
+saveRDS(Counties, paste0(path,"Today_Counties.rds"))
+saveRDS(County_pop, paste0(path,"Today_County_pop.rds"))
+saveRDS(TestingData, paste0(path,"Today_TestingData.rds"))
+saveRDS(MSAs, paste0(path,"Today_MSAs.rds"))
+saveRDS(MSA_raw, paste0(path,"Today_MSA_raw.rds"))
+saveRDS(Prison_data, paste0(path,"Today_Prison_data.rds"))
+saveRDS(Prison_county, paste0(path,"Today_Prison_county.rds"))
+saveRDS(MappingData, paste0(path,"Today_MappingData.rds"))
+saveRDS(MapLabels, paste0(path,"Today_MapLabels.rds"))
 
 
 
