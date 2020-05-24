@@ -112,7 +112,7 @@ CovidData <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
 CovidData <- bind_rows(CovidData, foo)
 
 # Save an accumulated file in case of a failure
-saveRDS(CovidData,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),"_Covid.rds"))
+saveRDS(CovidData,paste0("/home/ajackson/Dropbox/Rprojects/Covid/DailyBackups/",lubridate::today(),"_Covid.rds"))
 # Save the real file for later use
 saveRDS(CovidData,"/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
 # Also save to mirror site
