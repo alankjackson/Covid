@@ -1278,6 +1278,7 @@ server <- function(input, output, session) {
                      mutate(Label=paste(county, "County"))
       subdata <<- County_calc %>% filter(County==county) %>% 
                          #mutate(actual_deaths=Deaths-lag(Deaths, 1, 0)) %>% 
+                         mutate(Days=as.integer(Date-ymd("2020-03-10"))) %>% 
                          filter(between(Date, 
                                         ymd(in_dateRange[1]), 
                                         ymd(in_dateRange[2])))
