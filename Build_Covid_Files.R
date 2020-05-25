@@ -344,63 +344,6 @@ County_calc <- prep_counties(DF, "County")
 ############   Create MSAs file
 MSAs <- prep_counties(MSA, "MSA")
 
-#---------------------------------------------------    
-#------------------- Mapping Data -------------------
-#---------------------------------------------------    
-
-#   Select off latest values from Counties
-TodayData <- Counties %>% 
-  group_by(County) %>% 
-  mutate_at(vars(matches("avg_")), nth, -3) %>% 
-  filter(row_number()==n()) %>% 
-  mutate_if(is.numeric, signif, 3) %>% 
-  ungroup()
-
-print("--5--")
-# Add current cases to county for labeling selector
-
-County_pop <- left_join(County_pop, TodayData, by="County") %>% 
-  select(County, Population=Population.x, Cases) %>% 
-  replace_na(list(Cases=0))
-
-#  add county polygons
-MappingData <-  merge(Texas, TodayData,
-                      by.x = c("County"), by.y = c("County"),
-                      all.x = TRUE) 
-
-# Build labels for map
-
-MapLabels <- lapply(seq(nrow(MappingData)), function(i) {
-  htmltools::HTML(
-    str_replace_all(
-      paste( MappingData[i,]$County, 'County<br>', 
-             MappingData[i,]$Cases,'Cases Total<br>', 
-             MappingData[i,]$Cases_percap, "per 100,000<br>",
-             MappingData[i,]$Deaths, "Deaths<br>",
-             MappingData[i,]$deaths_percase, "Deaths per Case<br>",
-             MappingData[i,]$Deaths_percap, "Deaths per 100,000<br>",
-             MappingData[i,]$doubling, "Doubling Time<br>",
-             MappingData[i,]$avg_pct, "Avg Pct Chg"
-      ),
-      "NA", "Zero"))
-})
-
-print("--6--")
-#     Trim Counties now that mappingdata is made
-################    why do I do this?
-
-Counties <<- Counties %>% filter(n>5)
-
-#     Meat packing in the county?
-meat <- meat_packing %>% 
-  group_by(County) %>% 
-  summarise(Employees=sum(Employees, na.rm=TRUE)) %>% 
-  ungroup
-foo <- left_join(MappingData, meat, by="County") %>% 
-  mutate(meaty=ifelse(is.na(Employees), 
-                      FALSE,
-                      TRUE))  
-MappingData$meat <- foo$meaty
 
 span <- function(vector){
   foo <- range(vector, na.rm=TRUE)
@@ -421,20 +364,20 @@ Prison_load <- Prison %>% # inmates per county
     summarise(Population=sum(Population)) %>% 
   ungroup
 
-foo <- left_join(MappingData, Prison_load, by="County") %>% 
-  select(County, Population=Population.x,
-         inmates=Population.y) %>% 
-  mutate(inmate_pct=signif(100*inmates/Population,3)) %>%  
-  select(County, inmate_pct ) %>% 
-  mutate(prison_size=ifelse(inmate_pct>1, 
-                            "Large Inmate Pop",
-                            "Small Inmate Pop")) %>% 
-  replace_na(list(prison_size="Small Inmate Pop")) %>% 
-  mutate(prison=factor(prison_size, levels=c("Small Inmate Pop", "Large Inmate Pop"))) %>% 
-  select(County, prison_size)
-
-print("--8--")
-MappingData$prison_size <- foo$prison_size
+#foo <- left_join(MappingData, Prison_load, by="County") %>% 
+#  select(County, Population=Population.x,
+#         inmates=Population.y) %>% 
+#  mutate(inmate_pct=signif(100*inmates/Population,3)) %>%  
+#  select(County, inmate_pct ) %>% 
+#  mutate(prison_size=ifelse(inmate_pct>1, 
+#                            "Large Inmate Pop",
+#                            "Small Inmate Pop")) %>% 
+#  replace_na(list(prison_size="Small Inmate Pop")) %>% 
+#  mutate(prison=factor(prison_size, levels=c("Small Inmate Pop", "Large Inmate Pop"))) %>% 
+#  select(County, prison_size)
+#
+#print("--8--")
+#MappingData$prison_size <- foo$prison_size
 
 Prison_covid <- Prison_covid %>% 
   mutate(Unit=str_replace(Unit, "ETTF", "East Texas")) %>% 
@@ -548,6 +491,82 @@ Prison_county <- Prison_data %>%
   select(County, Date, Cases, new_cases, Inmates=Population)
 
 print("--11--")
+
+#---------------------------------------------------    
+#------------------- Mapping Data -------------------
+#---------------------------------------------------    
+
+#   Select off latest values from County_calc
+TodayData <- County_calc %>% 
+  group_by(County) %>% 
+  mutate_at(vars(matches("avg_")), nth, -3) %>% 
+  filter(row_number()==n()) %>% 
+  mutate_if(is.numeric, signif, 3) %>% 
+  ungroup()
+
+print("--5--")
+# Add current cases to county for labeling selector
+
+County_pop <- left_join(County_pop, TodayData, by="County") %>% 
+  select(County, Population=Population.x, Cases) %>% 
+  replace_na(list(Cases=0))
+
+foo <- left_join(TodayData, Prison_load, by="County") %>% 
+  select(County, Population=Population.x,
+         inmates=Population.y) %>% 
+  mutate(inmate_pct=signif(100*inmates/Population,3)) %>%  
+  select(County, inmate_pct ) %>% 
+  mutate(prison_size=ifelse(inmate_pct>1, 
+                            "Large Inmate Pop",
+                            "Small Inmate Pop")) %>% 
+  replace_na(list(prison_size="Small Inmate Pop")) %>% 
+  mutate(prison=factor(prison_size, levels=c("Small Inmate Pop", "Large Inmate Pop"))) %>% 
+  select(County, prison_size)
+
+print("--8--")
+TodayData$prison_size <- foo$prison_size
+TodayData <- TodayData %>% 
+  mutate(prison=factor(prison_size, levels=c("Small Inmate Pop", "Large Inmate Pop")))
+
+#     Meat packing in the county?
+meat <- meat_packing %>% 
+  group_by(County) %>% 
+  summarise(Employees=sum(Employees, na.rm=TRUE)) %>% 
+  ungroup
+foo <- left_join(TodayData, meat, by="County") %>% 
+  mutate(meaty=ifelse(is.na(Employees), 
+                      FALSE,
+                      TRUE))  
+TodayData$meat <- foo$meaty
+
+#  add county polygons
+MappingData <-  merge(Texas, TodayData,
+                      by.x = c("County"), by.y = c("County"),
+                      all.x = TRUE) 
+
+# Build labels for map
+
+MapLabels <- lapply(seq(nrow(MappingData)), function(i) {
+  htmltools::HTML(
+    str_replace_all(
+      paste( MappingData[i,]$County, 'County<br>', 
+             MappingData[i,]$Cases,'Cases Total<br>', 
+             MappingData[i,]$Cases_percap, "per 100,000<br>",
+             MappingData[i,]$Deaths, "Deaths<br>",
+             MappingData[i,]$deaths_percase, "Deaths per Case<br>",
+             MappingData[i,]$Deaths_percap, "Deaths per 100,000<br>",
+             MappingData[i,]$doubling, "Doubling Time<br>",
+             MappingData[i,]$avg_pct, "Avg Pct Chg"
+      ),
+      "NA", "Zero"))
+})
+
+print("--6--")
+#     Trim County_calc now that mappingdata is made
+################    why do I do this?
+
+County_calc <<- County_calc %>% filter(n>5)
+
 
 ######################################################################
 #                               save files
