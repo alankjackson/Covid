@@ -12,10 +12,8 @@ library(leafpop) # for popup on map
 library(ggplot2)
 library(stringr)
 library(lubridate)
-library(rsample)
 library(broom)
 library(purrr)
-library(slider)
 
 
 ###################################
@@ -27,54 +25,50 @@ library(slider)
 DataLocation <- "https://www.ajackson.org/Covid/"
 DataArchive <- "https://www.ajackson.org/SharedData/"
 
+
+#saveRDS(County_calc, paste0(path,"Today_County_calc.rds"))
+#saveRDS(County_pop, paste0(path,"Today_County_pop.rds"))
+#saveRDS(TestingData, paste0(path,"Today_TestingData.rds"))
+#saveRDS(MSAs, paste0(path,"Today_MSAs.rds"))
+#saveRDS(MSA_raw, paste0(path,"Today_MSA_raw.rds"))
+#saveRDS(Prison_data, paste0(path,"Today_Prison_data.rds"))
+#saveRDS(Prison_county, paste0(path,"Today_Prison_county.rds"))
+#saveRDS(MappingData, paste0(path,"Today_MappingData.rds"))
+#saveRDS(MapLabels, paste0(path,"Today_MapLabels.rds"))
+
 #   Tibble database
 
 #   Case data
-z <- gzcon(url(paste0(DataLocation, "Covid.rds")))
-DF <- readRDS(z)
+z <- gzcon(url(paste0(DataLocation, "Today_County_calc.rds")))
+County_calc <- readRDS(z)
 close(z)
 #   Testing data
-z <- gzcon(url(paste0(DataLocation, "Testing.rds")))
+z <- gzcon(url(paste0(DataLocation, "Today_TestingData.rds")))
 TestingData <- readRDS(z)
 close(z)
-TestingData$Total <- as.numeric(TestingData$Total)
-#   Death data
-#z <- gzcon(url(paste0(DataLocation, "Deaths.rds")))
-#DeathData <- readRDS(z)
-#close(z)
 #   County Population data
-z <- gzcon(url(paste0(DataArchive, "Census_July1_2019_TexasCountyPop.rds")))
+z <- gzcon(url(paste0(DataLocation, "Today_County_pop.rds")))
 County_pop <- readRDS(z)
 close(z)
-#   Prison Population data
-z <- gzcon(url(paste0(DataArchive, "Prison_Pop2020.rds")))
-Prison_pop <- readRDS(z)
-close(z)
-#   Prison Location data
-z <- gzcon(url(paste0(DataArchive, "Prison_Locations.rds")))
-Prison_loc <- readRDS(z)
-close(z)
 #   Current Prison epidemic data
-z <- gzcon(url(paste0(DataLocation, "Prisons.rds")))
-Prison_covid <- readRDS(z)
+z <- gzcon(url(paste0(DataLocation, "Today_Prison_data.rds")))
+Prison_data <- readRDS(z)
 close(z)
 #   MSA data
-z <- gzcon(url(paste0(DataArchive, "Texas_MSA_Pop_Counties.rds")))
-MSA_raw <- readRDS(z) 
+z <- gzcon(url(paste0(DataLocation, "Today_MSA_raw.rds")))
+MSA_raw <- readRDS(z)
 close(z)
-#  Put tiny, small, and moderate at bottom
-bottom <- MSA_raw %>% filter(MSA %in% c("tiny", "small", "moderate")) %>% 
-  arrange(desc(MSA))
-top <-  MSA_raw %>% filter(!(MSA %in% c("tiny", "small", "moderate"))) %>% 
-  arrange(MSA)
-MSA_raw <- bind_rows(top, bottom)
-MSA_raw <- MSA_raw %>% 
-  add_row(MSA="Texas", Population=27864555, Counties=list("Texas"),
-          .before=1)
-
-
-#   County polygons
-Texas <- readRDS(gzcon(url(paste0(DataArchive, "Texas_County_Outlines_lowres.rds"))))
+z <- gzcon(url(paste0(DataLocation, "Today_MSAs.rds")))
+MSAs <- readRDS(z)
+close(z)
+#   Mapping data
+z <- gzcon(url(paste0(DataLocation, "Today_MappingData.rds")))
+MappingData <- readRDS(z)
+close(z)
+z <- gzcon(url(paste0(DataLocation, "Today_MapLabels.rds")))
+MapLabels <- readRDS(z)
+close(z)
+MappingData <- sf::st_as_sf(MappingData)
 
 init_zoom <- 6
 MapCenter <- c(-99.9018, 31.9686) # center of state
@@ -82,87 +76,10 @@ MapCenter <- c(-99.9018, 31.9686) # center of state
 global_slope <- 0.13
 # https://dartthrowingchimp.shinyapps.io/covid19-app/
 
-# Clean up footnotes
-
-DF$County <- str_replace(DF$County, "\\d", "")
-
-# drop rows with zero or NA cases
-
-DF <- DF %>% filter(Cases>0, !is.na(Cases))
-
-# Add Statewide Totals per day
-print("--------a----------")
-
-#DF <- DF %>% select(-LastUpdate) %>% bind_rows(
-DF <- DF %>% bind_rows(
-                  DF %>%
-                  group_by(Date) %>% 
-                  summarise(Cases = sum(Cases), Deaths=sum(Deaths)) %>% 
-                  mutate(County="Total")
-                 ) %>% 
-    arrange(Date)
-
-# Calc days since March 10
-
-DF <- DF %>% 
-    mutate(Days=as.integer(Date-ymd("2020-03-10")))
-
-#DeathData <- DeathData %>% 
-#    mutate(Days=as.integer(Date-ymd("2020-03-10")))
-
-# Fix Deaths field
-
-DF$Deaths <- str_replace(DF$Deaths,"-", "na")
-
-DF <- DF %>% 
-  mutate(Deaths=as.numeric(Deaths)) %>% 
-  replace_na(list(Deaths=0))
-
-# Calculate new cases
-
-print("--------b----------")
-DF <- DF %>% 
-  group_by(County) %>% 
-    arrange(Date) %>% 
-    mutate(new_cases=(Cases-lag(Cases, default=Cases[1]))) %>%
-    mutate(new_cases=pmax(new_cases, 0)) %>% # truncate negative numbers
-    mutate(new_deaths=(Deaths-lag(Deaths, default=Deaths[1]))) %>%
-    mutate(new_deaths=pmax(new_deaths, 0)) %>% # truncate negative numbers
-  ungroup() %>% 
-  left_join(County_pop, by="County") 
-
-# Add cases and deaths to MSA
-
-print("--------c----------")
-MSA <- MSA_raw %>% 
-  unnest(Counties) %>% 
-  rename(County=Counties) %>% 
-  left_join(DF, ., by="County") %>% 
-  select(-Population.x) %>% 
-  rename(Population=Population.y) %>% 
-  group_by(MSA, Date) %>% 
-    summarise(Cases=sum(Cases, na.rm = TRUE),
-              Deaths=sum(Deaths, na.rm = TRUE),
-              new_cases=sum(new_cases, na.rm = TRUE),
-              new_deaths=sum(new_deaths, na.rm = TRUE),
-              Population=unique(Population)) %>% 
-  ungroup() %>% 
-  replace_na(list(MSA="Texas"))
-
-MSA$Population[MSA$MSA=="Texas"] <- 28995881 
-
-print("--------d----------")
 #   Last date in dataset formatted for plotting
 
 sf <- stamp_date("Sunday, Jan 17, 1999")
-lastdate <- sf(DF$Date[nrow(DF)])
-
-#   Sort counties with 20 largest first, then alphabetical
-
-ByPop <- arrange(County_pop, -Population)
-ByAlpha <- arrange(ByPop[21:nrow(ByPop),], County)
-County_pop <- bind_rows(ByPop[1:20,], ByAlpha)
-ByPop <- ByAlpha <- NULL #  free up some memory
+lastdate <- sf(County_calc$Date[nrow(County_calc)])
 
 # https://docs.google.com/document/d/1ETeXAfYOvArfLvlxExE0_xrO5M4ITC0_Am38CRusCko/edit#
 Disease <- tibble::tribble(
@@ -177,34 +94,6 @@ Disease <- tibble::tribble(
                        "7%", "70-79", "24.3%", "43.2%", "5.10%",
                        "4%", "80+", "27.3%", "70.9%", "9.30%"
                             )
-meat_packing <- tribble(
-  ~City,          ~County,     ~Company, ~Employees,
-  "Cactus",       "Moore",       "JBS",    3000,
-  "Dalhart",      "Dallam",      "JBS",    2200,
-  "Lufkin",       "Angelina",    "JBS",    1500,
-  "Mt. Pleasant", "Titus",       "JBS",    3200,
-  "Waco",         "McLennan",    "JBS",     450,
-  "Nacogdoches",  "Nacogdoches", "JBS",    1500,
-  "Amarillo",     "Potter",      "Tyson",  3500,
-  "Carthage",     "Panola",      "Tyson",   575,
-  "Center",       "Shelby",      "Tyson",  2000,     
-  "Dallas",       "Dallas",      "Tyson",    NA,   
-  "Fort Worth",   "Tarrant",     "Tyson",    NA,        
-  "Haltom City",  "Tarrant",     "Tyson",    NA, 
-  "Houston",      "Harris",      "Tyson",    NA, 
-  "N Richland H", "Tarrant",     "Tyson",   500,          
-  "Seguin",       "Guadelupe",   "Tyson",   700,       
-  "Sherman",      "Grayson",     "Tyson",  1600,
-  "Vernon",       "Wilbarger",   "Tyson",   500,
-  "Nixon",        "Gonzales",    "Holmes Foods",     300,
-  "Waco",         "McLennan",    "Cargill",          650,
-  "Waco",         "McLennan",    "Sanderson Farms", 1100,
-  "Fort Worth",   "Tarrant",     "Cargill",          300,
-  "Friona",       "Parmer",      "Cargill",         2000,
-  "Palestine",    "Anderson",    "Sanderson Farms", 1100,
-  "Bryan",        "Brazos",      "Sanderson Farms", 1400,
-  "Tyler",        "Smith",       "Sanderson Farms", 1400)
-
 
 #          Calculate doubling times along whole vector
 doubling <- function(cases, window, County) {
@@ -350,195 +239,10 @@ print("--------4----------")
   
  }
 
-County_calc <- prep_counties(DF, "County")
-MSAs <- prep_counties(MSA, "MSA")
-
-  #---------------------------------------------------    
-  #------------------- Mapping Data -------------------
-  #---------------------------------------------------    
-  
-#   Select off latest values from County_calc
-TodayData <- County_calc %>% 
-  group_by(County) %>% 
-    mutate_at(vars(matches("avg_")), nth, -3) %>% 
-    filter(row_number()==n()) %>% 
-    mutate_if(is.numeric, signif, 3) %>% 
-  ungroup()
-
-# Add current cases to county for labeling selector
-
-County_pop <- left_join(County_pop, TodayData, by="County") %>% 
-  select(County, Population=Population.x, Cases) %>% 
-  replace_na(list(Cases=0))
-
-#  add county polygons
-MappingData <-  merge(Texas, TodayData,
-                      by.x = c("County"), by.y = c("County"),
-                      all.x = TRUE) 
-
-# Build labels for map
-
-MapLabels <- lapply(seq(nrow(MappingData)), function(i) {
-  htmltools::HTML(
-    str_replace_all(
-      paste( MappingData[i,]$County, 'County<br>', 
-              MappingData[i,]$Cases,'Cases Total<br>', 
-              MappingData[i,]$Cases_percap, "per 100,000<br>",
-              MappingData[i,]$Deaths, "Deaths<br>",
-              MappingData[i,]$deaths_percase, "Deaths per Case<br>",
-              MappingData[i,]$Deaths_percap, "Deaths per 100,000<br>",
-              MappingData[i,]$doubling, "Doubling Time<br>",
-              MappingData[i,]$avg_pct, "Avg Pct Chg"
-              ),
-      "NA", "Zero"))
-})
-
-#     Trim County_calc now that mappingdata is made
-
-County_calc <<- County_calc %>% filter(n>5)
-
-#     Meat packing in the county?
-meat <- meat_packing %>% 
-  group_by(County) %>% 
-  summarise(Employees=sum(Employees, na.rm=TRUE)) %>% 
-  ungroup
-foo <- left_join(MappingData, meat, by="County") %>% 
-  mutate(meaty=ifelse(is.na(Employees), 
-                            FALSE,
-                            TRUE))  
-MappingData$meat <- foo$meaty
-
-span <- function(vector){
+span <- function(vector){ # range spanned by a vector
   foo <- range(vector, na.rm=TRUE)
   return(max(foo) - min(foo))
 }
-  #---------------------------------------------------    
-  #------------------- Prison Data -------------------
-  #---------------------------------------------------    
-  
-Prison <- left_join(Prison_loc, Prison_pop, by="Unit_Name")
-
-Prison <- Prison %>% 
-  select(Unit_Name, County, Population)
-
-Prison_load <- Prison %>% 
-  group_by(County) %>% 
-  summarise(Population=sum(Population)) %>% 
-  ungroup
-
-foo <- left_join(MappingData, Prison_load, by="County") %>% 
-  select(County, Population=Population.x,
-         inmates=Population.y) %>% 
-  mutate(inmate_pct=signif(100*inmates/Population,3)) %>%  
-  select(County, inmate_pct ) %>% 
-  mutate(prison_size=ifelse(inmate_pct>1, 
-                       "Large Inmate Pop",
-                       "Small Inmate Pop")) %>% 
-  replace_na(list(prison_size="Small Inmate Pop")) %>% 
-  mutate(prison=factor(prison_size, levels=c("Small Inmate Pop", "Large Inmate Pop"))) %>% 
-  select(County, prison_size)
-
-  MappingData$prison_size <- foo$prison_size
-  
-Prison_covid <- Prison_covid %>% 
-  mutate(Unit=str_replace(Unit, "ETTF", "East Texas")) %>% 
-  mutate(Unit=str_replace(Unit, "Fort Stockton", "Ft. Stockton")) %>% 
-  mutate(Unit=str_replace(Unit, "Jester 1", "Jester I")) %>% 
-  mutate(Unit=str_replace(Unit, "Jester 3", "Jester III")) %>% 
-  mutate(Unit=str_replace(Unit, "Jester 4", "Jester IV")) %>% 
-  mutate(Unit=str_replace(Unit, "Sansaba", "San Saba")) %>% 
-  filter(Unit!="No Longer in Custody") %>% 
-  filter(Unit!="Bambi") %>% 
-  rename(Cases=Positive_Tests)
-
-Prison_covid <- left_join(Prison_covid, Prison, by=c("Unit"="Unit_Name"))
-
-Prison_covid <- Prison_covid %>% 
-  group_by(Unit) %>% 
-    arrange(Cases) %>% 
-    mutate(new_cases=(Cases-lag(Cases, default=Cases[1]))) %>%
-    mutate(new_cases=pmax(new_cases, 0)) %>% # truncate negative numbers
-  ungroup()
-
-#   What if update to website got delayed? Just delete last date
-
-if (sum(Prison_covid$new_cases[Prison_covid$Date==max(Prison_covid$Date)])==0){
-  Prison_covid <- Prison_covid %>% filter(!Date==max(Prison_covid$Date))
-}
-
- prep_prisons <- function() { 
-  
-  window <- 5
-  #---------------  Control matrix
-  
-  calc_controls <- tribble(
-    ~base,       ~avg, ~percap, ~trim, ~positive,
-    "Cases",      TRUE, TRUE,  FALSE, TRUE,
-    "pct_chg",    TRUE, FALSE, FALSE, TRUE,
-    "doubling",   TRUE, FALSE, TRUE, TRUE,
-    "new_cases",  TRUE, TRUE,  FALSE, TRUE
-  )
-  
-  #---------------  Clean up and calc base quantities
-  foo <- Prison_covid %>%     
-    # Start each county at 10 cases
-    filter(Cases>10) %>%  
-    group_by(Unit) %>% 
-      arrange(Date) %>% 
-      mutate(day = row_number()) %>% 
-      add_tally() %>% 
-    ungroup() %>% 
-    filter(n>5) %>% # must have at least 5 datapoints
-    select(Unit, Cases, Date, new_cases, Population, County) %>% 
-    group_by(Unit) %>%
-      arrange(Date) %>% 
-      mutate(pct_chg=100*new_cases/lag(Cases, default=Cases[1])) %>% 
-      mutate(doubling=doubling(Cases, window, Unit)) %>% 
-    ungroup()
-  
-  #----------------- Trim outliers and force to be >0
-  
-  for (base in calc_controls$base[calc_controls$trim]){
-    for (unit in unique(foo$Unit)) {
-      foo[foo$Unit==unit,][base] <- isnt_out_z((foo[foo$Unit==unit,][[base]]))
-    }
-  }
-  for (base in calc_controls$base[calc_controls$positive]){
-    foo[base] <- na_if(foo[base], 0)
-  }
-  
-  #----------------- Calc Rolling Average
-  
-  inputs <- calc_controls$base[calc_controls$avg==TRUE]
-  
-  foo <- foo %>% 
-    group_by(Unit) %>% 
-    mutate_at(inputs, list(avg = ~ zoo::rollmean(., window, 
-                                                 fill=c(first(.), NA, last(.))))) %>% 
-    rename_at(vars(ends_with("_avg")), 
-              list(~ paste("avg", gsub("_avg", "", .), sep = "_")))
-  
-  foo <- foo %>% 
-    mutate(pct_chg=na_if(pct_chg, 0)) %>% 
-    mutate(pct_chg=replace(pct_chg, pct_chg>30, NA)) %>% 
-    mutate(pct_chg=replace(pct_chg, pct_chg<0.1, NA)) %>% 
-    mutate(avg_pct_chg=na_if(avg_pct_chg, 0)) %>% 
-    mutate(avg_pct_chg=replace(avg_pct_chg, avg_pct_chg>30, NA)) %>% 
-    mutate(avg_pct_chg=replace(avg_pct_chg, avg_pct_chg<0.1, NA))
-  
-  #----------------- Calc per capitas
-  
-  inputs <- calc_controls$base[calc_controls$percap==TRUE]
-  inputs <- c(paste0("avg_", inputs), inputs)
-  
-  foo <- foo %>% 
-    mutate_at(inputs, list(percap = ~ . / Population * 100)) 
-  
-  Prison_data <<- foo
-  
- }
-
-prep_prisons()
 
 
 ###############     modules
@@ -1245,7 +949,7 @@ server <- function(input, output, session) {
       #              Deaths=sum(Deaths, na.rm=TRUE)) %>% 
       #    mutate(actual_deaths=Deaths-lag(Deaths, 1, 0)) %>%  
       #    mutate(Deaths=na_if(Deaths, 0)) %>% 
-        mutate(actual_deaths=new_deaths) %>% 
+        mutate(actual_deaths=new_deaths) %>% #########   temporary fix
         filter(between(Date, 
                        ymd(in_dateRange[1]), 
                        ymd(in_dateRange[2])))
