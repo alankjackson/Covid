@@ -19,6 +19,11 @@ library(broom)
 library(purrr)
 
 
+cat("\n\n=============== Build Covid Files started =========\n\n")
+print(lubridate::now())
+cat("\n=============== Build Covid Files started =========\n\n")
+
+
 ###################################
 #   get and set up the basic data
 ###################################
@@ -54,6 +59,10 @@ bottom <- MSA_raw %>% filter(MSA %in% c("tiny", "small", "moderate")) %>%
 top <-  MSA_raw %>% filter(!(MSA %in% c("tiny", "small", "moderate"))) %>% 
   arrange(MSA)
 MSA_raw <- bind_rows(top, bottom)
+#    Add Texas to the top
+MSA_raw <- MSA_raw %>% 
+  add_row(MSA="Texas", Population=27864555, Counties=list("Texas"),
+          .before=1)
 
 #   County polygons
 Texas <- readRDS(paste0(DataArchive, "Texas_County_Outlines_lowres.rds"))
@@ -594,5 +603,18 @@ saveRDS(Prison_county, paste0(path,"Today_Prison_county.rds"))
 saveRDS(MappingData, paste0(path,"Today_MappingData.rds"))
 saveRDS(MapLabels, paste0(path,"Today_MapLabels.rds"))
 
+path <- "/home/ajackson/Dropbox/mirrors/ajackson/Covid/"
 
+saveRDS(County_calc, paste0(path,"Today_County_calc.rds"))
+saveRDS(County_pop, paste0(path,"Today_County_pop.rds"))
+saveRDS(TestingData, paste0(path,"Today_TestingData.rds"))
+saveRDS(MSAs, paste0(path,"Today_MSAs.rds"))
+saveRDS(MSA_raw, paste0(path,"Today_MSA_raw.rds"))
+saveRDS(Prison_data, paste0(path,"Today_Prison_data.rds"))
+saveRDS(Prison_county, paste0(path,"Today_Prison_county.rds"))
+saveRDS(MappingData, paste0(path,"Today_MappingData.rds"))
+saveRDS(MapLabels, paste0(path,"Today_MapLabels.rds"))
 
+cat("\n\n=============== Build Covid Files ended =========\n\n")
+print(lubridate::now())
+cat("\n=============== Build Covid Files ended =========\n\n")
