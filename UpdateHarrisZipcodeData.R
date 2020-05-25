@@ -37,6 +37,7 @@ driver$close()
 #close the server
 rD$server$stop()
 
+#   Save in case the rest of the code crashes, like when they update the page on you
 saveRDS(parsed_pagesource,paste0("/home/ajackson/Dropbox/Rprojects/Covid/DailyBackups/",lubridate::today(),"_ParsedPagesource.rds"))
 #---------------------------------------------------------------------
 #   Extract cases per zipcode
