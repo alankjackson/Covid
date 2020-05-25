@@ -14,6 +14,8 @@ library(stringr)
 library(lubridate)
 library(broom)
 library(purrr)
+library(rsample) # for bootstrap
+#library(slider)
 
 
 ###################################
@@ -1925,7 +1927,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     print("-------- slope  5.1 --------------")
       foo <- foo %>%
         mutate(
-          model = slide(
+          model = slider::slide(
             .x = tibble(Days = Days, log_cases = log_cases), 
             .f = ~lm(log_cases ~ Days, .x), 
             .before = halfwidth, 
