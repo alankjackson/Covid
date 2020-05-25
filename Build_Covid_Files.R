@@ -137,12 +137,6 @@ MSA <- MSA_raw %>%
 MSA$Population[MSA$MSA=="Texas"] <- 28995881 
 
 print("--3--")
-#   Last date in dataset formatted for plotting
-
-#sf <- stamp_date("Sunday, Jan 17, 1999")
-#lastdate <- sf(DF$Date[nrow(DF)])
-
-#LastDate <- DF[nrow(DF),]$Date
 
 #   Sort counties with 20 largest first, then alphabetical
 
@@ -151,32 +145,6 @@ ByAlpha <- arrange(ByPop[21:nrow(ByPop),], County)
 County_pop <- bind_rows(ByPop[1:20,], ByAlpha)
 ByPop <- ByAlpha <- NULL
 
-#Regions <- tribble(
-#  ~Region, ~Population, ~Label,
-#  "Texas", 27864555, "Texas",
-#  "Houston-Galv", 6779104, "Houston/Galveston Metro Region",
-#  "Dallas-Fort Worth", 4938225, "Dallas/Fort Worth Metro Region",
-#  "San Antonio", 2426204, "San Antonio Metro Region",
-#  "Austin", 2058351, "Austin Metro Region",
-#  "Lubbock", 290805, "Lubbock Metro Region",
-#  "Corpus Christi", 429024, "Corpus Christi Region", 
-#  "Killeen-Temple", 460303, "Killeen-Temple Region", 
-##  "Beaumont-Port Arthur", 392563, "Beaumont-Port Arthur Region", 
-#  "Amarillo", 249881, "Amarillo Metro Region")
-
-#DefineRegions <- tribble(
-#  ~Region, ~List,
-#  "Texas", c("Total"),
-#  "Houston-Galv", c("Harris", "Fort Bend", "Galveston", "Waller", "Montgomery", "Liberty", "Brazoria", "Chambers", "Austin"),
-#  "Dallas-Fort Worth", c("Collin", "Dallas", "Denton", "Ellis", "Hood", "Hunt", "Johnson", "Kaufman", "Parker", "Rockwall", "Somervell", "Tarrant", "Wise"),
-#  "San Antonio", c("Atascosa", "Bandera", "Bexar", "Comal", "Guadalupe", "Kendall", "Medina", "Wilson"), 
-#  "Austin", c("Bastrop", "Caldwell", "Hays", "Travis", "Williamson"),
-#  "Lubbock", c("Crosby", "Lubbock", "Lynn"),
-#  "Corpus Christi", c("Aransas", "Nueces", "San Patricio"),
-#  "Killeen-Temple", c("Bell", "Coryell", "Lampasas"),
-#  "Beaumont-Port Arthur", c("Hardin", "Jefferson", "Orange"),
-#  "Amarillo", c("Armstrong", "Carson", "Potter", "Randall", "Oldham")
-#)
 
 # https://docs.google.com/document/d/1ETeXAfYOvArfLvlxExE0_xrO5M4ITC0_Am38CRusCko/edit#
 Disease <- tibble::tribble(
@@ -372,9 +340,9 @@ prep_counties <- function(DF, Grouper) {
 } ###############  end of prep_counties
 
 ############   Create Counties file
-Counties <<- prep_counties(DF, "County")
+County_calc <- prep_counties(DF, "County")
 ############   Create MSAs file
-MSAs <<- prep_counties(MSA, "MSA")
+MSAs <- prep_counties(MSA, "MSA")
 
 #---------------------------------------------------    
 #------------------- Mapping Data -------------------
@@ -585,7 +553,7 @@ print("--11--")
 #                               save files
 ######################################################################
 
-#      Counties - County level data with all calculations
+#   County_calc - County level data with all calculations
 #    County_pop - Counties and Population, largest first
 #   TestingData - Total tests by date
 #          MSAs - Metro areas with all calculations
@@ -597,7 +565,7 @@ print("--11--")
 
 path <- "/home/ajackson/Dropbox/Rprojects/Covid/Today_Data/"
 
-saveRDS(Counties, paste0(path,"Today_Counties.rds"))
+saveRDS(County_calc, paste0(path,"Today_County_calc.rds"))
 saveRDS(County_pop, paste0(path,"Today_County_pop.rds"))
 saveRDS(TestingData, paste0(path,"Today_TestingData.rds"))
 saveRDS(MSAs, paste0(path,"Today_MSAs.rds"))
