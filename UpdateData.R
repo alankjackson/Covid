@@ -14,6 +14,10 @@ library(readxl)
 
 options(stringsAsFactors = FALSE)
 
+cat("\n\n=============== UpdateData updates started =========\n\n")
+print(lubridate::now())
+cat("\n=============== UpdateData updates started =========\n\n")
+
 #url <- "https://txdshs.maps.arcgis.com/apps/opsdashboard/index.html#/ed483ecd702b4298ab01e8b9cafc8b83"
 
 #---------------------------------------------------------------------
