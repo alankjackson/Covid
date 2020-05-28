@@ -11,6 +11,10 @@ library(xfun)
 
 options(stringsAsFactors = FALSE)
 
+cat("\n\n=============== Harris Zipcode updates started =========\n\n")
+print(lubridate::now())
+cat("\n=============== Harris Zipcode updates started =========\n\n")
+
 url <- "https://harriscounty.maps.arcgis.com/apps/opsdashboard/index.html#/31370c72d3844e6b962fcf8490718821"
 #---------------------------------------------------------------------
 #   retrieve the webpage with a headless browser
@@ -44,7 +48,7 @@ saveRDS(parsed_pagesource,paste0("/home/ajackson/Dropbox/Rprojects/Covid/DailyBa
 #---------------------------------------------------------------------
 
 result <- read_html(parsed_pagesource) %>%
-  html_nodes(xpath='//*[@id="ember52"]') %>%
+  html_nodes(xpath='//*[@id="ember54"]') %>%
   html_text() %>% 
   str_replace_all("\n"," ") %>% 
   str_split("  +")
@@ -80,6 +84,11 @@ saveRDS(HarrisZip,paste0("/home/ajackson/Dropbox/Rprojects/Covid/DailyBackups/",
 saveRDS(HarrisZip,"/home/ajackson/Dropbox/Rprojects/Covid/HarrisZip.rds")
 # Also save to mirror site
 saveRDS(HarrisZip,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/HarrisZip.rds")
+
+
+cat("\n\n=============== Harris Zipcode updates finished =========\n\n")
+print(lubridate::now())
+cat("\n=============== Harris Zipcode updates finished =========\n\n")
 
 
 
