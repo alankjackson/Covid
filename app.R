@@ -574,13 +574,13 @@ ui <- basicPage(
                               "An_CFR",
                               label = h5("CFR (%)"),
                               step = 0.1,
-                              value = 2.5
+                              value = 4.1
                           ),
                           numericInput(
                               "An_DeathLag",
                               label = h5("Days to Death"),
                               step = 1.0,
-                              value = 13.00
+                              value = 12.00
                           )
                         ),
                     HTML("<hr>")
@@ -2527,6 +2527,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                         in_map_prisons,
                         in_map_meat_packers) {
     
+    print(":::::::  draw_map2")
     QuantScale <- TRUE
     # Create color scale
     Range <- range(MappingData[[in_county_color]], na.rm=TRUE)
