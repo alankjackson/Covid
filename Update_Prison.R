@@ -117,7 +117,7 @@ saveRDS(prisons ,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::tod
 # Save the real file for later use
 saveRDS(prisons,"/home/ajackson/Dropbox/Rprojects/Covid/Prisons.rds")
 # Also save to mirror site
-saveRDS(prisons,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Prisons.rds")
+#saveRDS(prisons,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Prisons.rds")
 
 
 cat("\n\n=============== Prison updates finished =========\n\n")
