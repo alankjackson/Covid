@@ -8,7 +8,7 @@ library(stringr)
 #library(httr)
 #library(xml2)
 #library(RSelenium)
-#library(xfun)
+library(xfun)
 
 #---------------------------------------------------------------------
 #   Extract Prison information
@@ -138,26 +138,42 @@ saveRDS(parsed_pagesource,paste0("/home/ajackson/Dropbox/Rprojects/Covid/DailyBa
 #---------------------------------------------------------------------
 
 result <- xml2::read_html(parsed_pagesource) %>%
+  # select out the part of the page you want to capture
   rvest::html_nodes(xpath='//*[@id="ember194"]') %>%
+  # convert it to a really long string, getting rid of html
   rvest::html_text() %>% 
+  # there are a lot of carriage returns in there, let's clean them out
   str_replace_all("\n"," ") %>% 
+  # Split string on long strings of spaces, returning a list
   str_split("  +")
 
+ 
+# get rid of title and extra line at end
 result <- result[[1]][3:(length(result[[1]])-1)]
 
+# every other element of list is a Unit, so let's combine the Unit name
+# with the table it used to head, to get the first iteration of a data frame
 res <- cbind.data.frame(split(result, 
                               rep(1:2, times=length(result)/2)), 
                         stringsAsFactors=F)
+#assign some better names
 names(res) <- c("Unit", "foo") 
 
 res <- res %>% 
+  # add dash after numbers for later splitting
   mutate(foo=str_replace_all(foo, "(\\d) ", "\\1 -")) %>% 
+  # remove all whitespace, some are tabs
   mutate(foo=str_remove_all(foo, "\\s*")) %>% 
+  # remove commas from numbers
   mutate(foo=str_remove_all(foo, ",")) %>% 
+  # split the field into 12 pieces
   separate(foo, letters[1:12], sep="-") %>% 
+  # select out the numeric fields
   select(Unit, b,d,f,h,j,l) %>% 
+  # make them numeric
   mutate_at(c("b","d","f","h","j","l"), as.numeric)
 
+# give every field a bright, shiny new name
 names(res) <- c("Unit", 
                 "Offender Active Cases",
                 "Offender Recovered",
@@ -167,8 +183,10 @@ names(res) <- c("Unit",
                 "Medical Isolation")
 
 
+# add a field with today's date
 res <- res %>% mutate(Date=lubridate::today()) 
 
+# let's see what it looks like - this is for QC
 res
 
 #---------------------------------------------------------------------
