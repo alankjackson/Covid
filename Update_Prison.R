@@ -4,11 +4,11 @@
 
 library(tidyverse)
 library(stringr)
-library(rvest)
-library(httr)
-library(xml2)
-library(RSelenium)
-library(xfun)
+#library(rvest)
+#library(httr)
+#library(xml2)
+#library(RSelenium)
+#library(xfun)
 
 #---------------------------------------------------------------------
 #   Extract Prison information
@@ -110,7 +110,7 @@ url <- "https://txdps.maps.arcgis.com/apps/opsdashboard/index.html#/dce4d7da6629
 #}
 
 # start the server and browser in headless mode
-rD <- rsDriver(browser="firefox",
+rD <- RSelenium::rsDriver(browser="firefox",
                extraCapabilities = list("moz:firefoxOptions" = list(
                  args = list('--headless')))
 )
@@ -137,9 +137,9 @@ saveRDS(parsed_pagesource,paste0("/home/ajackson/Dropbox/Rprojects/Covid/DailyBa
 #   Extract prison info
 #---------------------------------------------------------------------
 
-result <- read_html(parsed_pagesource) %>%
-  html_nodes(xpath='//*[@id="ember194"]') %>%
-  html_text() %>% 
+result <- xml2::read_html(parsed_pagesource) %>%
+  rvest::html_nodes(xpath='//*[@id="ember194"]') %>%
+  rvest::html_text() %>% 
   str_replace_all("\n"," ") %>% 
   str_split("  +")
 
@@ -168,7 +168,8 @@ names(res) <- c("Unit",
 
 
 res <- res %>% mutate(Date=lubridate::today()) 
-new_prisons
+
+res
 
 #---------------------------------------------------------------------
 #   Read in old data, append new data, and save
@@ -180,7 +181,7 @@ new_prisons
 ##prisons <- bind_rows(prisons, new_prisons)
 
 # Save an accumulated file in case of a failure
-saveRDS(prisons ,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),"_Prisons_2.rds"))
+saveRDS(res ,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),"_Prisons_2.rds"))
 # Save the real file for later use
 #saveRDS(prisons,"/home/ajackson/Dropbox/Rprojects/Covid/Prisons_2.rds")
 # Also save to mirror site
