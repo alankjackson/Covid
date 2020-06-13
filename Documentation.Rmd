@@ -246,6 +246,15 @@ Available measurements are the same as above. Averaging is done over a 5-day win
 
 Here I will successively subtract metropolitan regions from the state total based on user selection. This is a convenient way to compare various regions. Again, averaging is over a 5-day window.
 
+Note that the catch-all categories of regions named tiny, small, and moderate apply to the counties not in a metro area. 
+
+------------------------------------
+Category&nbsp;   |    Population range  
+-----------|------------------------
+tiny       |  < 5,000             
+small      |  5,000 - 25,000      
+moderate   |  25,000 - 100,000    
+
 ## Prisons
 
 Similar to the Counties tab, but for prisons in the state. Fewer displays, to fit the
