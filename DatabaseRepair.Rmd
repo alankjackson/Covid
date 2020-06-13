@@ -595,5 +595,25 @@ saveRDS(foo,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Prisons.rds")
 
 ```
 
+##  fix a day wrong in main file
+
+```{r bad day}
+
+DataLocation <- "/home/ajackson/Dropbox/Rprojects/Covid/"
+
+#   Case data
+DF <- readRDS(paste0(DataLocation, "Covid.rds"))
+
+DF[DF$Date=="2020-06-11",]$Cases <- DF[DF$Date=="2020-06-12",]$Cases
+DF[DF$Date=="2020-06-11",]$Deaths <- DF[DF$Date=="2020-06-12",]$Deaths
+
+DF <- DF %>% filter(Date!="2020-06-12")
+
+saveRDS(DF, paste0(DataLocation, "Covid.rds"))
+
+
+```
+
+
 
 
