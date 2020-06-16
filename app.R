@@ -2050,6 +2050,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     # Start each county at the minimum case spot and create an x-axis variable
     counties_case <- County_calc %>% 
       filter(Cases>in_case_start) %>%  
+      select(-n) %>% 
       group_by(County) %>% 
         arrange(Date) %>% 
         mutate(day = row_number()) %>% 
@@ -2114,6 +2115,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     }
     #browser()
     
+    foo <- 
     counties_case %>% 
       arrange(Date) %>% 
       group_by(County) %>% 
