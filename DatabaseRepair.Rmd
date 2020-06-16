@@ -354,23 +354,25 @@ inpath <- "/home/ajackson/Dropbox/Rprojects/Covid/TexasDataXcel/"
 utpath <- "/home/ajackson/Dropbox/Rprojects/Covid/"
 
 #         get cases
-df <- readxl::read_excel(paste0(inpath,"County_Case_Data_2020-05-12.xlsx"))
+df <- readxl::read_excel(paste0(inpath,"County_Case_Data_2020-06-13.xlsx"))
 
 # No data for March 14
+
+lastdate <- ncol(df)-11
 
 my_colnames <- c(
                  ymd("2020-03-10"),  
                  ymd("2020-03-11"),  
                  ymd("2020-03-12"),  
                  ymd("2020-03-13"),  
-                 ymd("2020-03-15")+0:58)
+                 ymd("2020-03-15")+0:lastdate)
 
 my_colnames <- my_colnames %>% 
                  format('%Y-%m-%d')
 my_colnames <- c("County", my_colnames)
 
 
-my_columns <- c(1, 7:69)
+my_columns <- c(1, 7:ncol(df))
 
 df <- df %>% 
   rename_at(my_columns,~ my_colnames)
@@ -384,9 +386,9 @@ foo <- df %>% mutate(Cases=as.numeric(Cases))
 
 # get deaths
 
-df <- readxl::read_excel(paste0(inpath,"Deaths_by_County_2020-05-12.xlsx"))
+df <- readxl::read_excel(paste0(inpath,"Deaths_by_County_2020-06-13.xlsx"))
 
-my_columns <- c(1, 9:12, 14:72)
+my_columns <- c(1, 9:12, 14:ncol(df))
 
 df <- df %>% 
   rename_at(my_columns,~ my_colnames)
@@ -611,6 +613,95 @@ DF <- DF %>% filter(Date!="2020-06-12")
 
 saveRDS(DF, paste0(DataLocation, "Covid.rds"))
 
+
+```
+
+## Add in prison data from June 10-14
+
+```{r fix prison June data}
+
+# Read in the old data
+
+path <- "/home/ajackson/Dropbox/Rprojects/Covid/DailyBackups/"
+
+filenames <- lubridate::ymd("2020-05-29")+(0:3)
+filenames <- c(filenames, lubridate::ymd("2020-06-04")+(0:10))
+
+embers <- c("195", "202", "202", "202", "202", "202", "202", "202", "202", "202",
+            "199", "199", "199", "199", "199")
+
+for (filename in filenames) {
+  filename <- lubridate::as_date(filename)
+  print(paste("---->", filename))
+  parsed_pagesource <- readRDS(paste0(path, as.character(filename), "_ParsedPagePrisons.rds"))
+  
+  #---------------------------------------------------------------------
+  #   Extract prison info
+  #---------------------------------------------------------------------
+  
+  # Select a unit to Zoom on Map
+  result <- xml2::read_html(parsed_pagesource) %>%
+    # select out the part of the page you want to capture
+    rvest::html_nodes(xpath='//*[@id="ember199"]') %>%
+    # convert it to a really long string, getting rid of html
+    rvest::html_text() %>% 
+    # there are a lot of carriage returns in there, let's clean them out
+    str_replace_all("\n"," ") %>% 
+    # Split string on long strings of spaces, returning a list
+    str_split("  +")
+  
+   
+  # get rid of title and extra line at end
+  result <- result[[1]][3:(length(result[[1]])-1)]
+  
+  # every other element of list is a Unit, so let's combine the Unit name
+  # with the table it used to head, to get the first iteration of a data frame
+  res <- cbind.data.frame(split(result, 
+                                rep(1:2, times=length(result)/2)), 
+                          stringsAsFactors=F)
+  #assign some better names
+  names(res) <- c("Unit", "foo") 
+  
+  res <- res %>% 
+    # add dash after numbers for later splitting
+    mutate(foo=str_replace_all(foo, "(\\d) ", "\\1 -")) %>% 
+    # remove all whitespace, some are tabs
+    mutate(foo=str_remove_all(foo, "\\s*")) %>% 
+    # remove commas from numbers
+    mutate(foo=str_remove_all(foo, ",")) %>% 
+    # split the field into 12 pieces
+    separate(foo, letters[1:12], sep="-") %>% 
+    # select out the numeric fields
+    select(Unit, b,d,f,h,j,l) %>% 
+    # make them numeric
+    mutate_at(c("b","d","f","h","j","l"), as.numeric)
+  
+  # give every field a bright, shiny new name
+  names(res) <- c("Unit", 
+                  "Offender Active Cases",
+                  "Offender Recovered",
+                  "Employee Active Cases",
+                  "Employee Recovered",
+                  "Medical Restriction",
+                  "Medical Isolation")
+  
+  
+  # add a field with date
+  res <- res %>% mutate(Date=filename) 
+  
+  saveRDS(res ,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",as.character(filename),"_Prisons_2.rds"))
+  
+}
+
+# Combine all daily of the new format into one file
+
+files <- dir(pattern = "*_Prisons_2.rds")
+
+prison <- files %>% 
+  map(read_rds) %>% 
+  reduce(rbind)
+
+prison <- prison %>% replace(is.na(.), 0)
 
 ```
 
