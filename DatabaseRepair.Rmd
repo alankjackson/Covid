@@ -703,6 +703,9 @@ prison <- files %>%
 
 prison <- prison %>% replace(is.na(.), 0)
 
+saveRDS(prison ,paste0("/home/ajackson/Dropbox/Rprojects/Covid/_Prisons_2.rds"))
+  
+
 ```
 
 
