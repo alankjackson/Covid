@@ -7,7 +7,7 @@ library(stringr)
 #library(rvest)
 #library(httr)
 #library(xml2)
-#library(RSelenium)
+library(RSelenium)
 library(xfun)
 
 #---------------------------------------------------------------------
@@ -139,7 +139,7 @@ saveRDS(parsed_pagesource,paste0("/home/ajackson/Dropbox/Rprojects/Covid/DailyBa
 
 result <- xml2::read_html(parsed_pagesource) %>%
   # select out the part of the page you want to capture
-  rvest::html_nodes(xpath='//*[@id="ember194"]') %>%
+  rvest::html_nodes(xpath='//*[@id="ember199"]') %>%
   # convert it to a really long string, getting rid of html
   rvest::html_text() %>% 
   # there are a lot of carriage returns in there, let's clean them out
