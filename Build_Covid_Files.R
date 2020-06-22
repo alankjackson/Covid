@@ -86,6 +86,26 @@ DF <- DF %>%
 
 DF <- DF %>% filter(Cases>0, !is.na(Cases))
 
+Prison_counties <- c("Jones", "Anderson", "Walker", "Medina", "Rusk",
+                     "Grimes", "Coryell", "Houston", "Pecos", "Angelina",
+                     "Bowie", "Jefferson", "Brazoria")
+
+#   De-step
+
+DF <- DF %>% 
+  mutate(Raw_cases=Cases) %>% 
+  arrange(County) %>% 
+  group_by(County) %>% 
+    mutate(delta=Cases-lag(Cases)) %>% 
+    replace_na(list(delta=0)) %>% 
+    mutate(Threshold=as.numeric((abs(delta)>25)&(abs(delta)/Cases>0.10))*delta) %>% 
+    mutate(Threshold=cumsum(Threshold)) %>%  
+  ungroup() %>% 
+  mutate(Cases=ifelse(County %in% Prison_counties, 
+                      Raw_cases-Threshold, 
+                      Raw_cases)) %>% 
+  select(-Threshold, -delta)
+
 # Add Statewide Totals per day
 
 DF <- DF %>% bind_rows(
