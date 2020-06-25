@@ -777,4 +777,76 @@ prison %>%
 
 ```
 
+## create a new standard prison file
+
+This file will have Date, Unit, and Cases - and nothing else
+
+```{r new standard prison file}
+
+# Read and process old format data
+
+DataLocation <- "/home/ajackson/Dropbox/Rprojects/Covid/"
+
+Old_Prison <- readRDS(paste0(DataLocation, "Prisons.rds"))
+
+Old_Prison <- Old_Prison %>% 
+  mutate(Cases = Positive_Tests + Recovered) %>% 
+  select(Unit, Date, Cases)
+
+# Read and process new data
+
+files <- dir(pattern = "*_Prisons_2.rds")
+
+New_Prison <- files %>% 
+  map(read_rds) %>% 
+  reduce(rbind)
+
+New_Prison <- New_Prison %>% replace(is.na(.), 0)
+
+New_Prison <- New_Prison %>% 
+  mutate(Cases = `Offender Active Cases`+`Offender Recovered`) %>% 
+  select(Unit, Date, Cases)
+
+# Join files
+
+foo <- rbind(Old_Prison, New_Prison)
+
+# Clean up
+
+foo$Unit <- str_replace(foo$Unit,"Ft. Stockton", "Fort Stockton")
+foo$Unit <- str_replace(foo$Unit,"\\.", "")
+foo$Unit <- str_replace(foo$Unit, "Hospital Galveston", "Hosp Galv")
+foo$Unit <- str_replace(foo$Unit, "ETTF", "East Texas")
+foo$Unit <- str_replace(foo$Unit, "1", "I")
+foo$Unit <- str_replace(foo$Unit, "3", "III")
+foo$Unit <- str_replace(foo$Unit, "4", "IV")
+foo$Unit <- str_replace(foo$Unit, "LeBlanc", "Leblanc")
+foo$Unit <- str_replace(foo$Unit, "Lindsay", "Lindsey")
+foo$Unit <- str_replace(foo$Unit, "\\.", "")
+foo$Unit <- str_replace(foo$Unit, "Sansaba", "San Saba")
+foo$Unit <- str_replace(foo$Unit, "Moore ", "Moore, ")
+foo$Unit <- str_replace(foo$Unit, "Mountain", "Mt")
+
+bad_units=c("Bambi", "Local Hospital", "No Longer in Custody")
+
+foo <- foo %>% 
+  filter(!str_detect(Unit, paste(bad_units, collapse="|")))
+
+sort(unique(foo$Unit))
+
+#  save
+
+saveRDS(foo, paste0(DataLocation, "Prisons_new.rds") )
+
+```
+
+
+
+
+
+
+
+
+
+
 
