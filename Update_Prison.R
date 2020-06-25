@@ -189,6 +189,34 @@ res <- res %>% mutate(Date=lubridate::today())
 # let's see what it looks like - this is for QC
 res
 
+# Clean up for appending to old data
+
+foo <- res %>% 
+  # get total cases
+  mutate(Cases=`Offender Active Cases`+`Offender Recovered`) %>% 
+  select(Date, Unit, Cases)
+
+foo$Unit <- str_replace(foo$Unit,"Ft. Stockton", "Fort Stockton")
+foo$Unit <- str_replace(foo$Unit,"\\.", "")
+foo$Unit <- str_replace(foo$Unit, "Hospital Galveston", "Hosp Galv")
+foo$Unit <- str_replace(foo$Unit, "ETTF", "East Texas")
+foo$Unit <- str_replace(foo$Unit, "1", "I")
+foo$Unit <- str_replace(foo$Unit, "3", "III")
+foo$Unit <- str_replace(foo$Unit, "4", "IV")
+foo$Unit <- str_replace(foo$Unit, "LeBlanc", "Leblanc")
+foo$Unit <- str_replace(foo$Unit, "Lindsay", "Lindsey")
+foo$Unit <- str_replace(foo$Unit, "\\.", "")
+foo$Unit <- str_replace(foo$Unit, "Sansaba", "San Saba")
+foo$Unit <- str_replace(foo$Unit, "Moore ", "Moore, ")
+foo$Unit <- str_replace(foo$Unit, "Mountain", "Mt")
+
+bad_units=c("Bambi", "Local Hospital", "No Longer in Custody")
+
+foo <- foo %>% 
+  filter(!str_detect(Unit, paste(bad_units, collapse="|")))
+
+head(foo)
+
 #---------------------------------------------------------------------
 #   Read in old data, append new data, and save
 #---------------------------------------------------------------------
@@ -196,14 +224,14 @@ res
 ################   Prison data
 
 # append the new data
-##prisons <- bind_rows(prisons, new_prisons)
+New_prisons <- bind_rows(prisons, foo)
 
 # Save an accumulated file in case of a failure
 saveRDS(res ,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),"_Prisons_2.rds"))
 # Save the real file for later use
-#saveRDS(prisons,"/home/ajackson/Dropbox/Rprojects/Covid/Prisons_2.rds")
+saveRDS(prisons,"/home/ajackson/Dropbox/Rprojects/Covid/Prisons_new.rds")
 # Also save to mirror site
-#saveRDS(prisons,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Prisons.rds")
+saveRDS(prisons,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Prisons_new.rds")
 
 
 cat("\n\n=============== Prison updates finished =========\n\n")
