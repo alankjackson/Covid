@@ -945,30 +945,10 @@ server <- function(input, output, session) {
       subdata <<- MSAs %>% 
         filter(MSA == in_area) %>% 
         mutate(Days=as.integer(Date-ymd("2020-03-10"))) %>% 
-      #    summarise(Cases=sum(Cases), 
-      #              new_cases=sum(new_cases), 
-      #              Days=mean(Days), 
-      #              Deaths=sum(Deaths, na.rm=TRUE)) %>% 
-      #    mutate(actual_deaths=Deaths-lag(Deaths, 1, 0)) %>%  
-      #    mutate(Deaths=na_if(Deaths, 0)) %>% 
         mutate(actual_deaths=new_deaths) %>% #########   temporary fix
         filter(between(Date, 
                        ymd(in_dateRange[1]), 
                        ymd(in_dateRange[2])))
-      #PopLabel <<- Regions %>% filter(Region==in_area)
-      #target <- unlist(DefineRegions$List[DefineRegions$Region==in_area])
-      #subdata <<- DF %>% 
-      #    filter(County %in% target) %>% 
-      #    group_by(Date) %>% 
-      #    summarise(Cases=sum(Cases), 
-      #              new_cases=sum(new_cases), 
-      #              Days=mean(Days), 
-      #              Deaths=sum(Deaths, na.rm=TRUE)) %>% 
-      #    mutate(actual_deaths=Deaths-lag(Deaths, 1, 0)) %>%  
-      #    mutate(Deaths=na_if(Deaths, 0)) %>% 
-      #    filter(between(Date, 
-      #                   ymd(in_dateRange[1]), 
-      #                   ymd(in_dateRange[2])))
       return()
       
     } else { # select a county
@@ -1108,7 +1088,140 @@ server <- function(input, output, session) {
    }
  } 
   
+  #---------------------------------------------------    
+  #-----------Fit an exponential model ---------------
+  #---------------------------------------------------    
   
+# fit_piecewise <- function(indep="Cases", # independent variable
+#                             projection=10,
+#                             calc_conf=TRUE) {
+#   print(paste(":::::::  fit_piecewise", indep))
+#   #  Drop rows that are zero
+#   data <- subdata %>% filter((!!sym(indep))>0) 
+#   #  Drop rows that are equal to previous row
+#   data <- subdata %>% 
+#     filter((!!sym(indep))>0) %>% 
+#     filter(!is.na((!!sym(indep)))) %>% 
+#     mutate(actual=!!as.name(indep)-lag(!!as.name(indep), 1, 0)) %>% 
+#     filter(actual>0) %>% 
+#     mutate(!!indep:=cumsum(actual))
+#   
+#   #    Too few cases to do a fit
+#   if ((sum(!is.na(data[,indep][[1]]))<8) ||
+#       (nrow(unique(data[,indep]))<8)) {
+#     print(paste(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>", data$County[1]))
+#     if (indep=="Cases") {
+#       case_fit <<- tibble( Days=NA, Date=NA,!!indep:=NA,
+#                            upper_conf=NA, lower_conf=NA) 
+#       case_params <<- list(m=NA, b=NA, Rsqr=NA)
+#       return()
+#     } else {
+#       death_fit <<- tibble( Days=NA, Date=NA,!!indep:=NA,
+#                             upper_conf=NA, lower_conf=NA) 
+#       death_params <<- list(m=NA, b=NA, Rsqr=NA)
+#       return()
+#     }
+#   }
+#   #   Go projection days into future
+#   begin <- data$Date[1] # date of first reported case
+#   LastDate <- data[nrow(data),]$Date
+#   lastday <- as.integer(LastDate - begin) + 1 # last day of real data
+#   dayseq <- data$Days
+#   dayseq <- c(dayseq,(dayseq[length(dayseq)]+1):
+#                 (dayseq[length(dayseq)]+projection))
+#   dateseq <- data$Date
+#   dateseq <- as_date(c(dateseq,(dateseq[length(dateseq)]+1): 
+#                          (dateseq[length(dateseq)]+projection)))
+#   x <- data$Days
+#   y <- data[,indep][[1]] 
+#   my_data <- tibble(x=x, y=y)
+#}
+#  fit_segment <- function(data, start) {
+#    
+#    oldRsqr <- 0
+#    for (i in ((start-8):0)){ # count backwards
+#      #print(paste("==== ", i, start))
+#      my_data <- data %>% 
+#        select(x=Days, y=Cases)
+#      
+#      my_data <- my_data[i:start,]
+#      
+#      model <- lm(log10(y) ~ x , data=my_data)
+#      worsening <- ((Rsqr<0.98) || 
+#                      (max(10**model[["fitted.values"]]-my_data$y, na.rm=TRUE)
+#                       > max(0.05*my_data$y, na.rm=TRUE))) &
+#        (start-i>8)
+#      
+#      m <- model[["coefficients"]][["x"]]
+#      b <- model[["coefficients"]][["(Intercept)"]]
+#      Rsqr <- summary(model)$adj.r.squared
+#      std_dev <- sigma(model)
+#      double <- signif(log10(2)/m,3)
+#      
+#      if (worsening){ # Rsqr has hit a maximum
+#        return(list(stop=i,
+#                    Rsqr=oldRsqr,
+#                    m=old_m,
+#                    b=old_b,
+#                    double=old_double,
+#                    model=old_model))
+#      }
+#      oldRsqr <-  Rsqr
+#      old_m <- m
+#      old_b <- b
+#      old_double <- double
+#      old_model <- model
+#    }
+#    return(list(stop=i,
+#                Rsqr=Rsqr,
+#                m=m,
+#                b=b,
+#                double=double,
+#                model=model))
+#  }
+#  
+#  
+#  for (county in bigcounties$County){
+#    
+#    #print(paste("---->>>>>>", county))
+#    
+#    df <- Covid_data %>% filter(County==county) %>% 
+#      mutate(Cases=na_if(Cases, 0)) %>% 
+#      filter(Cases>0) %>% 
+#      mutate(Days=Days-min(Days)) # renormalize Days
+#    
+#    #     exponential fits
+#    results <- tibble(start=numeric(0),
+#                      stop=numeric(0), 
+#                      m=numeric(0), 
+#                      b=numeric(0), 
+#                      double=numeric(0), 
+#                      Rsqr=numeric(0),
+#                      model=list(),
+#                      tidiness=list())
+#    
+#    start <- nrow(df)-1
+#    while (start >=8) {
+#      answers <- fit_segment(df, start)
+#      results <- results %>% 
+#        add_row(start=start, stop=answers[["stop"]],
+#                m=answers[["m"]], b=answers[["b"]], 
+#                double=answers[["double"]],
+#                Rsqr=answers[["Rsqr"]], model=list(answers[["model"]]),
+#                tidiness=list(tidy(answers[["model"]])))
+#      start <- answers[["stop"]]-1
+#    }
+#    lines <- NULL
+#    for (i in 1:nrow(results)) {
+#      foo <- augment(results$model[[i]],
+#                     newdata=tibble(x=results$start[i]:results$stop[i]) ) %>% 
+#        mutate(y=10**(.fitted), color=i)
+#      lines <- rbind(lines,foo) 
+#    }
+#    lines$color <- as_factor(lines$color)
+#    results$Cases <- sort(df[(df$Days %in% results$start),]$Cases, decreasing=TRUE)
+    
+
   #---------------------------------------------------    
   #------------------- Fit Logistic function ---------
   #---------------------------------------------------    
