@@ -98,49 +98,49 @@ Disease <- tibble::tribble(
                             )
 
 #          Calculate doubling times along whole vector
-doubling <- function(cases, window, County) {
-  print("---->>>>")
-  print(County[1])
-  if (length(cases)<10){
-    return(rep(NA,length(cases)))
-  }
-  halfwidth <- as.integer(window/2)
-  rolling_lm <- tibbletime::rollify(.f = function(logcases, Days) {
-    lm(logcases ~ Days)
-  }, 
-  window = 5, 
-  unlist = FALSE) 
-  
-  foo <- 
-    tibble(Days = 1:length(cases), logcases = log10(cases)) %>%
-    mutate(roll_lm = rolling_lm(logcases, Days)) %>% 
-    filter(!is.na(roll_lm)) %>%
-    mutate(tidied = purrr::map(roll_lm, broom::tidy)) %>%
-    unnest(tidied) %>%
-    filter(term=="Days") %>% 
-    mutate(m=estimate) %>% 
-    #   calculate doubling time
-    mutate(m=signif(log10(2)/m,3)) %>% 
-    mutate(m=replace(m, m>200, NA)) %>%  
-    mutate(m=replace(m, m<=0, NA)) %>% 
-    select(m)
-  return(matlab::padarray(foo[[1]], c(0,halfwidth), "replicate"))
-}
+#doubling <- function(cases, window, County) {
+#  print("---->>>>")
+#  print(County[1])
+#  if (length(cases)<10){
+#    return(rep(NA,length(cases)))
+#  }
+#  halfwidth <- as.integer(window/2)
+#  rolling_lm <- tibbletime::rollify(.f = function(logcases, Days) {
+#    lm(logcases ~ Days)
+#  }, 
+#  window = 5, 
+#  unlist = FALSE) 
+#  
+#  foo <- 
+#    tibble(Days = 1:length(cases), logcases = log10(cases)) %>%
+#    mutate(roll_lm = rolling_lm(logcases, Days)) %>% 
+#    filter(!is.na(roll_lm)) %>%
+#    mutate(tidied = purrr::map(roll_lm, broom::tidy)) %>%
+#    unnest(tidied) %>%
+#    filter(term=="Days") %>% 
+#    mutate(m=estimate) %>% 
+#    #   calculate doubling time
+#    mutate(m=signif(log10(2)/m,3)) %>% 
+#    mutate(m=replace(m, m>200, NA)) %>%  
+#    mutate(m=replace(m, m<=0, NA)) %>% 
+#    select(m)
+#  return(matlab::padarray(foo[[1]], c(0,halfwidth), "replicate"))
+#}
 
 #     Calculate a rolling average
-attribute <- function(foo, attribute, grouper){
-  #   grouper = grouping variable (County)
-  #   attribute = column in data frame to rolling average
-  foo %>% 
-    group_by(!!grouper) %>% 
-    arrange(Date) %>% 
-    mutate(avg=zoo::rollapply(!!attribute, window, 
-                              FUN=function(x) mean(x, na.rm=TRUE),
-                              partial=TRUE,
-                              fill=c(0, NA, last(!!attribute)))) %>% 
-    ungroup()
-  
-}
+#attribute <- function(foo, attribute, grouper){
+#  #   grouper = grouping variable (County)
+#  #   attribute = column in data frame to rolling average
+#  foo %>% 
+#    group_by(!!grouper) %>% 
+#    arrange(Date) %>% 
+#    mutate(avg=zoo::rollapply(!!attribute, window, 
+#                              FUN=function(x) mean(x, na.rm=TRUE),
+#                              partial=TRUE,
+#                              fill=c(0, NA, last(!!attribute)))) %>% 
+#    ungroup()
+#  
+#}
 
 #   trim outliers
 
@@ -170,76 +170,76 @@ isnt_out_z <- function(x, thres = 8, na.rm = TRUE) {
   )
 
 print("--------1----------")
- prep_counties <- function(DF, Grouper) { 
-  
-print("--------2----------")
-  window <- 5
-  Grouper_str <- Grouper
-  Grouper <- rlang::sym(Grouper)
-  
-  #---------------  Clean up and calc base quantities
-print("--------3----------")
-  foo <- DF %>%     
-    group_by(!!Grouper) %>% 
-      arrange(Date) %>% 
-      mutate(day = row_number()) %>% 
-      add_tally() %>% 
-    ungroup() %>% 
-    select(!!Grouper, Cases, Deaths, Date, new_cases, new_deaths, Population, n) %>% 
-    filter(!!Grouper!="Total") %>% 
-    filter(!!Grouper!="Pending County Assignment") %>% 
-    replace_na(list(Cases=0, Deaths=0, new_cases=0, new_deaths=0)) %>% 
-    group_by(!!Grouper) %>%
-      arrange(Date) %>% 
-      mutate(pct_chg=100*new_cases/lag(Cases, default=Cases[1])) %>%
-      mutate(active_cases=Cases-lag(Cases, n=14, default=0)) %>%
-      mutate(deaths_percase=Deaths/Cases) %>%
-      mutate(doubling=doubling(Cases, window, !!Grouper)) %>% 
-    ungroup() 
-
-print("--------4----------")
-  #----------------- Trim outliers and force to be >0
-  
-  for (base in calc_controls$base[calc_controls$trim]){
-    for (grp in unique(foo[[Grouper_str]])) {
-      foo[foo[[Grouper_str]]==grp,][base] <- isnt_out_z((foo[foo[[Grouper_str]]==grp,][[base]]))
-    }
-  }
-  for (base in calc_controls$base[calc_controls$positive]){
-    foo[base] <- pmax(0, foo[[base]])
-  }
-  
-  #----------------- Calc Rolling Average
-  
-  inputs <- calc_controls$base[calc_controls$avg==TRUE]
-  
-  foo <- foo %>% 
-    group_by(!!Grouper) %>% 
-    mutate_at(inputs, list(avg = ~ zoo::rollapply(., window, 
-                                                  FUN=function(x) mean(x, na.rm=TRUE),
-                                                  fill=c(first(.), NA, last(.))))) %>% 
-    rename_at(vars(ends_with("_avg")), 
-              list(~ paste("avg", gsub("_avg", "", .), sep = "_")))
-  
-  foo <- foo %>% 
-    mutate(pct_chg=na_if(pct_chg, 0)) %>% 
-    mutate(pct_chg=replace(pct_chg, pct_chg>30, NA)) %>% 
-    mutate(pct_chg=replace(pct_chg, pct_chg<0.1, NA)) %>% 
-    mutate(avg_pct_chg=na_if(avg_pct_chg, 0)) %>% 
-    mutate(avg_pct_chg=replace(avg_pct_chg, avg_pct_chg>30, NA)) %>% 
-    mutate(avg_pct_chg=replace(avg_pct_chg, avg_pct_chg<0.1, NA))
-  
-  #----------------- Calc per capitas
-  
-  inputs <- calc_controls$base[calc_controls$percap==TRUE]
-  inputs <- c(paste0("avg_", inputs), inputs)
-  
-  foo <- foo %>% 
-    mutate_at(inputs, list(percap = ~ . / Population * 1.e5)) 
-  
-  return(foo)
-  
- }
+# prep_counties <- function(DF, Grouper) { 
+#  
+#print("--------2----------")
+#  window <- 5
+#  Grouper_str <- Grouper
+#  Grouper <- rlang::sym(Grouper)
+#  
+#  #---------------  Clean up and calc base quantities
+#print("--------3----------")
+#  foo <- DF %>%     
+#    group_by(!!Grouper) %>% 
+#      arrange(Date) %>% 
+#      mutate(day = row_number()) %>% 
+#      add_tally() %>% 
+#    ungroup() %>% 
+#    select(!!Grouper, Cases, Deaths, Date, new_cases, new_deaths, Population, n) %>% 
+#    filter(!!Grouper!="Total") %>% 
+#    filter(!!Grouper!="Pending County Assignment") %>% 
+#    replace_na(list(Cases=0, Deaths=0, new_cases=0, new_deaths=0)) %>% 
+#    group_by(!!Grouper) %>%
+#      arrange(Date) %>% 
+#      mutate(pct_chg=100*new_cases/lag(Cases, default=Cases[1])) %>%
+#      mutate(active_cases=Cases-lag(Cases, n=14, default=0)) %>%
+#      mutate(deaths_percase=Deaths/Cases) %>%
+#      mutate(doubling=doubling(Cases, window, !!Grouper)) %>% 
+#    ungroup() 
+#
+#print("--------4----------")
+#  #----------------- Trim outliers and force to be >0
+#  
+#  for (base in calc_controls$base[calc_controls$trim]){
+#    for (grp in unique(foo[[Grouper_str]])) {
+#      foo[foo[[Grouper_str]]==grp,][base] <- isnt_out_z((foo[foo[[Grouper_str]]==grp,][[base]]))
+#    }
+#  }
+#  for (base in calc_controls$base[calc_controls$positive]){
+#    foo[base] <- pmax(0, foo[[base]])
+#  }
+#  
+#  #----------------- Calc Rolling Average
+#  
+#  inputs <- calc_controls$base[calc_controls$avg==TRUE]
+#  
+#  foo <- foo %>% 
+#    group_by(!!Grouper) %>% 
+#    mutate_at(inputs, list(avg = ~ zoo::rollapply(., window, 
+#                                                  FUN=function(x) mean(x, na.rm=TRUE),
+#                                                  fill=c(first(.), NA, last(.))))) %>% 
+#    rename_at(vars(ends_with("_avg")), 
+#              list(~ paste("avg", gsub("_avg", "", .), sep = "_")))
+#  
+#  foo <- foo %>% 
+#    mutate(pct_chg=na_if(pct_chg, 0)) %>% 
+#    mutate(pct_chg=replace(pct_chg, pct_chg>30, NA)) %>% 
+#    mutate(pct_chg=replace(pct_chg, pct_chg<0.1, NA)) %>% 
+#    mutate(avg_pct_chg=na_if(avg_pct_chg, 0)) %>% 
+#    mutate(avg_pct_chg=replace(avg_pct_chg, avg_pct_chg>30, NA)) %>% 
+#    mutate(avg_pct_chg=replace(avg_pct_chg, avg_pct_chg<0.1, NA))
+#  
+#  #----------------- Calc per capitas
+#  
+#  inputs <- calc_controls$base[calc_controls$percap==TRUE]
+#  inputs <- c(paste0("avg_", inputs), inputs)
+#  
+#  foo <- foo %>% 
+#    mutate_at(inputs, list(percap = ~ . / Population * 1.e5)) 
+#  
+#  return(foo)
+#  
+# }
 
 span <- function(vector){ # range spanned by a vector
   foo <- range(vector, na.rm=TRUE)
