@@ -393,21 +393,6 @@ Prison_load <- Prison %>% # inmates per county
     summarise(Population=sum(Population)) %>% 
   ungroup
 
-#foo <- left_join(MappingData, Prison_load, by="County") %>% 
-#  select(County, Population=Population.x,
-#         inmates=Population.y) %>% 
-#  mutate(inmate_pct=signif(100*inmates/Population,3)) %>%  
-#  select(County, inmate_pct ) %>% 
-#  mutate(prison_size=ifelse(inmate_pct>1, 
-#                            "Large Inmate Pop",
-#                            "Small Inmate Pop")) %>% 
-#  replace_na(list(prison_size="Small Inmate Pop")) %>% 
-#  mutate(prison=factor(prison_size, levels=c("Small Inmate Pop", "Large Inmate Pop"))) %>% 
-#  select(County, prison_size)
-#
-#print("--8--")
-#MappingData$prison_size <- foo$prison_size
-
 Prison_covid <- Prison_covid %>% 
   mutate(Unit=str_replace(Unit, "ETTF", "East Texas")) %>% 
   mutate(Unit=str_replace(Unit, "Fort Stockton", "Ft. Stockton")) %>% 
