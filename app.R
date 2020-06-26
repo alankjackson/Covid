@@ -1092,9 +1092,9 @@ server <- function(input, output, session) {
   #-----------Fit an exponential model ---------------
   #---------------------------------------------------    
   
-# fit_piecewise <- function(indep="Cases", # independent variable
-#                             projection=10,
-#                             calc_conf=TRUE) {
+ fit_piecewise <- function(indep="Cases", # independent variable
+                             projection=10,
+                             calc_conf=TRUE) {
 #   print(paste(":::::::  fit_piecewise", indep))
 #   #  Drop rows that are zero
 #   data <- subdata %>% filter((!!sym(indep))>0) 
@@ -1220,6 +1220,8 @@ server <- function(input, output, session) {
 #    }
 #    lines$color <- as_factor(lines$color)
 #    results$Cases <- sort(df[(df$Days %in% results$start),]$Cases, decreasing=TRUE)
+
+ }
     
 
   #---------------------------------------------------    
