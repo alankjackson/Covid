@@ -111,10 +111,11 @@ DF <- DF %>%
 DF <- DF %>% bind_rows(
   DF %>%
     group_by(Date) %>% 
-    summarise(Cases = sum(Cases), Deaths=sum(Deaths)) %>% 
-    mutate(County="Total")
-) %>% 
-  arrange(Date)
+      summarise(Cases = sum(Cases), Deaths=sum(Deaths)) %>% 
+      mutate(County="Total")
+  ) %>% 
+    arrange(Date) %>% 
+  ungroup()
 
 # Calc days since March 10, the starting point for everything
 
@@ -138,11 +139,11 @@ print("--2--")
 
 DF <- DF %>% 
   group_by(County) %>% 
-  arrange(Date) %>% 
-  mutate(new_cases=(Cases-lag(Cases, default=Cases[1]))) %>%
-  mutate(new_cases=pmax(new_cases, 0)) %>% # truncate negative numbers
-  mutate(new_deaths=(Deaths-lag(Deaths, default=Deaths[1]))) %>%
-  mutate(new_deaths=pmax(new_deaths, 0)) %>% # truncate negative numbers
+    arrange(Date) %>% 
+    mutate(new_cases=(Cases-lag(Cases, default=Cases[1]))) %>%
+    mutate(new_cases=pmax(new_cases, 0)) %>% # truncate negative numbers
+    mutate(new_deaths=(Deaths-lag(Deaths, default=Deaths[1]))) %>%
+    mutate(new_deaths=pmax(new_deaths, 0)) %>% # truncate negative numbers
   ungroup() %>% 
   left_join(County_pop, by="County") 
 
@@ -346,7 +347,8 @@ prep_counties <- function(DF, Grouper) {
                                                   FUN=function(x) mean(x, na.rm=TRUE),
                                                   fill=c(first(.), NA, last(.))))) %>% 
     rename_at(vars(ends_with("_avg")), 
-              list(~ paste("avg", gsub("_avg", "", .), sep = "_")))
+              list(~ paste("avg", gsub("_avg", "", .), sep = "_"))) %>% 
+  ungroup()
   
   foo <- foo %>% 
     mutate(pct_chg=na_if(pct_chg, 0)) %>% 
@@ -391,7 +393,7 @@ Prison <- Prison %>%
 Prison_load <- Prison %>% # inmates per county
   group_by(County) %>% 
     summarise(Population=sum(Population)) %>% 
-  ungroup
+  ungroup()
 
 Prison_covid <- Prison_covid %>% 
   mutate(Unit=str_replace(Unit, "ETTF", "East Texas")) %>% 
@@ -438,16 +440,16 @@ prep_prisons <- function() {
     # Start each county at 10 cases
     filter(Cases>10) %>%  
     group_by(Unit) %>% 
-    arrange(Date) %>% 
-    mutate(day = row_number()) %>% 
-    add_tally() %>% 
+      arrange(Date) %>% 
+      mutate(day = row_number()) %>% 
+      add_tally() %>% 
     ungroup() %>% 
     filter(n>5) %>% # must have at least 5 datapoints
     select(Unit, Cases, Date, new_cases, Population, County) %>% 
     group_by(Unit) %>%
-    arrange(Date) %>% 
-    mutate(pct_chg=100*new_cases/lag(Cases, default=Cases[1])) %>% 
-    mutate(doubling=doubling(Cases, window, Unit)) %>% 
+      arrange(Date) %>% 
+      mutate(pct_chg=100*new_cases/lag(Cases, default=Cases[1])) %>% 
+      mutate(doubling=doubling(Cases, window, Unit)) %>% 
     ungroup()
   
   #----------------- Trim outliers and force to be >0
@@ -470,7 +472,8 @@ prep_prisons <- function() {
     mutate_at(inputs, list(avg = ~ zoo::rollmean(., window, 
                                                  fill=c(first(.), NA, last(.))))) %>% 
     rename_at(vars(ends_with("_avg")), 
-              list(~ paste("avg", gsub("_avg", "", .), sep = "_")))
+              list(~ paste("avg", gsub("_avg", "", .), sep = "_"))) %>% 
+    ungroup()
   
   foo <- foo %>% 
     mutate(pct_chg=na_if(pct_chg, 0)) %>% 
@@ -546,7 +549,7 @@ TodayData <- TodayData %>%
 meat <- meat_packing %>% 
   group_by(County) %>% 
   summarise(Employees=sum(Employees, na.rm=TRUE)) %>% 
-  ungroup
+  ungroup()
 foo <- left_join(TodayData, meat, by="County") %>% 
   mutate(meaty=ifelse(is.na(Employees), 
                       FALSE,
