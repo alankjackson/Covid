@@ -515,7 +515,8 @@ ui <- basicPage(
                       choices = list(
                         "Exponential" = "do fit",
                         "Logistic" = "logistic",
-                        "Worldwide (0.13)" = "standard",
+                        "Piecewise" = "piecewise",
+                        #"Worldwide (0.13)" = "standard",
                         "User entry" = "user"
                       ),
                       selected = "do fit"
@@ -942,7 +943,7 @@ server <- function(input, output, session) {
                           Population=MSA_raw$Population[MSA_raw$MSA==in_area], 
                           Label=in_area)
       target <- unlist(MSA_raw$Counties[MSA_raw$MSA==in_area])
-      subdata <<- MSAs %>% 
+      subdata <<- MSAs %>% ungroup() %>% 
         filter(MSA == in_area) %>% 
         mutate(Days=as.integer(Date-ymd("2020-03-10"))) %>% 
         mutate(actual_deaths=new_deaths) %>% #########   temporary fix
@@ -962,7 +963,7 @@ server <- function(input, output, session) {
       
       PopLabel <<- County_pop %>% filter(County==county) %>% 
                      mutate(Label=paste(county, "County"))
-      subdata <<- County_calc %>% filter(County==county) %>% 
+      subdata <<- County_calc %>% filter(County==county) %>%  ungroup() %>% 
                          #mutate(actual_deaths=Deaths-lag(Deaths, 1, 0)) %>% 
                          mutate(Days=as.integer(Date-ymd("2020-03-10"))) %>% 
                          filter(between(Date, 
@@ -1089,137 +1090,158 @@ server <- function(input, output, session) {
  } 
   
   #---------------------------------------------------    
-  #-----------Fit an exponential model ---------------
+  #-----------Fit a piecewise exponential model ------
   #---------------------------------------------------    
   
  fit_piecewise <- function(indep="Cases", # independent variable
-                             projection=10,
-                             calc_conf=TRUE) {
-#   print(paste(":::::::  fit_piecewise", indep))
-#   #  Drop rows that are zero
-#   data <- subdata %>% filter((!!sym(indep))>0) 
-#   #  Drop rows that are equal to previous row
-#   data <- subdata %>% 
-#     filter((!!sym(indep))>0) %>% 
-#     filter(!is.na((!!sym(indep)))) %>% 
-#     mutate(actual=!!as.name(indep)-lag(!!as.name(indep), 1, 0)) %>% 
-#     filter(actual>0) %>% 
-#     mutate(!!indep:=cumsum(actual))
-#   
-#   #    Too few cases to do a fit
-#   if ((sum(!is.na(data[,indep][[1]]))<8) ||
-#       (nrow(unique(data[,indep]))<8)) {
-#     print(paste(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>", data$County[1]))
-#     if (indep=="Cases") {
-#       case_fit <<- tibble( Days=NA, Date=NA,!!indep:=NA,
-#                            upper_conf=NA, lower_conf=NA) 
-#       case_params <<- list(m=NA, b=NA, Rsqr=NA)
-#       return()
-#     } else {
-#       death_fit <<- tibble( Days=NA, Date=NA,!!indep:=NA,
-#                             upper_conf=NA, lower_conf=NA) 
-#       death_params <<- list(m=NA, b=NA, Rsqr=NA)
-#       return()
-#     }
-#   }
-#   #   Go projection days into future
-#   begin <- data$Date[1] # date of first reported case
-#   LastDate <- data[nrow(data),]$Date
-#   lastday <- as.integer(LastDate - begin) + 1 # last day of real data
-#   dayseq <- data$Days
-#   dayseq <- c(dayseq,(dayseq[length(dayseq)]+1):
-#                 (dayseq[length(dayseq)]+projection))
-#   dateseq <- data$Date
-#   dateseq <- as_date(c(dateseq,(dateseq[length(dateseq)]+1): 
-#                          (dateseq[length(dateseq)]+projection)))
-#   x <- data$Days
-#   y <- data[,indep][[1]] 
-#   my_data <- tibble(x=x, y=y)
-#}
-#  fit_segment <- function(data, start) {
-#    
-#    oldRsqr <- 0
-#    for (i in ((start-8):0)){ # count backwards
-#      #print(paste("==== ", i, start))
-#      my_data <- data %>% 
-#        select(x=Days, y=Cases)
-#      
-#      my_data <- my_data[i:start,]
-#      
-#      model <- lm(log10(y) ~ x , data=my_data)
-#      worsening <- ((Rsqr<0.98) || 
-#                      (max(10**model[["fitted.values"]]-my_data$y, na.rm=TRUE)
-#                       > max(0.05*my_data$y, na.rm=TRUE))) &
-#        (start-i>8)
-#      
-#      m <- model[["coefficients"]][["x"]]
-#      b <- model[["coefficients"]][["(Intercept)"]]
-#      Rsqr <- summary(model)$adj.r.squared
-#      std_dev <- sigma(model)
-#      double <- signif(log10(2)/m,3)
-#      
-#      if (worsening){ # Rsqr has hit a maximum
-#        return(list(stop=i,
-#                    Rsqr=oldRsqr,
-#                    m=old_m,
-#                    b=old_b,
-#                    double=old_double,
-#                    model=old_model))
-#      }
-#      oldRsqr <-  Rsqr
-#      old_m <- m
-#      old_b <- b
-#      old_double <- double
-#      old_model <- model
-#    }
-#    return(list(stop=i,
-#                Rsqr=Rsqr,
-#                m=m,
-#                b=b,
-#                double=double,
-#                model=model))
-#  }
-#  
-#  
-#  for (county in bigcounties$County){
-#    
-#    #print(paste("---->>>>>>", county))
-#    
-#    df <- Covid_data %>% filter(County==county) %>% 
-#      mutate(Cases=na_if(Cases, 0)) %>% 
-#      filter(Cases>0) %>% 
-#      mutate(Days=Days-min(Days)) # renormalize Days
-#    
-#    #     exponential fits
-#    results <- tibble(start=numeric(0),
-#                      stop=numeric(0), 
-#                      m=numeric(0), 
-#                      b=numeric(0), 
-#                      double=numeric(0), 
-#                      Rsqr=numeric(0),
-#                      model=list(),
-#                      tidiness=list())
-#    
-#    start <- nrow(df)-1
-#    while (start >=8) {
-#      answers <- fit_segment(df, start)
-#      results <- results %>% 
-#        add_row(start=start, stop=answers[["stop"]],
-#                m=answers[["m"]], b=answers[["b"]], 
-#                double=answers[["double"]],
-#                Rsqr=answers[["Rsqr"]], model=list(answers[["model"]]),
-#                tidiness=list(tidy(answers[["model"]])))
-#      start <- answers[["stop"]]-1
-#    }
-#    lines <- NULL
-#    for (i in 1:nrow(results)) {
-#      foo <- augment(results$model[[i]],
-#                     newdata=tibble(x=results$start[i]:results$stop[i]) ) %>% 
-#        mutate(y=10**(.fitted), color=i)
-#      lines <- rbind(lines,foo) 
-#    }
-#    lines$color <- as_factor(lines$color)
-#    results$Cases <- sort(df[(df$Days %in% results$start),]$Cases, decreasing=TRUE)
+                           projection=10,
+                           min_length=8,
+                           min_rsqr=0.99,
+                           calc_conf=TRUE) {
+   print(paste(":::::::  fit_piecewise", indep))
+   #    Add NA's for missing dates
+   data <- subdata %>% 
+     complete(nesting(Days=(first(Days):last(Days)),
+                      Date=seq.Date(first(Date), last(Date), by="day") )) 
+   
+   #    Too few cases to do a fit
+   if ((sum(!is.na(data[,indep][[1]]))<8) ||
+       (nrow(unique(data[,indep]))<8)) {
+     print(paste(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>", data$County[1]))
+     if (indep=="Cases") {
+       case_fit <<- tibble( Days=NA, Date=NA,!!indep:=NA,
+                            upper_conf=NA, lower_conf=NA) 
+       case_params <<- list(m=NA, b=NA, Rsqr=NA)
+       return()
+     } else {
+       death_fit <<- tibble( Days=NA, Date=NA,!!indep:=NA,
+                             upper_conf=NA, lower_conf=NA) 
+       death_params <<- list(m=NA, b=NA, Rsqr=NA)
+       return()
+     }
+   }
+
+  fit_segment <- function(data, start, min_length, min_rsqr) { # fit one segment and return when done
+    
+    oldRsqr <- 0
+    for (i in ((start-min_length):0)){ # count backwards
+      my_data <- data %>% select(x=Days, y=Cases)
+      my_data <- my_data[i:start,]
+      
+      
+      model <- lm(log10(y) ~ x , data=my_data)
+      
+      m <- model[["coefficients"]][["x"]]
+      b <- model[["coefficients"]][["(Intercept)"]]
+      Rsqr <- summary(model)$adj.r.squared
+      std_dev <- sigma(model)
+      double <- signif(log10(2)/m,3)
+      
+      worsening <- ((Rsqr<min_rsqr) || 
+                    (max(10**model[["fitted.values"]]-my_data$y, na.rm=TRUE)
+                     > max(0.05*my_data$y, na.rm=TRUE))) & (start-i>min_length)
+      
+      if (worsening){ # Rsqr too small or jump > 5%
+        return(list(stop=i,
+                    Rsqr=oldRsqr,
+                    m=old_m,
+                    b=old_b,
+                    double=old_double,
+                    model=old_model))
+      }
+      oldRsqr <-  Rsqr
+      old_m <- m
+      old_b <- b
+      old_double <- double
+      old_model <- model
+    }
+    return(list(stop=i,
+                Rsqr=Rsqr,
+                m=m,
+                b=b,
+                double=double,
+                model=model))
+  } # end fit_segment function
+  
+    #     initialize results tibble
+    results <- tibble(start=numeric(0),
+                      stop=numeric(0), 
+                      m=numeric(0), 
+                      b=numeric(0), 
+                      double=numeric(0), 
+                      Rsqr=numeric(0),
+                      model=list(),
+                      tidiness=list())
+      fits <- tibble(Days=numeric(0),
+                     #Date=dateseq,
+                     !!indep:=numeric(0),
+                     lower_conf=numeric(0),
+                     upper_conf=numeric(0))
+      params <- list(m=numeric(0), 
+                     b=numeric(0), 
+                     Rsqr=numeric(0),
+                     mid_day=numeric(0),
+                     yvalue=numeric(0))
+    
+    start <- nrow(data)
+    while (start >=min_length) {
+      answers <- fit_segment(data, start, min_length, min_rsqr)
+      
+      #  Estimate confidence bands 
+      model <- answers[["model"]]
+      stop <- answers[["stop"]]
+      DayFrame <- data.frame(x=data$Days[stop:start])
+      if (start == (nrow(data))) {
+        lastday <- last(data$Days)
+        DayFrame <- data.frame(x=c(data$Days[stop:start],(lastday+1):(lastday+10)))
+      }
+      pred.int <- cbind(DayFrame, 
+                        predict(model, 
+                                newdata = DayFrame, 
+                                interval = "confidence", 
+                                level = 0.975))
+      mid_day <- as.integer((start + answers[["stop"]])/2)
+      mid_y <- 10**pred.int$fit[mid_day]
+      params <- list(m=c(params[["m"]] ,answers[["m"]]), 
+                     b=c(params[["b"]], answers[["b"]]), 
+                     Rsqr=c(params[["Rsqr"]], answers[["Rsqr"]]), 
+                     mid_day=c(params[["Date"]], mid_day), 
+                     yvalue=c(params[["yvalue"]], mid_y)) 
+          
+      fits <-  fits %>% 
+        add_row(Days=DayFrame$x,
+                !!indep:=10**pred.int$fit,
+                lower_conf=10**pred.int$lwr,
+                upper_conf=10**pred.int$upr)
+      results <- results %>% 
+        add_row(start=start, stop=answers[["stop"]],
+                m=answers[["m"]], b=answers[["b"]], 
+                double=answers[["double"]],
+                Rsqr=answers[["Rsqr"]], model=list(answers[["model"]]),
+                tidiness=list(tidy(answers[["model"]])))
+      start <- answers[["stop"]]-1
+      
+    } # end while loop
+    fits <- arrange(fits, Days) # fix sorting
+    Day_date <- data %>% 
+      select(Days, Date)
+    print(paste(last(Day_date$Days), last(Day_date$Date) ))
+    Day_date <- rbind(Day_date, 
+                      tibble(Days=last(Day_date$Days)+(1:10), 
+                             Date=last(Day_date$Date)+(1:10)))
+    fits <- left_join(fits, Day_date, by="Days")
+    
+    ########################################
+    #  browser()
+    ########################################
+    
+    if (indep=="Cases") {
+      case_fit <<- fits
+      case_params <<- params
+    } else if (indep=="Deaths") {
+      death_fit <<- fits
+      death_params <<- params
+    }
 
  }
     
@@ -1353,6 +1375,7 @@ server <- function(input, output, session) {
   #---------------------------------------------------    
   
   build_basic_plot <- function(in_modeling=c("do fit", 
+                                             "piecewise",
                                              "standard", 
                                              "user",
                                              "logistic"), 
@@ -1366,6 +1389,9 @@ server <- function(input, output, session) {
     ){
       # Build exponential line for plot
     print(":::::::  build_basic_plot")
+    #########################
+    #if (in_modeling=="piecewise") {return()}
+    #########################
 
     begin <- subdata$Date[1] # date of first reported case
     
@@ -1378,6 +1404,14 @@ server <- function(input, output, session) {
                        signif(case_params[["K"]],3), "/( 1 + e^(",
                        signif(case_params[["r"]]*case_params[["xmid"]],3)," + ", 
                        signif(case_params[["r"]],3),"*Days))")
+    } else if (in_modeling=="piecewise") {
+      if ((is.null(case_params[["m"]])) || (is.na(case_params[["m"]]))){# if fit failed
+        showNotification("Failure to fit data")
+        return(NULL)
+      }
+      EqText <- paste0("Last fit is log(Cases) = ",
+                       signif(last(case_params[["m"]]),3),"*Days + ",
+                       signif(last(case_params[["b"]]),3))
     } else {
       if ((is.null(case_params[["m"]])) || (is.na(case_params[["m"]]))){# if fit failed
         showNotification("Failure to fit data")
@@ -1388,9 +1422,9 @@ server <- function(input, output, session) {
                        signif(case_params[["b"]],3))
     }
     
-    print("case_fit")
-    print(head(case_fit))
-    print(tail(case_fit,10))
+   # print("case_fit")
+   # print(head(case_fit))
+   # print(tail(case_fit,10))
     xform <- 2*signif(max(TestingData$Total)/(8*max(subdata$Cases)),3)
     LastDate <- subdata[nrow(subdata),]$Date
  
@@ -1590,6 +1624,13 @@ server <- function(input, output, session) {
                                               case_params[["K"]], 
                                               case_params[["xmid"]], 
                                               case_params[["r"]])
+      } else if (in_modeling=="piecewise") {
+        output$data_details <- data_details(subdata,
+                                             "Cases",
+                                             EqText,
+                                             first(case_params[["m"]]),
+                                             first(case_params[["b"]]),
+                                             first(case_params[["Rsqr"]]))
       } else {
         output$data_details <- data_details(subdata,
                                              "Cases",
@@ -2393,7 +2434,6 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
       arrange(Date) %>% 
       group_by(MSA) %>% 
         mutate(end_case=last(!!as.name(in_y_axis)), end_day=max(Date)) %>% 
-        #do_sort(sorting) %>% 
       ungroup() 
       
     
@@ -2815,7 +2855,13 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     
     # fit a model to the data
     if (input$modeling=="logistic") {
-      fit_logistic()
+      fit_logistic() } 
+    else if (input$modeling=="piecewise") {
+        fit_piecewise(indep="Cases",
+                      projection=10,
+                      min_length=8,
+                      min_rsqr=0.99,
+                      calc_conf=TRUE) 
     } else {
       m <- input$slope
       b <- input$intercept
@@ -2926,7 +2972,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
   #---------------------------------------------------    
   
   observeEvent({ #  fit cases
-                input$modeling #do fit,  standard,  user, logistic
+                input$modeling #do fit, piecewise, standard,  user, logistic
                 input$slope
                 input$intercept
                 1}, { # change display
@@ -2934,6 +2980,12 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     # fit a model to the data
     if (input$modeling=="logistic") {
       fit_logistic()
+    } else if (input$modeling=="piecewise") {
+      fit_piecewise(indep="Cases",
+                    projection=10,
+                    min_length=8,
+                    min_rsqr=0.99,
+                    calc_conf=TRUE) 
     } else {
       m <- input$slope
       b <- input$intercept
