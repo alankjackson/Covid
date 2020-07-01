@@ -1105,9 +1105,9 @@ server <- function(input, output, session) {
                       Date=seq.Date(first(Date), last(Date), by="day") )) 
    
    #    Too few cases to do a fit
-   if ((sum(!is.na(data[,indep][[1]]))<8) ||
+   if ((sum(!is.na(data[,indep][[1]]))<min_length) ||
        (nrow(unique(data[,indep]))<3) ||
-       (nrow(unique(data[(nrow(data)-8):nrow(data),indep]))<3)) {
+       (nrow(unique(data[(nrow(data)-min_length):nrow(data),indep]))<3)) {
      print(paste(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>", data$County[1]))
      if (indep=="Cases") {
        case_fit <<- tibble( Days=NA, Date=NA,!!indep:=NA,
@@ -1191,13 +1191,13 @@ server <- function(input, output, session) {
     ########################################
     
     while ((start >=min_length) && 
-           (nrow(unique(data[(start-7):start,indep]))>=2)) {
+           (nrow(unique(data[(start-min_length+1):start,indep]))>=2)) {
       
-     #if ((sum(!is.na(my_data[,indep][[1]]))<8) ||
-     #    (nrow(unique(my_data[,indep]))<8)) { # not enough data in segment
+     #if ((sum(!is.na(my_data[,indep][[1]]))<min_length) ||
+     #    (nrow(unique(my_data[,indep]))<min_length)) { # not enough data in segment
      #  
      #}
-      print(paste("--1--",(start-7):start ))
+      print(paste("--1--",(start-min_length+1):start ))
       answers <- fit_segment(data, start, min_length, min_rsqr)
       
       #  Estimate confidence bands 
