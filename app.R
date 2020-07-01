@@ -988,12 +988,12 @@ server <- function(input, output, session) {
    #  Drop rows that are zero
    data <- subdata %>% filter((!!sym(indep))>0) 
    #  Drop rows that are equal to previous row
-   data <- subdata %>% 
-     filter((!!sym(indep))>0) %>% 
-     filter(!is.na((!!sym(indep)))) %>% 
-     mutate(actual=!!as.name(indep)-lag(!!as.name(indep), 1, 0)) %>% 
-     filter(actual>0) %>% 
-     mutate(!!indep:=cumsum(actual))
+   #data <- subdata %>% 
+   #  filter((!!sym(indep))>0) %>% 
+   #  filter(!is.na((!!sym(indep)))) %>% 
+   #  mutate(actual=!!as.name(indep)-lag(!!as.name(indep), 1, 0)) %>% 
+   #  filter(actual>0) %>% 
+   #  mutate(!!indep:=cumsum(actual))
    
    ##############################
    #browser()
@@ -1106,7 +1106,8 @@ server <- function(input, output, session) {
    
    #    Too few cases to do a fit
    if ((sum(!is.na(data[,indep][[1]]))<8) ||
-       (nrow(unique(data[,indep]))<8)) {
+       (nrow(unique(data[,indep]))<3) ||
+       (nrow(unique(data[(nrow(data)-8):nrow(data),indep]))<3)) {
      print(paste(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>", data$County[1]))
      if (indep=="Cases") {
        case_fit <<- tibble( Days=NA, Date=NA,!!indep:=NA,
@@ -1128,7 +1129,6 @@ server <- function(input, output, session) {
       my_data <- data %>% select(x=Days, y=Cases)
       my_data <- my_data[i:start,]
       
-      
       model <- lm(log10(y) ~ x , data=my_data)
       
       m <- model[["coefficients"]][["x"]]
@@ -1140,7 +1140,6 @@ server <- function(input, output, session) {
       worsening <- ((Rsqr<min_rsqr) || 
                     (max(10**model[["fitted.values"]]-my_data$y, na.rm=TRUE)
                      > max(0.05*my_data$y, na.rm=TRUE))) & (start-i>min_length)
-      
       if (worsening){ # Rsqr too small or jump > 5%
         return(list(stop=i,
                     Rsqr=oldRsqr,
@@ -1181,10 +1180,24 @@ server <- function(input, output, session) {
                      b=numeric(0), 
                      Rsqr=numeric(0),
                      mid_day=numeric(0),
-                     yvalue=numeric(0))
+                     yvalue=numeric(0)
+                     )
+      ends <- tibble(Date=Date(), yvalue=numeric())
     
     start <- nrow(data)
-    while (start >=min_length) {
+    
+    ########################################
+     # browser()
+    ########################################
+    
+    while ((start >=min_length) && 
+           (nrow(unique(data[(start-7):start,indep]))>=2)) {
+      
+     #if ((sum(!is.na(my_data[,indep][[1]]))<8) ||
+     #    (nrow(unique(my_data[,indep]))<8)) { # not enough data in segment
+     #  
+     #}
+      print(paste("--1--",(start-7):start ))
       answers <- fit_segment(data, start, min_length, min_rsqr)
       
       #  Estimate confidence bands 
@@ -1200,14 +1213,20 @@ server <- function(input, output, session) {
                                 newdata = DayFrame, 
                                 interval = "confidence", 
                                 level = 0.975))
-      mid_day <- as.integer((start + answers[["stop"]])/2)
-      mid_y <- 10**pred.int$fit[mid_day]
+      mid_day <- first(data$Date) + as.integer(mean(DayFrame$x)) - first(data$Days)
+      mid_y <- 10**pred.int$fit[as.integer(nrow(DayFrame)/2)]
+      Date_start <- first(data$Date) - first(data$Days)
+      endDate <- c(Date_start+first(DayFrame$x), 
+                   Date_start+last(DayFrame$x))
+      endy <- c(first(10**pred.int$fit), last(10**pred.int$fit))
       params <- list(m=c(params[["m"]] ,answers[["m"]]), 
                      b=c(params[["b"]], answers[["b"]]), 
                      Rsqr=c(params[["Rsqr"]], answers[["Rsqr"]]), 
-                     mid_day=c(params[["Date"]], mid_day), 
-                     yvalue=c(params[["yvalue"]], mid_y)) 
-          
+                     mid_date=c(params[["mid_date"]], mid_day), 
+                     yvalue=c(params[["yvalue"]], mid_y))
+      ends <- ends %>% 
+        add_row(Date=endDate[1], yvalue=endy[1]) %>% 
+        add_row(Date=endDate[2], yvalue=endy[2]) 
       fits <-  fits %>% 
         add_row(Days=DayFrame$x,
                 !!indep:=10**pred.int$fit,
@@ -1232,9 +1251,12 @@ server <- function(input, output, session) {
     fits <- left_join(fits, Day_date, by="Days")
     
     ########################################
-    #  browser()
+     # browser()
     ########################################
     
+    params$mid_date <- as_date(params$mid_date)
+    ends$Date <- as_date(ends$Date)
+    params$Ends <- ends
     if (indep=="Cases") {
       case_fit <<- fits
       case_params <<- params
@@ -1389,16 +1411,16 @@ server <- function(input, output, session) {
     ){
       # Build exponential line for plot
     print(":::::::  build_basic_plot")
-    #########################
-    #if (in_modeling=="piecewise") {return()}
-    #########################
 
     begin <- subdata$Date[1] # date of first reported case
+    
+    badfit <- FALSE
     
     if (in_modeling == "logistic") { 
       if (is.null(case_params[["r"]]) || is.na(case_params[["r"]])){# if nonlinear fit failed
         showNotification("Failure to fit data")
-        return(NULL)
+        badfit <- TRUE
+        #return(NULL)
       }
       EqText <- paste0("Fit is Cases = ",
                        signif(case_params[["K"]],3), "/( 1 + e^(",
@@ -1407,7 +1429,8 @@ server <- function(input, output, session) {
     } else if (in_modeling=="piecewise") {
       if ((is.null(case_params[["m"]])) || (is.na(case_params[["m"]]))){# if fit failed
         showNotification("Failure to fit data")
-        return(NULL)
+        badfit <- TRUE
+        #return(NULL)
       }
       EqText <- paste0("Last fit is log(Cases) = ",
                        signif(last(case_params[["m"]]),3),"*Days + ",
@@ -1415,27 +1438,27 @@ server <- function(input, output, session) {
     } else {
       if ((is.null(case_params[["m"]])) || (is.na(case_params[["m"]]))){# if fit failed
         showNotification("Failure to fit data")
-        return(NULL)
+        badfit <- TRUE
+        #return(NULL)
       }
       EqText <- paste0("Fit is log(Cases) = ",
                        signif(case_params[["m"]],3),"*Days + ",
                        signif(case_params[["b"]],3))
     }
     
-   # print("case_fit")
-   # print(head(case_fit))
-   # print(tail(case_fit,10))
-    xform <- 2*signif(max(TestingData$Total)/(8*max(subdata$Cases)),3)
+    #   Scaling for secondary Testing axis
+    xform <- signif(max(TestingData$Total)/(2*max(subdata$Cases)),3)
     LastDate <- subdata[nrow(subdata),]$Date
  
     #  Basic canvas     
     p <- subdata %>% 
           ggplot(aes(x=Date, y=Cases))
     
+    if (!badfit) {
     #------------------
     #  Error bars
     #------------------
-      if (in_modeling=="do fit" || in_modeling=="logistic") {
+      if (in_modeling=="do fit" || in_modeling=="logistic" || in_modeling=="piecewise") {
           if (!is.nan(case_fit$upper_conf[1])){
             print("------- ribbon 1 -------")
             p <- p + geom_ribbon(data=case_fit,
@@ -1541,29 +1564,37 @@ server <- function(input, output, session) {
                     aes(x=x1, y=y1, label="Inflection point"),
                     nudge_x=3.50, nudge_y=-0.05) 
     }   
-          
+    
     #------------------
-    #  Bars or points?
+    #  if piecewise fit, show segment ends and doubling time
     #------------------
-    if (!in_logscale) {
-        p <- p + geom_point(aes(color="data"), size=2) 
-        #p <- p + geom_col(alpha = 2/3)  +
-        #     geom_label(aes(label=Cases), 
-        #                    stat='identity',
-        #                    size = 3) 
-     } else {
-        
-        p <- p + geom_point(aes(color="data"), size=2) 
-                # geom_text(aes(label=Cases),
-                #           nudge_x=-1.50, nudge_y=0.0)
-        if (max(subdata$Cases)<100) {
-          p <- p + geom_text(aes(label=Cases),
-                           nudge_x=-1.50, nudge_y=0.0)
-          
-        }
-     }       
-
+    if (in_modeling=="piecewise") {
+      # Label segment with doubling time
+      double <- signif(log10(2)/case_params$m,3)
+      print(case_params)
+      p <- p + 
+           geom_text(data=tibble(x=case_params$mid_date,
+                                y=case_params$yvalue,
+                                lab=double),
+                    color="blue",
+                    aes(x=x, y=y, label=lab), 
+                    hjust=1, vjust=0
+                    ) 
+     # highlight segment ends
       
+      p <-  p + 
+        geom_point(data=case_params[["Ends"]] ,
+                   aes(x=Date, y=yvalue),
+                   color="cyan")
+      
+    }
+  }
+    #------------------
+    # Points
+    #------------------
+    p <- p + geom_point(aes(color="data"), size=2) 
+      
+    if (badfit) {return(p)}
     #------------------
     #  Log scaling
     #------------------
