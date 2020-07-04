@@ -155,16 +155,25 @@ This option fits a logistic curve (see explanation above). The predicted
 maximum number of cases and the date of the inferred inflection point
 are also displayed.
 
-#### Worldwide
+#### Piecewise
 
-The growth rate is amazingly consistent worldwide. The number I am using
-comes from [dart throwing chimp](https://dartthrowingchimp.shinyapps.io/covid19-app/), and it is 
-easy to see on his growth graph that most countries have followed similar 
-trends. His 0.3 growth value translates to my 0.13 slope since I use log 
-base 10, and he uses natural logarithms.
+As the pandemic progresses, various strategies are tried by governments national 
+and local to slow or halt the spread. Additionally, individuals will alter their
+personal strategy based on their own perception of risk and understanding of
+the likely efficacy of counter-measures. To my mind, this means that as the economy
+is alternately closed, opened, closed, and opened again, and as the masking strategy
+takes hold, or not, that the R0 value will change with time. Thus, until we start
+actually approach herd immunity, the fit to the data should look like an exponential
+for a period of time, but as behaviors change, it will still be an exponential but 
+with different coefficients. With this model in mind, I developed a piecewise 
+fitting algorithm. 
 
-Because the global value is only a slope, I derive the y intercept by 
-tieing the curve to the most recent datapoint.
+The algorithm starts at the latest data (since that is the most relevant), and works
+backwards successively fitting an exponential until the stopping criteria are met.
+There are three parameters governing the fit. The minimum $R^{2}$ value, the maximum
+percent difference between the data and the fit, and the minimum number of points
+in the fit. By default these are set to 0.99, 5%, and 8, but the use may try 
+different values. 
 
 #### User Entry
 
