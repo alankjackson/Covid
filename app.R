@@ -27,17 +27,6 @@ library(rsample) # for bootstrap
 DataLocation <- "https://www.ajackson.org/Covid/"
 DataArchive <- "https://www.ajackson.org/SharedData/"
 
-
-#saveRDS(County_calc, paste0(path,"Today_County_calc.rds"))
-#saveRDS(County_pop, paste0(path,"Today_County_pop.rds"))
-#saveRDS(TestingData, paste0(path,"Today_TestingData.rds"))
-#saveRDS(MSAs, paste0(path,"Today_MSAs.rds"))
-#saveRDS(MSA_raw, paste0(path,"Today_MSA_raw.rds"))
-#saveRDS(Prison_data, paste0(path,"Today_Prison_data.rds"))
-#saveRDS(Prison_county, paste0(path,"Today_Prison_county.rds"))
-#saveRDS(MappingData, paste0(path,"Today_MappingData.rds"))
-#saveRDS(MapLabels, paste0(path,"Today_MapLabels.rds"))
-
 #   Tibble database
 
 #   Case data
@@ -97,50 +86,6 @@ Disease <- tibble::tribble(
                        "4%", "80+", "27.3%", "70.9%", "9.30%"
                             )
 
-#          Calculate doubling times along whole vector
-#doubling <- function(cases, window, County) {
-#  print("---->>>>")
-#  print(County[1])
-#  if (length(cases)<10){
-#    return(rep(NA,length(cases)))
-#  }
-#  halfwidth <- as.integer(window/2)
-#  rolling_lm <- tibbletime::rollify(.f = function(logcases, Days) {
-#    lm(logcases ~ Days)
-#  }, 
-#  window = 5, 
-#  unlist = FALSE) 
-#  
-#  foo <- 
-#    tibble(Days = 1:length(cases), logcases = log10(cases)) %>%
-#    mutate(roll_lm = rolling_lm(logcases, Days)) %>% 
-#    filter(!is.na(roll_lm)) %>%
-#    mutate(tidied = purrr::map(roll_lm, broom::tidy)) %>%
-#    unnest(tidied) %>%
-#    filter(term=="Days") %>% 
-#    mutate(m=estimate) %>% 
-#    #   calculate doubling time
-#    mutate(m=signif(log10(2)/m,3)) %>% 
-#    mutate(m=replace(m, m>200, NA)) %>%  
-#    mutate(m=replace(m, m<=0, NA)) %>% 
-#    select(m)
-#  return(matlab::padarray(foo[[1]], c(0,halfwidth), "replicate"))
-#}
-
-#     Calculate a rolling average
-#attribute <- function(foo, attribute, grouper){
-#  #   grouper = grouping variable (County)
-#  #   attribute = column in data frame to rolling average
-#  foo %>% 
-#    group_by(!!grouper) %>% 
-#    arrange(Date) %>% 
-#    mutate(avg=zoo::rollapply(!!attribute, window, 
-#                              FUN=function(x) mean(x, na.rm=TRUE),
-#                              partial=TRUE,
-#                              fill=c(0, NA, last(!!attribute)))) %>% 
-#    ungroup()
-#  
-#}
 
 #   trim outliers
 
@@ -170,76 +115,6 @@ isnt_out_z <- function(x, thres = 8, na.rm = TRUE) {
   )
 
 print("--------1----------")
-# prep_counties <- function(DF, Grouper) { 
-#  
-#print("--------2----------")
-#  window <- 5
-#  Grouper_str <- Grouper
-#  Grouper <- rlang::sym(Grouper)
-#  
-#  #---------------  Clean up and calc base quantities
-#print("--------3----------")
-#  foo <- DF %>%     
-#    group_by(!!Grouper) %>% 
-#      arrange(Date) %>% 
-#      mutate(day = row_number()) %>% 
-#      add_tally() %>% 
-#    ungroup() %>% 
-#    select(!!Grouper, Cases, Deaths, Date, new_cases, new_deaths, Population, n) %>% 
-#    filter(!!Grouper!="Total") %>% 
-#    filter(!!Grouper!="Pending County Assignment") %>% 
-#    replace_na(list(Cases=0, Deaths=0, new_cases=0, new_deaths=0)) %>% 
-#    group_by(!!Grouper) %>%
-#      arrange(Date) %>% 
-#      mutate(pct_chg=100*new_cases/lag(Cases, default=Cases[1])) %>%
-#      mutate(active_cases=Cases-lag(Cases, n=14, default=0)) %>%
-#      mutate(deaths_percase=Deaths/Cases) %>%
-#      mutate(doubling=doubling(Cases, window, !!Grouper)) %>% 
-#    ungroup() 
-#
-#print("--------4----------")
-#  #----------------- Trim outliers and force to be >0
-#  
-#  for (base in calc_controls$base[calc_controls$trim]){
-#    for (grp in unique(foo[[Grouper_str]])) {
-#      foo[foo[[Grouper_str]]==grp,][base] <- isnt_out_z((foo[foo[[Grouper_str]]==grp,][[base]]))
-#    }
-#  }
-#  for (base in calc_controls$base[calc_controls$positive]){
-#    foo[base] <- pmax(0, foo[[base]])
-#  }
-#  
-#  #----------------- Calc Rolling Average
-#  
-#  inputs <- calc_controls$base[calc_controls$avg==TRUE]
-#  
-#  foo <- foo %>% 
-#    group_by(!!Grouper) %>% 
-#    mutate_at(inputs, list(avg = ~ zoo::rollapply(., window, 
-#                                                  FUN=function(x) mean(x, na.rm=TRUE),
-#                                                  fill=c(first(.), NA, last(.))))) %>% 
-#    rename_at(vars(ends_with("_avg")), 
-#              list(~ paste("avg", gsub("_avg", "", .), sep = "_")))
-#  
-#  foo <- foo %>% 
-#    mutate(pct_chg=na_if(pct_chg, 0)) %>% 
-#    mutate(pct_chg=replace(pct_chg, pct_chg>30, NA)) %>% 
-#    mutate(pct_chg=replace(pct_chg, pct_chg<0.1, NA)) %>% 
-#    mutate(avg_pct_chg=na_if(avg_pct_chg, 0)) %>% 
-#    mutate(avg_pct_chg=replace(avg_pct_chg, avg_pct_chg>30, NA)) %>% 
-#    mutate(avg_pct_chg=replace(avg_pct_chg, avg_pct_chg<0.1, NA))
-#  
-#  #----------------- Calc per capitas
-#  
-#  inputs <- calc_controls$base[calc_controls$percap==TRUE]
-#  inputs <- c(paste0("avg_", inputs), inputs)
-#  
-#  foo <- foo %>% 
-#    mutate_at(inputs, list(percap = ~ . / Population * 1.e5)) 
-#  
-#  return(foo)
-#  
-# }
 
 span <- function(vector){ # range spanned by a vector
   foo <- range(vector, na.rm=TRUE)
@@ -438,7 +313,8 @@ ui <- basicPage(
                  h4("Choose the data"),
                  radioButtons(
                    "dataset",
-                   label = strong("Which Data?"),
+                   #label = strong("Which Data?"),
+                   label = NULL,
                    choices = list("Region" = "Region",
                                   "County" = "County"),
                    selected = "Region",
@@ -521,6 +397,43 @@ ui <- basicPage(
                       ),
                       selected = "do fit"
                     ),
+      tabsetPanel(id = "Params_tabs",  type="pills",        
+         tabPanel( ##########   Piecewise Tab
+                   "Piece",
+                   fluid = TRUE,
+                   value = "Piecewise",
+                    splitLayout(
+                      cellWidths = c("34%", "38%", "28%"),
+                      numericInput(
+                        "min_length",
+                        label = h5("MinLen"),
+                        step = 1,
+                        value = 8,
+                        min = 3,
+                        max = 100
+                      ),
+                      numericInput(
+                        "min_rsqr",
+                        label = h5("Rsqr"),
+                        step = 0.01,
+                        value = 0.99,
+                        min=0.8,
+                        max=0.999
+                      ),
+                      numericInput(
+                        "pct_chg",
+                        label = h5("%chg"),
+                        step = 1,
+                        value = 5,
+                        min = 0,
+                        max = 100
+                      )
+                    )
+         ), # end tab panel Deaths
+         tabPanel( ##########   User entry
+                   "User",
+                   fluid = TRUE,
+                   value = "User_entry",
                     splitLayout(
                       numericInput(
                         "slope",
@@ -536,6 +449,8 @@ ui <- basicPage(
                       )
                     )
 
+         ) # end tab panel User Entry
+      )
                     ) 
                   ),
                   # end wellPanel Modeling parameters
@@ -1097,8 +1012,12 @@ server <- function(input, output, session) {
                            projection=10,
                            min_length=8,
                            min_rsqr=0.99,
+                           pct_chg=0.05,
                            calc_conf=TRUE) {
    print(paste(":::::::  fit_piecewise", indep))
+   if (is.null(min_length)) {min_length <- 8}
+   if (is.null(min_rsqr)) {min_rsqr <- 0.99}
+   if (is.null(pct_chg)) {pct_chg <- 0.05}
    #    Add NA's for missing dates
    data <- subdata %>% 
      complete(nesting(Days=(first(Days):last(Days)),
@@ -1139,7 +1058,7 @@ server <- function(input, output, session) {
       
       worsening <- ((Rsqr<min_rsqr) || 
                     (max(10**model[["fitted.values"]]-my_data$y, na.rm=TRUE)
-                     > max(0.05*my_data$y, na.rm=TRUE))) & (start-i>min_length)
+                     > max(pct_chg*my_data$y, na.rm=TRUE))) & (start-i>min_length)
       if (worsening){ # Rsqr too small or jump > 5%
         return(list(stop=i,
                     Rsqr=oldRsqr,
@@ -1656,6 +1575,8 @@ server <- function(input, output, session) {
                                               case_params[["xmid"]], 
                                               case_params[["r"]])
       } else if (in_modeling=="piecewise") {
+        print("---- case params -----")
+        print(case_params[["Rsqr"]])
         output$data_details <- data_details(subdata,
                                              "Cases",
                                              EqText,
@@ -2890,8 +2811,12 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     else if (input$modeling=="piecewise") {
         fit_piecewise(indep="Cases",
                       projection=10,
-                      min_length=8,
-                      min_rsqr=0.99,
+                      #min_length=8,
+                      #min_rsqr=0.99,
+                      #pct_chg=0.05,
+                      input$min_length,
+                      input$min_rsqr,
+                      input$pct_chg*0.01,
                       calc_conf=TRUE) 
     } else {
       m <- input$slope
@@ -2998,6 +2923,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
       print("============== end select An data ==================")
   }) #   end of respond to data change
    
+
   #---------------------------------------------------    
   #------------------- Rerun fitting -----------------
   #---------------------------------------------------    
@@ -3006,20 +2932,31 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                 input$modeling #do fit, piecewise, standard,  user, logistic
                 input$slope
                 input$intercept
+                input$min_length
+                input$min_rsqr
+                input$pct_chg
                 1}, { # change display
                   
+    # open or close parameter menu  
+    #Case_Parameters(input, output)
     # fit a model to the data
     if (input$modeling=="logistic") {
       fit_logistic()
     } else if (input$modeling=="piecewise") {
       fit_piecewise(indep="Cases",
                     projection=10,
-                    min_length=8,
-                    min_rsqr=0.99,
+                    #input$min_length=8,
+                    #input$min_rsqr=0.99,
+                    #input$pct_chg=0.05,
+                    input$min_length,
+                    input$min_rsqr,
+                    input$pct_chg*0.01,
                     calc_conf=TRUE) 
     } else {
       m <- input$slope
       b <- input$intercept
+      if (is.null(m)) {m <- global_slope}
+      if (is.null(b)) {b <- 1}
       if (input$modeling=="do fit") {
         fit_type <- "all"
       } else if (input$modeling == "standard") {
