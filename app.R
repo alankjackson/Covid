@@ -121,6 +121,10 @@ span <- function(vector){ # range spanned by a vector
   return(max(foo) - min(foo))
 }
 
+    #choices <- MSAs[2:nrow(MSAs),] %>% 
+    #  arrange(desc(in_selector)) %>% 
+    #  select(MSA)
+    #print(head(choices))
 
 ###############     modules
 
@@ -658,11 +662,13 @@ ui <- basicPage(
                   ), # end y-axis panel
                   wellPanel( 
                     h4("Select Regions:"),
-                    selectInput('Regions_selector', 
-                                label=NULL, 
-                                choices=MSA_raw$MSA[2:nrow(MSA_raw)],
-                                multiple=TRUE, 
-                                selectize=TRUE)
+                    uiOutput("RegionSelect")
+#                    selectInput('Regions_selector', 
+#                                label=NULL, 
+#                                #choices=MSA_raw$MSA[2:nrow(MSA_raw)],
+#                                choices=choices,
+#                                multiple=TRUE, 
+#                                selectize=TRUE)
                     
                   ), # end highlight panel
                   wellPanel( # Misc controls
@@ -2334,6 +2340,11 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     MSA_case <- bind_rows(chosen, all_others)
     
     print("-------------  Regions plot 2")
+    #choices <- MSA_raw[2:nrow(MSA_raw),] %>% 
+    #  arrange(desc(in_selector)) %>% 
+    #  select(MSA)
+    #print(head(choices))
+    
     
     print("-------------  Regions plot 3")
     y_labels <- list(
@@ -2422,6 +2433,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                     last(Cases)) %>% 
         rename(!!sym(in_y_axis):=2, Total_Cases=3) %>% 
         mutate(label=y_labels[[in_y_axis]]) %>% 
+        arrange(desc(!!as.name(in_y_axis))) %>% 
         mutate(text=paste0(MSA,": ", label, " = ", 
                            !!as.name(in_y_axis),
                            " and Total Cases = ", Total_Cases))
@@ -3190,8 +3202,37 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                                id="Regions", 
                                tab_name="Regions")
   
-  observeEvent({input$RegionsTab
+  observeEvent({#input$RegionsTab
                 Regions_y_axis()$y_axis
+                1} , { # 
+    print(":::::::  observe_event RegionsTab y axis only")
+    print(paste("--selector",Regions_y_axis()$y_axis ))
+    print(paste("--selector2",input$Regions_selector ))
+
+   # browser()
+        choices <- MSAs %>% 
+          filter(MSA!="Texas") %>% 
+          filter(!(MSA %in% input$Regions_selector)) %>% 
+          group_by(MSA) %>% 
+            summarise_all(last) %>% 
+          arrange(desc(!!sym(Regions_y_axis()$y_axis))) %>% 
+          select(MSA) %>% 
+          unique() 
+        
+        choices <- choices[[1]]
+    print(head(choices))
+    
+    output$RegionSelect <- renderUI({
+      selectInput('Regions_selector', 
+                  label=NULL, 
+                  choices=choices,
+                  multiple=TRUE, 
+                  selectize=TRUE)
+    })
+    
+    print(head(choices))
+  })
+  observeEvent({#input$RegionsTab
                 input$Regions_selector
                 input$Regions_case_start
                 input$Regions_log
@@ -3202,6 +3243,31 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     ptm <<- proc.time()
     ###############    time
     
+#    print(paste("--selector",Regions_y_axis()$y_axis ))
+#    print(paste("--selector2",input$Regions_selector ))
+
+   # browser()
+#        choices <- MSAs %>% 
+#          filter(MSA!="Texas") %>% 
+#          filter(!(MSA %in% input$Regions_selector)) %>% 
+#          group_by(MSA) %>% 
+#            summarise_all(last) %>% 
+#          arrange(desc(!!sym(Regions_y_axis()$y_axis))) %>% 
+#          select(MSA) %>% 
+#          unique() 
+#        
+#        choices <- choices[[1]]
+#    print(head(choices))
+#    
+#    output$RegionSelect <- renderUI({
+#      selectInput('Regions_selector', 
+#                  label=NULL, 
+#                  choices=choices,
+#                  multiple=TRUE, 
+#                  selectize=TRUE)
+#    })
+#    
+#    print(head(choices))
                   
     p <- build_Regions_plot(Regions_y_axis()$y_axis,
                              input$Regions_selector,
