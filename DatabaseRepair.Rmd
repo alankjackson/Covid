@@ -354,7 +354,7 @@ inpath <- "/home/ajackson/Dropbox/Rprojects/Covid/TexasDataXcel/"
 utpath <- "/home/ajackson/Dropbox/Rprojects/Covid/"
 
 #         get cases
-df <- readxl::read_excel(paste0(inpath,"County_Case_Data_2020-06-13.xlsx"))
+df <- readxl::read_excel(paste0(inpath,"County_Case_Data_2020-07-12.xlsx"))
 
 # No data for March 14
 
@@ -386,7 +386,7 @@ foo <- df %>% mutate(Cases=as.numeric(Cases))
 
 # get deaths
 
-df <- readxl::read_excel(paste0(inpath,"Deaths_by_County_2020-06-13.xlsx"))
+df <- readxl::read_excel(paste0(inpath,"Deaths_by_County_2020-07-12.xlsx"))
 
 my_columns <- c(1, 9:12, 14:ncol(df))
 
