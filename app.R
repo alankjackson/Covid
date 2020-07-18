@@ -2229,14 +2229,14 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     }
     #browser()
     
-    foo <- 
+    #foo <- 
     counties_case %>% 
       arrange(Date) %>% 
       group_by(County) %>% 
         mutate(Mselect=last(!!as.name(in_counties_selector))) %>% 
         mutate(end_case=last(!!as.name(in_counties_y_axis)), end_day=max(day)) %>% 
-        do_sort(sorting) %>% 
       ungroup() %>% 
+      do_sort(sorting) %>% 
       do_filter(sorting) %>% 
       select(-Mselect) -> counties_case_filt
     
@@ -2340,10 +2340,6 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     MSA_case <- bind_rows(chosen, all_others)
     
     print("-------------  Regions plot 2")
-    #choices <- MSA_raw[2:nrow(MSA_raw),] %>% 
-    #  arrange(desc(in_selector)) %>% 
-    #  select(MSA)
-    #print(head(choices))
     
     
     print("-------------  Regions plot 3")
@@ -2382,6 +2378,8 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     
     title_label <- "Greatest"
     if (sorting) {title_label <- "Smallest"}
+    
+    ##sort_direction <- 2*sorting-1
     
     do_sort <- function(df, sorting) {
       if (sorting){
@@ -2427,13 +2425,17 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     #-----------   Data details
     output$regions_details <- gt::render_gt({
       
+      sorting <- grepl("doubling", in_y_axis)
+      sort_direction <- 2*sorting-1
+      
       details <- MSA_case_filt %>% 
         group_by(MSA) %>% 
           summarise(signif(last(!!as.name(in_y_axis)),3),
                     last(Cases)) %>% 
         rename(!!sym(in_y_axis):=2, Total_Cases=3) %>% 
         mutate(label=y_labels[[in_y_axis]]) %>% 
-        arrange(desc(!!as.name(in_y_axis))) %>% 
+        arrange(sort_direction*(!!as.name(in_y_axis))) %>%
+        #arrange(desc(!!as.name(in_y_axis))) %>% 
         mutate(text=paste0(MSA,": ", label, " = ", 
                            !!as.name(in_y_axis),
                            " and Total Cases = ", Total_Cases))
@@ -3146,10 +3148,10 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
   #---------------------------------------------------    
   #------------------- Analysis Tab ------------------
   #---------------------------------------------------    
-  observeEvent({input$An_tabs
-                1} , { # 
-    print(":::::::  observe_event 2")
-  })
+ # observeEvent({input$An_tabs
+ #               1} , { # 
+ #   print(":::::::  observe_event 2")
+ # })
   #---------------------------------------------------    
   #------------------- Counties Tab ------------------
   #---------------------------------------------------    
@@ -3208,16 +3210,23 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     print(":::::::  observe_event RegionsTab y axis only")
     print(paste("--selector",Regions_y_axis()$y_axis ))
     print(paste("--selector2",input$Regions_selector ))
-
-   # browser()
-        choices <- MSAs %>% 
-          filter(MSA!="Texas") %>% 
-          filter(!(MSA %in% input$Regions_selector)) %>% 
-          group_by(MSA) %>% 
-            summarise_all(last) %>% 
-          arrange(desc(!!sym(Regions_y_axis()$y_axis))) %>% 
-          select(MSA) %>% 
-          unique() 
+    
+    sorting <- grepl("doubling", Regions_y_axis()$y_axis)
+    if (is.null(Regions_y_axis()$y_axis)){ # first time through
+      sorting <- FALSE
+    }
+    
+    sort_direction <- 2*sorting-1
+    print(paste("sort direction = ", sort_direction))
+    
+    choices <- MSAs %>% 
+      filter(MSA!="Texas") %>% 
+      filter(!(MSA %in% input$Regions_selector)) %>% 
+      group_by(MSA) %>% 
+        summarise_all(last) %>%
+      arrange(sort_direction*(!!sym(Regions_y_axis()$y_axis))) %>% 
+      select(MSA) %>% 
+      unique() 
         
         choices <- choices[[1]]
     print(head(choices))
@@ -3243,32 +3252,6 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     ptm <<- proc.time()
     ###############    time
     
-#    print(paste("--selector",Regions_y_axis()$y_axis ))
-#    print(paste("--selector2",input$Regions_selector ))
-
-   # browser()
-#        choices <- MSAs %>% 
-#          filter(MSA!="Texas") %>% 
-#          filter(!(MSA %in% input$Regions_selector)) %>% 
-#          group_by(MSA) %>% 
-#            summarise_all(last) %>% 
-#          arrange(desc(!!sym(Regions_y_axis()$y_axis))) %>% 
-#          select(MSA) %>% 
-#          unique() 
-#        
-#        choices <- choices[[1]]
-#    print(head(choices))
-#    
-#    output$RegionSelect <- renderUI({
-#      selectInput('Regions_selector', 
-#                  label=NULL, 
-#                  choices=choices,
-#                  multiple=TRUE, 
-#                  selectize=TRUE)
-#    })
-#    
-#    print(head(choices))
-                  
     p <- build_Regions_plot(Regions_y_axis()$y_axis,
                              input$Regions_selector,
                              input$Regions_case_start,
