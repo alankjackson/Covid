@@ -89,6 +89,8 @@ saveRDS(TestingData,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Testing.rds")
 
 # Save county level file as well
 saveRDS(foo,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),"_County_Testing.rds"))
+saveRDS(foo,paste0("/home/ajackson/Dropbox/Rprojects/Covid/Today_Data/County_Testing.rds"))
+saveRDS(foo,paste0("/home/ajackson/Dropbox/mirrors/ajackson/Covid/Today_County_Testing.rds"))
 # Save the real file for later use
 saveRDS(foo,"/home/ajackson/Dropbox/Rprojects/Covid/County_Testing.rds")
 
