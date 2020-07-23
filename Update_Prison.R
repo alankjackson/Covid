@@ -227,7 +227,7 @@ head(foo)
 New_prisons <- bind_rows(prisons, foo)
 
 # Save an accumulated file in case of a failure
-saveRDS(res ,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),"_Prisons_2.rds"))
+saveRDS(res ,paste0("/home/ajackson/Dropbox/Rprojects/Covid/DailyBackups/",lubridate::today(),"_Prisons_2.rds"))
 # Save the real file for later use
 saveRDS(prisons,"/home/ajackson/Dropbox/Rprojects/Covid/Prisons_new.rds")
 # Also save to mirror site
