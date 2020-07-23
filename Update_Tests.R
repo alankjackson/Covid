@@ -81,15 +81,15 @@ if(last(TestingData$Total)==testing_status$Total) { # no change. Abort
 # append the new data
 TestingData <- bind_rows(TestingData, testing_status)
 # Save an accumulated file in case of a failure
-saveRDS(TestingData,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),"_Testing.rds"))
+saveRDS(TestingData,paste0("/home/ajackson/Dropbox/Rprojects/Covid/DailyBackups/",lubridate::today(),"_Testing.rds"))
 # Save the real file for later use
 saveRDS(TestingData,"/home/ajackson/Dropbox/Rprojects/Covid/Testing.rds")
 # Also save to mirror site
 saveRDS(TestingData,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Testing.rds")
 
 # Save county level file as well
-saveRDS(foo,paste0("/home/ajackson/Dropbox/Rprojects/Covid/",lubridate::today(),"_County_Testing.rds"))
-saveRDS(foo,paste0("/home/ajackson/Dropbox/Rprojects/Covid/Today_Data/County_Testing.rds"))
+saveRDS(foo,paste0("/home/ajackson/Dropbox/Rprojects/Covid/DailyBackups/",lubridate::today(),"_County_Testing.rds"))
+saveRDS(foo,paste0("/home/ajackson/Dropbox/Rprojects/Covid/Today_Data/Today_County_Testing.rds"))
 saveRDS(foo,paste0("/home/ajackson/Dropbox/mirrors/ajackson/Covid/Today_County_Testing.rds"))
 # Save the real file for later use
 saveRDS(foo,"/home/ajackson/Dropbox/Rprojects/Covid/County_Testing.rds")
