@@ -382,7 +382,7 @@ ui <- basicPage(
                   "recover_days",
                   label = strong("Days to Recover"),
                   step = 1,
-                  value = 14
+                  value = 9
                 )
               ),
               # end wellPanel Control plot options
@@ -500,7 +500,7 @@ ui <- basicPage(
                               "An_DeathLag",
                               label = h5("Days to Death"),
                               step = 1.0,
-                              value = 12.00
+                              value = 18.00
                           )
                         ),
                     HTML("<hr>")
@@ -1989,9 +1989,9 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                                   fill=c(0, NA, last(Pct_change)))) %>% 
       mutate(avg_chg=zoo::rollmean(new_cases, in_window, 
                               fill=c(0, NA, last(new_cases)))) %>% 
-      mutate(avg_pct_chg=na_if(avg_pct_chg, 0)) %>% 
-      mutate(Pct_change=na_if(Pct_change, 0)) %>% 
-      mutate(new_cases=na_if(new_cases, 0)) %>% 
+      #mutate(avg_pct_chg=na_if(avg_pct_chg, 0)) %>% 
+      #mutate(Pct_change=na_if(Pct_change, 0)) %>% 
+      #mutate(new_cases=na_if(new_cases, 0)) %>% 
       mutate(chgpercapita=1.e5*new_cases/Population) %>% 
       mutate(avg_chgpercapita=1.e5*avg_chg/Population) #%>% 
       #mutate(avg_pct_chg=replace(avg_pct_chg, avg_pct_chg>30, NA)) %>% 
@@ -2079,7 +2079,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     }
     
     print("-------- slope  6 --------------")
-    foo
+    print(tail(foo))
     #-------------------------   plot
     
     p <- foo %>% 
