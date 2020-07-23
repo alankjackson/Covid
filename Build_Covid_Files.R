@@ -326,7 +326,7 @@ prep_counties <- function(DF, Grouper) {
       mutate(doubling=doubling(Cases, window, !!Grouper)) %>% 
     ungroup() 
   
-  #----------------- Trim outliers and force to be >0
+  #----------------- Trim outliers and force to be >=0
   
   for (base in calc_controls$base[calc_controls$trim]){
     for (grp in unique(foo[[Grouper_str]])) {
