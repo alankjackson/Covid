@@ -39,6 +39,8 @@ DF <- readRDS(paste0(DataLocation, "Covid.rds"))
 TestingData <- readRDS(paste0(DataLocation, "Testing.rds"))
 TestingData$Total <- as.numeric(TestingData$Total)
 
+County_Testing <- readRDS(paste0(DataLocation, "Today_Data/Today_County_Testing.rds"))
+
 #   County Population data
 County_pop <- readRDS(paste0(DataArchive, "Census_July1_2019_TexasCountyPop.rds"))
 
@@ -510,6 +512,101 @@ Prison_county <- Prison_data %>%
 print("--11--")
 
 #---------------------------------------------------    
+#------------------- Testing Data ------------------
+#---------------------------------------------------    
+
+Tests <- County_Testing %>% 
+  filter(!grepl("Probable.*", County)) %>% 
+  filter(!grepl("Pending.*", County)) %>% 
+ # filter(!County=="TOTAL") %>% 
+  filter(!County=="Unknown") %>% 
+  mutate(Date=ymd(Date))
+
+print("-- test 1 --")
+#   De-step
+
+Prison_counties <- c("Jones", "Anderson", "Walker", "Medina", "Rusk",
+                     "Grimes", "Coryell", "Houston", "Pecos", "Angelina",
+                     "Bowie", "Jefferson", "Brazoria")
+
+Tests <- Tests %>% 
+  arrange(County) %>% 
+  group_by(County) %>% 
+    mutate(delta=Tests-lag(Tests)) %>% 
+    replace_na(list(delta=0)) %>% 
+    mutate(Threshold=as.numeric((abs(delta)>25)&(abs(delta)/Tests>0.10))*delta) %>% 
+    mutate(Threshold=cumsum(Threshold)) %>%  
+  ungroup() %>% 
+  mutate(Tests=ifelse(County %in% Prison_counties, 
+                      Tests-Threshold, 
+                      Tests)) %>% 
+  select(-Threshold, -delta)
+
+print("-- test 2 --")
+#   First trim crap prior to June 4, then interpolate gaps
+
+Tests <- Tests %>% 
+  filter(Date>as.Date("2020-06-02")) %>%
+  group_by(County) %>%
+    mutate(Days=as.integer(Date-lubridate::ymd("2020-03-10"))) %>% 
+    mutate(Tests = zoo::na.approx(Tests, Days, na.rm=FALSE)) %>% 
+    mutate(new_tests=Tests-dplyr::lag(Tests, default=0)) %>% 
+  ungroup() %>% 
+  filter(!is.na(Tests)) %>% 
+  mutate(new_tests=ifelse(new_tests<0, NA, new_tests)) %>% 
+  filter(Date>as.Date("2020-06-03")) %>% # end numbers are pretty bogus
+  select(-Days)
+
+print("-- test 3 --")
+
+Texas_tests <- Tests %>% filter(County=="TOTAL") %>% 
+  rename(MSA=County) %>% 
+  mutate(MSA="Texas")
+
+print("-- test 4 --")
+Tests <- Tests %>% 
+  filter(!County=="TOTAL") 
+
+print("-- test 5 --")
+County_calc <- left_join(County_calc,
+                 Tests,
+                 by=c("Date", "County")) %>% 
+  mutate(Pct_pos=new_cases/new_tests*100) %>% 
+  mutate(New_tests_percap=1.e5*new_tests/Population)
+
+print("-- test 6 --")
+
+MSAtests <- MSA_raw %>% 
+  unnest(Counties) %>% 
+  rename(County=Counties) %>% 
+  left_join(Tests, ., by="County") %>% 
+  group_by(MSA, Date) %>% 
+  summarise(Tests=sum(Tests, na.rm = TRUE),
+            new_tests=sum(new_tests, na.rm = TRUE),
+            Population=unique(Population)) %>% 
+  ungroup() %>%  
+  mutate(New_tests_percap=1.e5*new_tests/Population) %>% 
+  select(-Population)
+
+print("-- test 7 --")
+
+Texas_tests <- Texas_tests %>% 
+  mutate(New_tests_percap=1.e5*new_tests/27864555)
+
+print("-- test 8 --")
+  
+MSAtests <- bind_rows(MSAtests, Texas_tests)
+
+print("-- test 9 --")
+
+MSAs <- left_join(MSAs,
+                 MSAtests,
+                 by=c("Date", "MSA")) %>% 
+  mutate(Pct_pos=new_cases/new_tests*100) 
+
+print("-- test end --")
+
+#---------------------------------------------------    
 #------------------- Mapping Data -------------------
 #---------------------------------------------------    
 
@@ -545,15 +642,18 @@ TodayData$prison_size <- foo$prison_size
 TodayData <- TodayData %>% 
   mutate(prison=factor(prison_size, levels=c("Small Inmate Pop", "Large Inmate Pop")))
 
+print("--9--")
 #     Meat packing in the county?
 meat <- meat_packing %>% 
   group_by(County) %>% 
   summarise(Employees=sum(Employees, na.rm=TRUE)) %>% 
   ungroup()
+print("--10--")
 foo <- left_join(TodayData, meat, by="County") %>% 
   mutate(meaty=ifelse(is.na(Employees), 
                       FALSE,
                       TRUE))  
+print("--11--")
 TodayData$meat <- foo$meaty
 
 #  add county polygons
@@ -610,9 +710,9 @@ saveRDS(Prison_data, paste0(path,"Today_Prison_data.rds"))
 saveRDS(Prison_county, paste0(path,"Today_Prison_county.rds"))
 saveRDS(MappingData, paste0(path,"Today_MappingData.rds"))
 saveRDS(MapLabels, paste0(path,"Today_MapLabels.rds"))
-
+#
 path <- "/home/ajackson/Dropbox/mirrors/ajackson/Covid/"
-
+#
 saveRDS(County_calc, paste0(path,"Today_County_calc.rds"))
 saveRDS(County_pop, paste0(path,"Today_County_pop.rds"))
 saveRDS(TestingData, paste0(path,"Today_TestingData.rds"))
