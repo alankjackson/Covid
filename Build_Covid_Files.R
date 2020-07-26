@@ -572,7 +572,8 @@ County_calc <- left_join(County_calc,
                  Tests,
                  by=c("Date", "County")) %>% 
   mutate(Pct_pos=new_cases/new_tests*100) %>% 
-  mutate(New_tests_percap=1.e5*new_tests/Population)
+  mutate(New_tests_percap=1.e5*new_tests/Population) %>% 
+  mutate(Tests_percap=1.e5*Tests/Population)
 
 print("-- test 6 --")
 
@@ -586,12 +587,14 @@ MSAtests <- MSA_raw %>%
             Population=unique(Population)) %>% 
   ungroup() %>%  
   mutate(New_tests_percap=1.e5*new_tests/Population) %>% 
+  mutate(Tests_percap=1.e5*Tests/Population) %>% 
   select(-Population)
 
 print("-- test 7 --")
 
 Texas_tests <- Texas_tests %>% 
-  mutate(New_tests_percap=1.e5*new_tests/27864555)
+  mutate(New_tests_percap=1.e5*new_tests/27864555) %>% 
+  mutate(Tests_percap=1.e5*Tests/27864555)
 
 print("-- test 8 --")
   
