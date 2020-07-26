@@ -37,6 +37,10 @@ close(z)
 z <- gzcon(url(paste0(DataLocation, "Today_TestingData.rds")))
 TestingData <- readRDS(z)
 close(z)
+#    County Testing Data
+#z <- gzcon(url(paste0(DataLocation, "Today_County_Testing.rds")))
+#CountyTestingData <- readRDS(z)
+#close(z)
 #   County Population data
 z <- gzcon(url(paste0(DataLocation, "Today_County_pop.rds")))
 County_pop <- readRDS(z)
@@ -297,12 +301,16 @@ ui <- basicPage(
                    h4("Details on displayed data"),
                    htmlOutput("indicator_details")
          ), # end tab panel Indicators
-         tabPanel( ##########   Missed Tests
-                   "Missed Tests",
+         tabPanel( ##########   Tests
+                   "Testing",
                    fluid = TRUE,
                    value = "Tests",
-                   HTML("<hr>")
-         ), # end tab panel Missed Tests
+                   HTML("<hr>"),
+                   plotOutput("plot_tests",
+                              height = "700px"),
+                   #h4("Details on displayed data"),
+                   #htmlOutput("death_details")
+         ), # end tab panel Tests
          tabPanel(
                    "Something",
                    fluid = TRUE,
@@ -433,7 +441,7 @@ ui <- basicPage(
                         max = 100
                       )
                     )
-         ), # end tab panel Deaths
+         ), # end tab panel Piecewise
          tabPanel( ##########   User entry
                    "User",
                    fluid = TRUE,
@@ -508,6 +516,35 @@ ui <- basicPage(
                   ), # End Deaths Plot controls
                   # end conditional panel
                   ),# end wellPanel
+                  conditionalPanel( # Testing Plot controls
+                    #    Testing Tab
+                    condition = "input.An_tabs == 'Tests'",
+                      wellPanel(
+                        checkboxInput(
+                          inputId = "Tests_logscale",
+                          label = strong("Log Scaling"),
+                          value = FALSE
+                        ),
+                        checkboxInput(
+                          inputId = "Tests_Percapita",
+                          label = strong("Per 100,000"),
+                          value = TRUE
+                        ),
+                        checkboxInput(
+                          inputId = "Tests_New",
+                          label = strong("Daily Numbers"),
+                          value = FALSE
+                        ),
+              checkboxGroupInput("test_display", 
+                                 label = h3("Display"), 
+                                 choices = list("Cases" = "Cases", 
+                                                "% Positive" = "Pct Pos"),
+                                 selected = NULL),
+
+
+                        ), # end well panel
+                    
+                  ), # End Tests Plot controls
                   # end conditional panel
                   conditionalPanel( 
                     #    Indicators Tab
@@ -836,7 +873,7 @@ ui <- basicPage(
 # Define server logic 
 server <- function(input, output, session) {
   #hideTab(inputId = "An_tabs", target="Indicators")   
-  hideTab(inputId = "An_tabs", target="Tests")   
+  #hideTab(inputId = "An_tabs", target="Tests")   
   hideTab(inputId = "An_tabs", target="Something")   
 #   Global variables are
 #   DF = original data
@@ -847,6 +884,7 @@ server <- function(input, output, session) {
 #   death_params, case_params, case_est_params =
   #                     named arrays of m, b, Rsq or
   #                                     r, K, xmid
+  # County_tests - Test data by county
        
   #---------------------------------------------------    
   #------------------- Prep Data ---------------------
@@ -1534,7 +1572,7 @@ server <- function(input, output, session) {
         min_limit <- 0
         p <- p + scale_y_continuous(sec.axis = sec_axis(~.*xform, 
                                     name = "Statewide Test Total"),
-                                    trans="identity" ) 
+                                    trans="identity" )  
       }
     #------------------
     #  Zoom
@@ -1840,7 +1878,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
 
           theme(text = element_text(size=20)) +
           labs(title=paste0("COVID-19 Deaths in ",PopLabel$Label), 
-               subtitle=paste0(" as of ", lastdate))
+               subtitle=paste0(" as of ", last(subdata$Date)))
       
     #-------------------------------- back estimate?
     print("---- build_death_plot 5 ------")
@@ -2112,6 +2150,168 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     })
     
   return(p)
+  }
+  
+  #---------------------------------------------------    
+  #------------------- Build Tests Plot --------------
+  #---------------------------------------------------    
+  
+  build_tests_plot <- function(
+                                in_tests_logscale,
+                                in_tests_Percapita,
+                                in_tests_New,
+                                in_test_display
+                                ){
+    print(":::::::  build_tests_plot")
+    
+    print(in_test_display)
+    #   Make testing it easier
+    test_display <- str_c(in_test_display, collapse=",")
+    print(test_display)
+    
+    data <- subdata %>% 
+      filter(Tests>0) %>% 
+      mutate(ifelse(Pct_pos>50, NA, Pct_pos)) %>% 
+      mutate(ifelse(Pct_pos<0, NA, Pct_pos)) %>% 
+      filter(!is.na(Tests)) 
+    
+    if (in_tests_New) { # Daily number space
+      if (in_tests_Percapita) { # perCapita scaling
+        p <- data %>% 
+          ggplot(aes(x=Date, y=New_tests_percap, color="tests")) +
+          geom_point() +
+          geom_smooth() 
+        
+        ymin <- min(data$New_tests_percap, na.rm=TRUE)
+        ymax <- max(data$New_tests_percap, na.rm=TRUE)
+        ylabs <- "Tests per Day per 100,000"
+          
+        if(grepl("Cases", test_display)) {
+          p <- p + 
+            geom_point(aes(y=new_cases_percap), shape=23) +
+            geom_smooth(aes(y=new_cases_percap, color="cases"))
+            
+          ymin <- min(ymin, data$new_cases_percap, na.rm=TRUE)
+          ymax <- max(ymax, data$new_cases_percap, na.rm=TRUE)
+        }
+        
+      } else { # Absolute number scaling
+        p <- data %>% 
+          ggplot(aes(x=Date, y=new_tests, color="tests")) +
+          geom_point() +
+          geom_smooth() 
+        
+        ymin <- min(data$new_tests, na.rm=TRUE)
+        ymax <- max(data$new_tests, na.rm=TRUE)
+        ylabs <- "Tests per Day"
+        
+        #if (!is.null(in_test_display) && 
+        #    in_test_display[1]=="Cases") {
+        if(grepl("Cases", test_display)) {
+          p <- p + 
+            geom_point(aes(y=new_cases), shape=23) +
+            geom_smooth(aes(y=new_cases, color="cases"))
+            
+          ymin <- min(ymin, data$new_cases, na.rm=TRUE)
+          ymax <- max(ymax, data$new_cases, na.rm=TRUE)
+        }
+      }
+      
+    } else { # cumulative number space
+      if (in_tests_Percapita) { # perCapita scaling
+        p <- data %>% 
+          ggplot(aes(x=Date, y=Tests_percap, color="tests")) +
+          geom_point() +
+          geom_smooth() 
+        
+        ymin <- min(data$Tests_percap, na.rm=TRUE)
+        ymax <- max(data$Tests_percap, na.rm=TRUE)
+        ylabs <- "Cumulative Tests per 100,000"
+        
+        if(grepl("Cases", test_display)) {
+            p <- p + 
+              geom_point(aes(y=Cases_percap), shape=23) +
+              geom_smooth(aes(y=Cases_percap, color="cases"))
+            
+          ymin <- min(ymin, data$Cases_percap, na.rm=TRUE)
+          ymax <- max(ymax, data$Cases_percap, na.rm=TRUE)
+        }
+        
+      } else { # Absolute number scaling
+        p <- data %>% 
+          ggplot(aes(x=Date, y=Tests, color="tests")) +
+          geom_point() +
+          geom_smooth() 
+        
+        ymin <- min(data$Tests, na.rm=TRUE)
+        ymax <- max(data$Tests, na.rm=TRUE)
+        ylabs <- "Cumulative Tests"
+        
+        if(grepl("Cases", test_display)) {
+            p <- p + 
+              geom_point(aes(y=Cases), shape=23) +
+              geom_smooth(aes(y=Cases, color="cases"))
+          ymin <- min(ymin, data$Cases, na.rm=TRUE)
+          ymax <- max(ymax, data$Cases, na.rm=TRUE)
+        }
+      }
+    }
+    
+    if (in_tests_logscale) {
+      min_limit <- max(ymin, 2)
+      p <- p + scale_y_continuous(limits=c(min_limit, ymax),
+                                  trans="log10",
+                                  breaks = logTicks(n = 4), 
+                                  minor_breaks = logTicks(n = 40)) 
+    }
+    
+    # --------------  secondary axis and pct positive
+    xform <- 50/ymax
+    print(paste("xform =", xform))
+    if(grepl("Pct Pos", test_display)) {
+      if (in_tests_logscale ) {
+        min_limit <- 1
+        
+        p <- p + scale_y_continuous(sec.axis = sec_axis(~.*xform, 
+                                                        name = "Test % Positive"),
+                                    trans="log10",
+                                    breaks = logTicks(n = 4), 
+                                    minor_breaks = logTicks(n = 40)) +
+        geom_point( aes(y=Pct_pos/xform),
+                   size=3, shape=21, 
+                   fill="white") +
+        geom_smooth(aes(y=Pct_pos/xform, color="pct"), linetype=2)
+      } else {
+        min_limit <- 0
+        p <- p + scale_y_continuous(limits=c(min_limit, ymax),
+                                    sec.axis = sec_axis(~.*xform, 
+                                                        name = "Test % Positive"),
+                                    trans="identity" ) +
+        geom_point( aes(y=Pct_pos/xform),
+                   size=3, shape=21, 
+                   fill="white") +
+        geom_smooth(aes(y=Pct_pos/xform, color="pct"), linetype=2)
+      }
+    }
+    
+    p <- p +
+          theme(text = element_text(size=20)) +
+          labs(title=paste0("COVID-19 Tests in ",PopLabel$Label), 
+               subtitle=paste0(" as of ", last(subdata$Date)),
+               y=ylabs)
+    
+    p <-  build_legend(p, "Testing",
+                       c("Tests", "Cases", "% Pos"), # Labels for legend
+                       c("blue", "green", "red"), # Color values
+                       c("tests", "cases", "pct"), # Breaks (named lists)
+                       c("blue", "green", "white"), # fill values
+                       in_tests_logscale
+    )
+    
+    
+    
+    
+    return(p)
   }
   
   #---------------------------------------------------    
@@ -2927,8 +3127,21 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
           showNotification("Too little case data")
         }
       } 
+  #---------------------------------
+  #------------- Tests tab
+  #---------------------------------
       if (input$An_tabs == "Tests") {
-         # p <- build_tests_plot()
+        if (sum(!is.na(subdata$Tests))>15) {
+          p <- build_tests_plot(
+            input$Tests_logscale,
+            input$Tests_Percapita,
+            input$Tests_New,
+            input$test_display
+          )
+          output$plot_tests <- renderPlot({print(p)})
+        } else {
+          showNotification("Too little test data")
+        }
       } 
       if (input$An_tabs == "Something") {
          # p <- build_something()
@@ -3144,6 +3357,28 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
             showNotification("Too little case data")
           }
       }
+  }) 
+    
+  #---------------------------------------------------    
+  #------------------- Testing -----------------------
+  #---------------------------------------------------    
+  observeEvent({
+                input$Tests_logscale
+                input$Tests_Percapita
+                input$Tests_New
+                input$test_display
+                1} , { # 
+          if (sum(!is.na(subdata$Tests))>15) {
+            p <- build_tests_plot(
+              input$Tests_logscale,
+              input$Tests_Percapita,
+              input$Tests_New,
+              input$test_display
+            )
+            output$plot_tests <- renderPlot({print(p)})
+          } else {
+            showNotification("Too little test data")
+          }
   }) 
   #---------------------------------------------------    
   #------------------- Analysis Tab ------------------
