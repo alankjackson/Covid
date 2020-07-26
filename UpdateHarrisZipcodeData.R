@@ -60,6 +60,7 @@ res <- cbind.data.frame(split(result,
                         stringsAsFactors=F)
 names(res) <- c("Zip", "Cases") 
 res$Cases <- str_remove(res$Cases, "Total Confirmed Cases:\\s*") 
+res$Cases <- str_remove(res$Cases, ",") 
 res$Cases <- as.numeric(res$Cases)
 
 res <- res %>% mutate(Date=lubridate::today()) 
