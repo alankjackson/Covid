@@ -1,5 +1,5 @@
 #
-#    Update prison covid data
+#    Update testing covid data
 #
 
 library(tidyverse)
