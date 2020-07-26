@@ -841,6 +841,59 @@ saveRDS(foo, paste0(DataLocation, "Prisons_new.rds") )
 ```
 
 
+##  Recreate the county zipcode files from stored webpages
+
+```{r zipcodes}
+
+path <- "/home/ajackson/Dropbox/Rprojects/Covid/DailyBackups/"
+
+files <- dir(path=path, pattern = "*_ParsedPagesource.rds")
+
+foo <- tibble(Zip=character(),
+              Cases=numeric(),
+              Date=character())
+
+for (infile in files) {
+  
+  print(infile)
+  pagesource <- readRDS(paste0(path, infile))
+  xpath <- '//*[@id="ember54"]'
+  if (grepl("05-2[456]", infile)) {
+    xpath <- '//*[@id="ember53"]'
+  }
+  print(xpath)
+  
+  result <-
+    read_html(pagesource) %>%
+    html_nodes(xpath=xpath) %>%
+    html_text() %>% 
+    str_replace_all("\n"," ") %>% 
+    str_split("  +")
+  
+  print(length(result))
+  
+  result <- result[[1]][3:(length(result[[1]])-1)]
+  
+  res <- cbind.data.frame(split(result, 
+                                rep(1:2, times=length(result)/2)), 
+                          stringsAsFactors=F)
+  names(res) <- c("Zip", "Cases") 
+  res$Cases <- str_remove(res$Cases, "Total Confirmed Cases:\\s*") 
+  res$Cases <- str_remove(res$Cases, ",") 
+  res$Cases <- as.numeric(res$Cases)
+  
+  my_date <- stringr::str_extract(infile, "^[0-9-]+")
+  res <- res %>% mutate(Date=my_date) 
+
+  foo <- rbind(foo, res)
+  tail(res)
+    
+}
+
+foo <- foo %>% mutate(Date=as.Date(Date)) 
+
+```
+
 
 
 
