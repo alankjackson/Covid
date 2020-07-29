@@ -892,6 +892,11 @@ for (infile in files) {
 
 foo <- foo %>% mutate(Date=as.Date(Date)) 
 
+# Save the real file for later use
+saveRDS(foo,"/home/ajackson/Dropbox/Rprojects/Covid/HarrisZip.rds")
+# Also save to mirror site
+saveRDS(foo,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/HarrisZip.rds")
+
 ```
 
 
