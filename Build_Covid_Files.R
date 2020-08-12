@@ -323,7 +323,7 @@ prep_counties <- function(DF, Grouper) {
     group_by(!!Grouper) %>%
       arrange(Date) %>% 
       mutate(pct_chg=100*new_cases/lag(Cases, default=Cases[1])) %>%
-      mutate(active_cases=Cases-lag(Cases, n=14, default=0)) %>%
+      mutate(active_cases=Cases-lag(Cases, n=9, default=0)) %>%
       mutate(deaths_percase=Deaths/Cases) %>%
       mutate(doubling=doubling(Cases, window, !!Grouper)) %>% 
     ungroup() 
