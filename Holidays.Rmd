@@ -1,0 +1,128 @@
+---
+title: "Holidays"
+author: "Alan Jackson"
+date: "8/9/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(lubridate)
+
+path <- "/home/ajackson/Dropbox/Rprojects/Covid/"
+
+DF <- readRDS(paste0(path, "Covid.rds"))
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Clip data around holidays
+
+```{r clip}
+
+Holidays <- c("Mother's Day"="2020-05-10",
+              "Memorial Day"="2020-05-25",
+              "Fourth of July"="2020-07-04")
+
+DF <- 
+  DF %>% 
+  mutate(Mother_Day=as.numeric(Date - ymd(Holidays[["Mother's Day"]]))+7) %>% 
+  mutate(Memorial_Day=as.numeric(Date - ymd(Holidays[["Memorial Day"]]))+7) %>% 
+  mutate(Fourth_Day=as.numeric(Date - ymd(Holidays[["Fourth of July"]]))+7)
+
+```
+
+Now plot the data up nicely
+
+```{r plot]}
+
+# Top 20 counties by case load
+
+Top20 <- DF %>% 
+  group_by(County) %>% 
+    summarise(maxcase=max(Cases, na.rm=TRUE)) %>% 
+  arrange(desc(maxcase)) %>% 
+  head(20) %>% 
+  select(County)
+
+label <- tibble(Day=c(7,21), 
+                avg_pct_chg=c(0,0), 
+                Holiday=c("Fourth_Day", "Fourth_Day"),
+                label=c("Date of Holiday","2 Weeks Later"))
+
+DF %>% select(-Date, -Deaths) %>% 
+  filter(County %in% Top20$County) %>% 
+  group_by(County) %>% 
+    mutate(new_cases=(Cases-lag(Cases, default=Cases[1]))) %>% 
+    mutate(pct_chg=100*new_cases/lag(Cases, default=Cases[1])) %>%
+    mutate(avg_pct_chg = zoo::rollapply(pct_chg, 7, 
+                          FUN=function(x) mean(x, na.rm=TRUE),
+                          fill=c(first(pct_chg), NA, last(pct_chg)))) %>% 
+  ungroup() %>%
+  select(-Cases, -new_cases, -pct_chg) %>% 
+  pivot_longer(-c(County, avg_pct_chg), 
+               names_to="Holiday", 
+               values_to="Day") %>% 
+  filter((Day>0) & (Day<29)) %>% 
+  ggplot(aes(x=Day, y=avg_pct_chg, color=Holiday)) +
+  geom_line() +
+  #xlim(1, 28) +
+  facet_wrap(vars(County), scales="free") +
+  geom_vline(aes(xintercept=7)) +
+  geom_vline(aes(xintercept=21)) +
+  geom_label(data=label, aes(label = label), color="black")
+  
+
+
+
+
+```
+How about the whole state
+
+```{r texas}
+
+Texas <- DF %>% 
+  group_by(Date) %>% 
+    summarise(Cases=sum(Cases, na.rm=TRUE)) %>% 
+  ungroup() %>% 
+  mutate(Mother_Day=as.numeric(Date - ymd(Holidays[["Mother's Day"]]))+7) %>% 
+  mutate(Memorial_Day=as.numeric(Date - ymd(Holidays[["Memorial Day"]]))+7) %>% 
+  mutate(Fourth_Day=as.numeric(Date - ymd(Holidays[["Fourth of July"]]))+7)
+
+
+label <- tibble(Day=c(7,21), 
+                avg_pct_chg=c(0,0), 
+                Holiday=c("Fourth_Day", "Fourth_Day"),
+                label=c("Date of Holiday","2 Weeks Later"))
+
+Texas %>% select(-Date) %>% 
+  mutate(new_cases=(Cases-lag(Cases, default=Cases[1]))) %>% 
+  mutate(pct_chg=100*new_cases/lag(Cases, default=Cases[1])) %>%
+  mutate(avg_pct_chg = zoo::rollapply(pct_chg, 7, 
+                        FUN=function(x) mean(x, na.rm=TRUE),
+                        fill=c(first(pct_chg), NA, last(pct_chg)))) %>% 
+  select(-Cases, -new_cases, -pct_chg) %>% 
+  pivot_longer(-avg_pct_chg, 
+               names_to="Holiday", 
+               values_to="Day") %>% 
+  filter((Day>0) & (Day<29)) %>% 
+  ggplot(aes(x=Day, y=avg_pct_chg, color=Holiday)) +
+  geom_line() +
+  geom_vline(aes(xintercept=7)) +
+  geom_vline(aes(xintercept=21)) +
+  geom_label(data=label, aes(label = label), color="black")+
+  labs(title="Average Daily Percent Change for Texas",
+       y="Avg Pct Change") +
+  scale_color_discrete(#values=c("#999999", "#E69F00", "#56B4E9"), 
+                       name="Holiday",
+                       breaks=c("Fourth_Day", 
+                                "Memorial_Day", 
+                                "Mother_Day"),
+                       labels=c("Fourth of July", 
+                                "Memorial Day", 
+                                "Mother's Day"))
+  
+
+```
+
+
