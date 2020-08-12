@@ -354,7 +354,7 @@ inpath <- "/home/ajackson/Dropbox/Rprojects/Covid/TexasDataXcel/"
 utpath <- "/home/ajackson/Dropbox/Rprojects/Covid/"
 
 #         get cases
-df <- readxl::read_excel(paste0(inpath,"County_Case_Data_2020-07-12.xlsx"))
+df <- readxl::read_excel(paste0(inpath,"County_Case_Data_2020-08-03.xlsx"))
 
 # No data for March 14
 
@@ -384,17 +384,35 @@ df <- df %>% pivot_longer(-County, names_to="Date", values_to="Cases")
 
 foo <- df %>% mutate(Cases=as.numeric(Cases))
 
+######################################
 # get deaths
+######################################
 
-df <- readxl::read_excel(paste0(inpath,"Deaths_by_County_2020-07-12.xlsx"))
+df <- readxl::read_excel(paste0(inpath,"Deaths_by_County_2020-08-03.xlsx"))
 
-my_columns <- c(1, 9:12, 14:ncol(df))
+my_columns <- c(1, 5:8, 10:ncol(df))
+
+lastdate <- ncol(df)-10
+
+my_colnames <- c(
+                 ymd("2020-03-10"),  
+                 ymd("2020-03-11"),  
+                 ymd("2020-03-12"),  
+                 ymd("2020-03-13"),  
+                 ymd("2020-03-15")+0:lastdate)
+
+my_colnames <- my_colnames %>% 
+                 format('%Y-%m-%d')
+my_colnames <- c("County", my_colnames)
+
 
 df <- df %>% 
   rename_at(my_columns,~ my_colnames)
 
 df <- df[3:256,]
-df <- df[-c(2:8, 13)]
+df <- df[-c(2:4, 9)]
+
+df <- df %>% mutate_at(vars(2:ncol(df)), as.numeric)
 
 df <- df %>% pivot_longer(-County, names_to="Date", values_to="Deaths")
 
@@ -898,6 +916,68 @@ saveRDS(foo,"/home/ajackson/Dropbox/Rprojects/Covid/HarrisZip.rds")
 saveRDS(foo,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/HarrisZip.rds")
 
 ```
+
+##  some data tripled, eliminate dups
+
+```{r triples}
+
+DataLocation <- "/home/ajackson/Dropbox/Rprojects/Covid/"
+DataArchive <- "/home/ajackson/Dropbox/mirrors/ajackson/SharedData/"
+
+#   Case data
+DF <- readRDS(paste0(DataLocation, "Covid.rds"))
+
+#  Dups, extra crap in file, and NA Cases
+
+foo <- DF %>% distinct() %>% 
+  filter(!str_detect(County, "DSHS")) %>% 
+  filter(!is.na(Cases))
+
+# Save the real file for later use
+saveRDS(foo,"/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
+# Also save to mirror site
+saveRDS(foo,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Covid.rds")
+
+```
+##  some extra crap
+
+```{r crap}
+
+DataLocation <- "/home/ajackson/Dropbox/Rprojects/Covid/"
+DataArchive <- "/home/ajackson/Dropbox/mirrors/ajackson/SharedData/"
+
+#   Case data
+DF <- readRDS(paste0(DataLocation, "Covid.rds"))
+
+#  Dups, extra crap in file, and NA Cases
+
+foo <- DF %>% distinct() %>% 
+  filter(!str_detect(County, "reportin")) %>% 
+  filter(!is.na(Cases))
+
+# Save the real file for later use
+saveRDS(foo,"/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
+# Also save to mirror site
+saveRDS(foo,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Covid.rds")
+
+```
+
+##  Delete August 2, repeat of August 1
+
+```{r august2}
+
+path <- "/home/ajackson/Dropbox/Rprojects/Covid/"
+
+foo <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
+
+foo <- foo %>% filter(!Date=="2020-08-02")
+
+# Save the real file for later use
+saveRDS(foo,"/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
+# Also save to mirror site
+saveRDS(foo,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Covid.rds")
+```
+
 
 
 
