@@ -1,0 +1,123 @@
+---
+title: "EMS"
+author: "Alan Jackson"
+date: "7/8/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+library(tidyverse)
+library(stringr)
+library(lubridate)
+library(rvest)
+library(httr)
+
+path <- "/home/ajackson/Dropbox/Rprojects/Covid/EmergencySave/"
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##  EMS calls
+
+Pull data from a save html file gotten from https://dmwilson.info/Home/Search
+
+```{r decode}
+
+infiles <- c("March_2020_webpage.html",
+             "April_2020_webpage.html",
+             "May_2020_webpage.html",
+             "June_2020_webpage.html",
+             "July_2020_webpage.html",
+             "March_2019_webpage.html",
+             "April_2019_webpage.html",
+             "May_2019_webpage.html",
+             "June_2019_webpage.html",
+             "July_2019_webpage.html"
+             )
+
+for (infile in infiles) {
+  print(paste("===> ", infile))
+  raw_html <- read_file(paste0(path, infile))
+  result <- read_html(raw_html) %>% 
+    html_nodes(xpath='//*[@id="resultsGrid"]')
+  
+  print("---1---")
+  result <- 
+  xml_child(result[[1]],1) %>% html_table(fill=TRUE)
+  
+  print("---2---")
+  res <- result %>% 
+    select(Time="Call Opened", 
+           Address, 
+           Alarm_level="Alarm Level", 
+           Num_units="# Units")
+  
+  print("---3---")
+  res$Time <- mdy_hms(res$Time)
+  
+  saveRDS(res, paste0(path, 
+                      "EMS_", 
+                      str_remove(infile, "_webpage.html"),
+                      ".rds"))
+}
+
+```
+
+## Look at data
+
+```{r plots}
+
+res <- readRDS(paste0(path, "EMS_July_2019.rds"))
+
+res <- res %>% 
+  mutate(Date=date(Time))
+
+res %>% 
+  ggplot(aes(x=Date)) +
+  geom_histogram()
+
+```
+
+
+## Let's make some plots
+
+```{r more plots}
+
+#   Read in the files and concatenate
+
+files <- dir(path=path, pattern = "EMS_*")
+
+df <- files %>% 
+  str_c(path, .) %>% 
+  map(readRDS) %>% 
+  reduce(rbind)
+
+df <- df %>% 
+  mutate(Date=date(Time)) %>% 
+  mutate(Year=year(Date), newDate=Date)  
+
+year(df$newDate) <- 2020
+
+foo <- 
+df %>% 
+  group_by(Date) %>% 
+    tally() %>% 
+  mutate(Year=year(Date), newDate=Date) %>% 
+  filter(!is.na(Year)) %>% 
+  mutate(Year=factor(Year, levels=c(2019, 2020)))
+
+year(foo$newDate) <- 2020
+
+foo %>% 
+  ggplot(aes(x=newDate, y=n, color=Year)) +
+  geom_point() +
+  geom_smooth() +
+  labs(title="Houston EMS Calls Per Day, 2019 vs. 2020",
+       y="Calls per day", x="Day")
+
+```
+
+
+
+
