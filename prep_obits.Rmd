@@ -22,11 +22,10 @@ knitr::opts_chunk$set(echo = TRUE)
 path <- "/home/ajackson/Dropbox/Rprojects/Covid/Obits/"
 
 files <- dir(path=path, pattern = "Obit*")
-#file <- "Obits_Jan2018.txt"
 
-foo <- 
-  files %>% paste0(path, .) %>% 
-  map(readLines)
+#foo <- 
+#  files %>% paste0(path, .) %>% 
+#  map(readLines)
 
 ```
 
@@ -35,94 +34,103 @@ foo <-
 
 ```{r parse}
 
-j <-  0
-obits <- tibble(Name=NA, BirthYear=NA, DeathYear=NA, PubDate=NA, Obit=NA)
-obits$PubDate <- as_date(obits$PubDate)
-flag="None"
-foo <- unlist(foo)
+Final_obits <- tibble(Name=NA, BirthYear=NA, DeathYear=NA, PubDate=NA, Obit=NA, age=NA)
 
-for (i in 1:length(foo)) {
+
+for (file in files) {
   
- ###if (i > 150) {break}
+  print(paste("-----", file, "-----"))
+  foo <- 
+    file %>% paste0(path, .) %>% 
+    map(readLines)
   
-  #print(paste("------", i, j, flag ))
-  #print(foo[i])
+  j <-  0
+  obits <- tibble(Name=NA, BirthYear=NA, DeathYear=NA, PubDate=NA, Obit=NA)
+  obits$PubDate <- as_date(obits$PubDate)
+  flag="None"
+  foo <- unlist(foo)
   
-  if (str_length(foo[i])==0) {next}
-  
-  if(grepl("Published in Houston Chronicle", foo[i])) { 
-    print(paste("---0----", i))
-    pubdate <- paste( unlist(str_split(foo[i],"\\s"))[6:7], collapse=" ")
-    pubyear <- tail(unlist(str_split(foo[i],"\\s")),1)
-    pubdate <- paste(pubdate, pubyear)
+  for (i in 1:length(foo)) {
     
-    if (is.na(obits$DeathYear[j])) {
-       obits$DeathYear[j] <-pubyear
-    } 
-    print(pubdate)
-    pubdate <- mdy(pubdate)
-    obits$PubDate[j] <- pubdate
-    flag <- "Published"
-  }
-  if (flag == "Submit") {
-    # protect dates so to distinguish from parenthesized nicknames
-    temp <- str_replace(foo[i],"\\( ?(\\d)", "{\\1")
-    temp <- str_replace(temp,"(\\d) ?\\)", "\\1}")
-    namedates <- unlist(str_split(temp, "\\{|\\}| - "))
-    obits$Name[j] <- namedates[1]
-    obits$BirthYear[j] <- namedates[2]
-    obits$DeathYear[j] <- namedates[3]
-    flag <- "None"
-  }
-  if (flag == "View") {
-    obits$Obit[j] <- foo[i]
-    flag <- "None"
-  }
-  
-  #   Try to parse the text of the obit for more info
-  
-  if (flag == "Published") { # Finished first pass of a single obit
-    if ((is.na(obits$BirthYear[j])) && (!is.na(obits$Obit[j]))) {
-      obits$BirthYear[j] <- str_replace_all(
-                                 str_extract(
-                                     obits$Obit[j], " \\d{4}-"),"\\D","")
+    if (str_length(foo[i])==0) {next}
+    
+    if(grepl("Published in Houston Chronicle", foo[i])) { 
+      print(paste("---0----", i))
+      pubdate <- paste( unlist(str_split(foo[i],"\\s"))[6:7], collapse=" ")
+      pubyear <- tail(unlist(str_split(foo[i],"\\s")),1)
+      pubdate <- paste(pubdate, pubyear)
+      
+      if (is.na(obits$DeathYear[j])) {
+         obits$DeathYear[j] <-pubyear
+      } 
+      print(pubdate)
+      pubdate <- mdy(pubdate)
+      obits$PubDate[j] <- pubdate
+      flag <- "Published"
+    }
+    if (flag == "Submit") {
+      # protect dates so to distinguish from parenthesized nicknames
+      temp <- str_replace(foo[i],"\\( ?(\\d)", "{\\1")
+      temp <- str_replace(temp,"(\\d) ?\\)", "\\1}")
+      namedates <- unlist(str_split(temp, "\\{|\\}| - "))
+      obits$Name[j] <- namedates[1]
+      obits$BirthYear[j] <- namedates[2]
+      obits$DeathYear[j] <- namedates[3]
+      flag <- "None"
+    }
+    if (flag == "View") {
+      obits$Obit[j] <- foo[i]
+      flag <- "None"
+    }
+    
+    #   Try to parse the text of the obit for more info
+    
+    if (flag == "Published") { # Finished first pass of a single obit
+      if ((is.na(obits$BirthYear[j])) && (!is.na(obits$Obit[j]))) {
+        obits$BirthYear[j] <- str_replace_all(
+                                   str_extract(
+                                       obits$Obit[j], " \\d{4}-"),"\\D","")
+      }
+    }
+    
+    
+    if (grepl("Submit an Entry", foo[i])){ # next pass parse name
+      print(paste("---1----", i))
+      flag <- "Submit"
+      j <- j + 1
+      obits <- add_row(obits, Name=NA, BirthYear=NA, DeathYear=NA, PubDate=NA, Obit=NA)
+    }
+    if (grepl("View Obituary", foo[i])){  # next pass parse obit
+      print("---2----")
+      flag <- "View" 
     }
   }
   
+  obits <- obits %>% filter_all(any_vars(!is.na(.)))
   
-  if (grepl("Submit an Entry", foo[i])){ # next pass parse name
-    print(paste("---1----", i))
-    flag <- "Submit"
-    j <- j + 1
-    obits <- add_row(obits, Name=NA, BirthYear=NA, DeathYear=NA, PubDate=NA, Obit=NA)
-  }
-  if (grepl("View Obituary", foo[i])){  # next pass parse obit
-    print("---2----")
-    flag <- "View" 
-  }
+  #   Remove duplicates
+  
+  obits <- distinct(obits)
+  
+  #   Estimate age
+  
+  obits <- obits %>% 
+    mutate(DeathYear=as.numeric(DeathYear), BirthYear=as.numeric(BirthYear)) %>% 
+    mutate(age=DeathYear-BirthYear) %>% 
+    filter(!grepl("Test ", Name)) %>% 
+    filter(!grepl(" [Aa]nd ", Name))
+
+  Final_obits <- rbind(Final_obits, obits)
 }
 
-obits <- obits %>% filter_all(any_vars(!is.na(.)))
-
-#   Remove duplicates
-
-obits <- distinct(obits)
-
-#   Estimate age
-
-obits <- obits %>% 
-  mutate(DeathYear=as.numeric(DeathYear), BirthYear=as.numeric(BirthYear)) %>% 
-  mutate(age=DeathYear-BirthYear) %>% 
-  filter(!grepl("Test ", Name)) %>% 
-  filter(!grepl(" [Aa]nd ", Name))
-
-
+Final_obits <- Final_obits[-1,]
+saveRDS(Final_obits, paste0(path, "LatestObits.rds"))
 
 ```
 
 ```{r plots}
 
-obits %>% ggplot(aes(x=age)) + geom_histogram()
+Final_obits %>% ggplot(aes(x=age)) + geom_histogram()
 
 ```
 
@@ -131,15 +139,16 @@ obits %>% ggplot(aes(x=age)) + geom_histogram()
 
 ```{r analysis}
 
+Final_obits$PubDate <- as_date(Final_obits$PubDate)
 
-df <- obits %>% 
+df <- Final_obits %>% 
   mutate(Death_week=week(PubDate)) %>% 
   select(-Name, -Obit) %>% 
   group_by(DeathYear, Death_week) %>% 
   summarise(Number=n()) %>% 
   ungroup()  
 
-df %>% filter(Death_week<16) %>% filter(DeathYear>2016) %>% 
+df %>% filter(Death_week<26) %>% filter(DeathYear>2016) %>% 
   mutate(DeathYear=as_factor(DeathYear)) %>% 
   ggplot(aes(x=Death_week, y=Number, group=DeathYear, color=DeathYear)) + 
   geom_line() + 
