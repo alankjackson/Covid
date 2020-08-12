@@ -89,7 +89,8 @@ foo <- read_excel(casecounts_path) %>%
   mutate(Date=lubridate::today()) %>% 
   mutate(County=str_replace_all(County, "[\r\n]" , "")) %>% 
   mutate(County=str_replace(County, "SanAugustine", "San Augustine")) %>% 
-  filter(County != "Probable cases are not included in the total case numbers")
+  filter(County != "Probable cases are not included in the total case numbers") %>% 
+  filter(!str_detect(County, "Texas is reporting"))
   #mutate(LastUpdate=as.character(lubridate::today()))
 foo$Cases <- as.numeric(foo$Cases)
 foo$Deaths <- as.numeric(foo$Deaths)
