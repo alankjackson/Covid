@@ -1,0 +1,66 @@
+---
+title: "GoogleQueries"
+author: "Alan Jackson"
+date: "8/14/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+library(tidyverse)
+library(lubridate)
+
+path <- "/home/ajackson/Dropbox/Rprojects/Covid/"
+
+DF <- readRDS(paste0(path, "Covid.rds"))
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Read in google data from query "Covid Symptoms Texas"
+
+```{r read google}
+
+path <- "/home/ajackson/Downloads/"
+
+Google <- read_csv(paste0(path, "multiTimeline.csv"), skip=2)
+
+```
+
+And let's make a plot
+
+```{r plot}
+
+Texas <- DF %>% 
+  group_by(Date) %>% 
+    summarise(Cases=sum(Cases, na.rm=TRUE)) %>% 
+  ungroup() %>% 
+  mutate(Daily=(Cases-lag(Cases, default=Cases[1]))) %>%
+  mutate(Daily=pmax(Daily, 0)) %>% # truncate negative numbers
+  mutate(week=epiweek(Date)) %>% 
+  group_by(week) %>% 
+    summarize(Daily=mean(Daily, na.rm=TRUE))
+
+Google <- Google %>% 
+  filter(Week>ymd("2020-01-01")) %>% 
+  mutate(week=epiweek(Week)) %>% 
+  select(Date=Week, Queries=2, week=week)
+
+Texas <- left_join(Texas, Google, by="week")
+
+
+Texas %>% select(-week) %>% 
+  mutate(Queries=Queries*max(Daily)/100) %>% 
+  pivot_longer(-Date, names_to="Dataset", values_to="Cases") %>% 
+  ggplot(aes(x=Date, y=Cases, color=Dataset)) +
+  geom_line() +
+  scale_y_continuous(sec.axis = sec_axis(~.*100/max(Texas$Daily), 
+                     name = "Normalized Google Queries"),
+                     trans="identity" ) +
+  labs(title="Daily new cases vs. Google queries for symptoms - Texas",
+       y="Avg New Cases per Day",
+       fill="Dataset") 
+
+
+```
+
