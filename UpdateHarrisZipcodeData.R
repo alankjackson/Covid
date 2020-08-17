@@ -48,7 +48,7 @@ saveRDS(parsed_pagesource,paste0("/home/ajackson/Dropbox/Rprojects/Covid/DailyBa
 #---------------------------------------------------------------------
 
 result <- read_html(parsed_pagesource) %>%
-  html_nodes(xpath='//*[@id="ember54"]') %>%
+  html_nodes(xpath='//*[@id="ember56"]') %>%
   html_text() %>% 
   str_replace_all("\n"," ") %>% 
   str_split("  +")
