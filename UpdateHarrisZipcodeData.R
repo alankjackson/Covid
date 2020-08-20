@@ -23,8 +23,8 @@ url <- "https://harriscounty.maps.arcgis.com/apps/opsdashboard/index.html#/31370
 # start the server and browser in headless mode
 rD <- rsDriver(browser="firefox",
                extraCapabilities = list("moz:firefoxOptions" = list(
-                 args = list('--headless')))
-)
+                 args = list('--headless'))))
+               
 
 driver <- rD$client
 
@@ -63,7 +63,7 @@ res$Cases <- str_remove(res$Cases, "Total Confirmed Cases:\\s*")
 res$Cases <- str_remove(res$Cases, ",") 
 res$Cases <- as.numeric(res$Cases)
 
-res <- res %>% mutate(Date=lubridate::today()) 
+res <- res %>% mutate(Date=lubridate::today()-1) 
 
 res
 
