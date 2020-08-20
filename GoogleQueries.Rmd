@@ -23,7 +23,7 @@ Read in google data from query "Covid Symptoms Texas"
 
 path <- "/home/ajackson/Downloads/"
 
-Google <- read_csv(paste0(path, "multiTimeline.csv"), skip=2)
+Google <- read_csv(paste0(path, "multiTimeline (1).csv"), skip=2)
 
 ```
 
@@ -42,6 +42,9 @@ Texas <- DF %>%
     summarize(Daily=mean(Daily, na.rm=TRUE))
 
 Google <- Google %>% 
+  rename(Queries=2) %>% 
+  mutate(Queries=na_if(Queries, "<1")) %>% 
+  mutate(Queries=as.numeric(Queries)) %>% 
   filter(Week>ymd("2020-01-01")) %>% 
   mutate(week=epiweek(Week)) %>% 
   select(Date=Week, Queries=2, week=week)
@@ -57,9 +60,40 @@ Texas %>% select(-week) %>%
   scale_y_continuous(sec.axis = sec_axis(~.*100/max(Texas$Daily), 
                      name = "Normalized Google Queries"),
                      trans="identity" ) +
-  labs(title="Daily new cases vs. Google queries for symptoms - Texas",
+  labs(title="Daily new cases vs. Google queries Covid Tests - Texas",
        y="Avg New Cases per Day",
        fill="Dataset") 
+
+
+```
+
+Let's read Google directly
+
+```{r direct}
+
+library(gtrendsR)
+
+DMA_code <- read_csv("/home/ajackson/Dropbox/Rprojects/Datasets/Archive/DMA_Codes.csv")
+
+keywords <- "Covid testing"
+country <- "US-TX"
+country <- "US-TX-618"
+time <- ("2020-06-01 2020-08-15")
+channel <- 'web'
+
+Regions <- c("HOUSTON", "DALLAS-FT. WORTH", "AUSTIN", "SAN ANTONIO")
+country <- paste0("US-TX-", DMA_code$Code[DMA_code$Region %in% Regions])
+
+Region_list <- deframe(tibble(country, Regions))
+
+trends <-  gtrends(keywords, gprop=channel,geo=country, time = time )
+
+trends[["interest_over_time"]] %>% 
+  left_join(tibble(country, Regions), by=c("geo" = "country")) %>% 
+  ggplot(aes(x=date, y=hits, color=Regions)) + 
+  geom_point()+
+  geom_smooth(se=FALSE)+
+  labs(title="Google queries for 'Covid Testing'")
 
 
 ```
