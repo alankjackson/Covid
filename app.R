@@ -857,7 +857,13 @@ ui <- basicPage(
                       "map_meat_packers",
                       label = "Counties with meat packing",
                       value = FALSE
-                    )
+                    ),
+                    checkboxInput(
+                      "map_top5",
+                      label = "Top 5 Counties",
+                      value = TRUE
+                    ),
+                   htmlOutput("map_details")
                ) # end column control
          ) # end fluid page
                    
@@ -2687,7 +2693,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
       details <- MSA_case_filt %>% 
         group_by(MSA) %>% 
           summarise(signif(last(!!as.name(in_y_axis)),3),
-                    last(Cases)) %>% 
+                    last(Cases)) %>%
         rename(!!sym(in_y_axis):=2, Total_Cases=3) %>% 
         mutate(label=y_labels[[in_y_axis]]) %>% 
         arrange(sort_direction*(!!as.name(in_y_axis))) %>%
@@ -2904,9 +2910,11 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
   #---------------------------------------------------    
   draw_map2 <- function(in_county_color,
                         in_map_prisons,
-                        in_map_meat_packers) {
+                        in_map_meat_packers,
+                        in_map_top5) {
     
     print(":::::::  draw_map2")
+    in_map_highlight <- TRUE # stub to replace when control is added
     QuantScale <- TRUE
     # Create color scale
     Range <- range(MappingData[[in_county_color]], na.rm=TRUE)
@@ -2925,6 +2933,15 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     
     meat <- MappingData %>% 
       filter(meat)
+    
+    #   Top five counties for chosen measure
+    
+    sorting <- grepl("doubling", in_county_color)
+    sort_direction <- 2*sorting-1
+    
+    details <- MappingData %>% 
+      arrange(sort_direction*(!!as.name(in_county_color))) %>%
+      head(5)  
     
     #   Legend titles
     #my_titles <- list("Cases"="Total Cases",
@@ -3012,6 +3029,11 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
         my_map <- my_map %>% 
                   addPolylines(data=meat, color="blue", weight=2, opacity=1)
       }
+    print("---Map   3.5")
+      if (in_map_top5) {
+        my_map <- my_map %>% 
+                  addPolylines(data=details, color="white", weight=2, opacity=1)
+      }
     print("---Map   4")
       
       if (QuantScale) {
@@ -3032,6 +3054,23 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
       }
     }) 
     
+    output$map_details <- gt::render_gt({ 
+      
+      details <- details %>% 
+        as_tibble() %>% 
+        select(-SHAPE) %>% 
+        select(County, !!as.name(in_county_color))
+      
+    tab <-  details %>%
+      gt::gt() %>%
+      gt::tab_header(title="Top Five") %>% 
+      gt::cols_label(County=gt::md("**County**"), 
+                     !!sym(in_county_color):=gt::md(paste0("**", my_titles[[in_county_color]],"**"))) %>% 
+      gt::tab_style(style=gt::cell_fill(color="lightcyan"),
+                    locations=gt::cells_title()) 
+    
+    tab
+    } )
   }
   
 ###################   end of map
@@ -3638,6 +3677,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     input$map_percap
     input$map_prisons
     input$map_meat_packers
+    input$map_top5
     1} , { #  draw map
       
     in_county_color <- input$map_color
@@ -3659,7 +3699,8 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     
       draw_map2(in_county_color,
                 input$map_prisons,
-                input$map_meat_packers)
+                input$map_meat_packers,
+                input$map_top5)
       })
 }
 
