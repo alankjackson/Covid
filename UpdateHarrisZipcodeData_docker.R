@@ -19,6 +19,8 @@ print(lubridate::now())
 cat("\n=============== Harris Zipcode updates started =========\n\n")
 
 url <- "https://harriscounty.maps.arcgis.com/apps/opsdashboard/index.html#/31370c72d3844e6b962fcf8490718821"
+
+this_day <- lubridate::today()
 #---------------------------------------------------------------------
 #   retrieve the webpage with a headless browser
 #---------------------------------------------------------------------
@@ -49,7 +51,7 @@ rD$close()
 ####  docker stop $(sudo docker ps -q)
 
 #   Save in case the rest of the code crashes, like when they update the page on you
-saveRDS(parsed_pagesource,paste0("/home/ajackson/Dropbox/Rprojects/Covid/DailyBackups/",lubridate::today(),"_ParsedPagesource.rds"))
+saveRDS(parsed_pagesource,paste0("/home/ajackson/Dropbox/Rprojects/Covid/DailyBackups/",this_day,"_ParsedPagesource.rds"))
 #---------------------------------------------------------------------
 #   Extract cases per zipcode
 #---------------------------------------------------------------------
@@ -70,7 +72,7 @@ res$Cases <- str_remove(res$Cases, "Total Confirmed Cases:\\s*")
 res$Cases <- str_remove(res$Cases, ",") 
 res$Cases <- as.numeric(res$Cases)
 
-res <- res %>% mutate(Date=lubridate::today()-1) 
+res <- res %>% mutate(Date=this_day-1) 
 
 res
 
@@ -87,7 +89,7 @@ HarrisZip <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/HarrisZip.rds")
 # append the new data
 HarrisZip <- bind_rows(HarrisZip, res)
 # Save an accumulated file in case of a failure
-saveRDS(HarrisZip,paste0("/home/ajackson/Dropbox/Rprojects/Covid/DailyBackups/",lubridate::today(),"_HarrisZip.rds"))
+saveRDS(HarrisZip,paste0("/home/ajackson/Dropbox/Rprojects/Covid/DailyBackups/",this_day,"_HarrisZip.rds"))
 # Save the real file for later use
 saveRDS(HarrisZip,"/home/ajackson/Dropbox/Rprojects/Covid/HarrisZip.rds")
 # Also save to mirror site
