@@ -571,17 +571,31 @@ ui <- basicPage(
                         ),
                       ),
                       wellPanel(
+                    h4("Choose the Y-Axis"),
+                    checkboxInput(
+                      "ind_avg",
+                      label = "Running Average",
+                      value = TRUE
+                    ),
+                    #HTML("<hr>"),
+                    checkboxInput(
+                      inputId = "ind_percap",
+                      label = "per 100,000",
+                      value = TRUE
+                    ),
+                    HTML("<hr>"),
                         radioButtons(
                           "slopetype",
-                          label = h4("Y-Axis"),
+                          label = NULL,
                           choices = list(
                             "New Cases" = "newcase",
-                            "Avg New Cases" = "avgnewcase",
-                            "New Cases per 100k" = "newcasepercap",
-                            "Avg New Cases per 100k" = "avgnewcasepercap",
+                            "Active Cases" = "active",
+                            #"Avg New Cases" = "avgnewcase",
+                            #"New Cases per 100k" = "newcasepercap",
+                            #"Avg New Cases per 100k" = "avgnewcasepercap",
                             "Percent change" = "percent",
-                            "Avg Percent change" = "avgpercent",
-                            "Cum Cases" = "cases",
+                            #"Avg Percent change" = "avgpercent",
+                            #"Cum Cases" = "cases",
                             "Doubling Time" = "doubling"
                           ),
                       selected = "newcase"
@@ -2069,16 +2083,29 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
   }
   
   #---------------------------------------------------    
-  #------------------- Build Slope Plot --------------
+  #------------------- Build Indicator Plot ----------
   #---------------------------------------------------    
   
   build_slope_plot <- function(
                                 in_window,
                                 in_slopetype,
+                                in_ind_percap,
+                                in_ind_avg,
                                 in_smooth,
                                 in_smthlength=3
                                 ){
     print(":::::::  build_slope_plot")
+    
+    # what is the Y axis
+    
+    my_indicator <- in_slopetype
+    if (in_ind_percap) {
+      my_indicator <- paste0(my_indicator, "percap")
+    }
+    if (in_ind_avg) {
+      my_indicator <- paste0("avg", my_indicator)
+    }
+    
     halfwidth <- as.integer(in_window/2)
     Population <- PopLabel$Population
     print("-------- slope  1 --------------")
@@ -2089,23 +2116,18 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                                   fill=c(0, NA, last(Pct_change)))) %>% 
       mutate(avg_chg=zoo::rollmean(new_cases, in_window, 
                               fill=c(0, NA, last(new_cases)))) %>% 
-      #mutate(avg_pct_chg=na_if(avg_pct_chg, 0)) %>% 
-      #mutate(Pct_change=na_if(Pct_change, 0)) %>% 
-      #mutate(new_cases=na_if(new_cases, 0)) %>% 
       mutate(chgpercapita=1.e5*new_cases/Population) %>% 
       mutate(avg_chgpercapita=1.e5*avg_chg/Population) #%>% 
-      #mutate(avg_pct_chg=replace(avg_pct_chg, avg_pct_chg>30, NA)) %>% 
-      #mutate(Pct_new_cases=replace(Pct_change, Pct_change>30, NA))
     print("-------- slope  2 --------------")
-    #browser()
+    
     foo <- foo %>% 
       mutate(m = case_when(
-        in_slopetype=="percent" ~ Pct_change,
-        in_slopetype=="avgpercent" ~ avg_pct_chg,
-        in_slopetype=="newcase" ~ new_cases,
-        in_slopetype=="avgnewcase" ~ avg_chg,
-        in_slopetype=="newcasepercap" ~ chgpercapita,
-        in_slopetype=="avgnewcasepercap" ~ avg_chgpercapita,
+        my_indicator=="percent" ~ Pct_change,
+        my_indicator=="avgpercent" ~ avg_pct_chg,
+        my_indicator=="newcase" ~ new_cases,
+        my_indicator=="avgnewcase" ~ avg_chg,
+        my_indicator=="newcasepercap" ~ chgpercapita,
+        my_indicator=="avgnewcasepercap" ~ avg_chgpercapita,
         TRUE ~ 0
       ))
     print("-------- slope  3 --------------")
@@ -2128,7 +2150,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                 "avgnewcasepercap"="Avg New Cases per 100,000")
     
     print("-------- slope  4 --------------")
-    if (in_slopetype=="cases") {
+    if (my_indicator=="cases") {
       foo <- foo %>% 
         mutate(log_cases=Cases)
     } else {
@@ -2137,7 +2159,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     }
     
     print("-------- slope  5 --------------")
-    if (in_slopetype=="doubling" || in_slopetype=="cases") { # calc slope
+    if (my_indicator=="doubling" || my_indicator=="cases") { # calc slope
     print("-------- slope  5.1 --------------")
       foo <- foo %>%
         mutate(
@@ -2158,11 +2180,11 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     }
     
     print("-------- slope  5.5 --------------")
-   # if (!grepl("percent", in_slopetype)) {
+   # if (!grepl("percent", my_indicator)) {
    #   foo <- foo %>% filter(m>0.0)
    # }
     #   calculate doubling time
-    if (in_slopetype=="doubling") {
+    if (my_indicator=="doubling") {
       foo <- foo %>% 
         mutate(m=signif(log10(2)/m,3),
                sd=signif(log10(2)/(m-sd),3)) %>% 
@@ -2187,11 +2209,11 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
       geom_point() +
       theme(text = element_text(size=20)) +
       geom_smooth() +
-      labs(title=paste0(my_title[[in_slopetype]]
+      labs(title=paste0(my_title[[my_indicator]]
                         ,PopLabel$Label),
-           y=my_ylab[[in_slopetype]])
+           y=my_ylab[[my_indicator]])
     
-    if (in_slopetype=="cases") {
+    if (my_indicator=="cases") {
       p <- p +
       geom_errorbar(aes(ymax=m+sd, ymin=m-sd)) +
         labs(subtitle=paste0("Fit over ",in_window," days"))
@@ -2201,7 +2223,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
       str1 <- paste("Most recent value, on",last(foo$Date),
                     "was<b>", formatC(last(foo$m),
                                       format="d", big.mark=","),"</b>",
-                    my_ylab[[in_slopetype]])
+                    my_ylab[[my_indicator]])
       
      # if (has_name(PopLabel,"Region")) {
         HTML(paste(str1, sep = '<br/>'))
@@ -3218,6 +3240,8 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
           p <- build_slope_plot(
                                  input$window,
                                  input$slopetype,
+                                 input$ind_percap,
+                                 input$ind_avg,
                                  input$smooth,
                                  input$smthlength
                                  )
@@ -3446,6 +3470,8 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
   observeEvent({
                 input$window
                 input$slopetype
+                input$ind_percap
+                input$ind_avg
                 input$smooth
                 input$smthlength
                 input$An_tabs
@@ -3455,6 +3481,8 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
             p <- build_slope_plot(
               input$window,
               input$slopetype,
+              input$ind_percap,
+              input$ind_avg,
               input$smooth,
               input$smthlength
             )
