@@ -62,7 +62,7 @@ testing_status <- tribble(
 tail(foo)
 
 testing_status <- testing_status %>% 
-  mutate(Date=lubridate::today()-1) %>% 
+  mutate(Date=lubridate::today()) %>% 
   mutate(Total=as.character(Total))
 
 # Has anything changed?
