@@ -978,6 +978,55 @@ saveRDS(foo,"/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
 saveRDS(foo,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Covid.rds")
 ```
 
+##  fix dates in county zipcode files 
+
+```{r zipcodes}
+
+foo <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/HarrisZip.rds")
+
+
+foo <- foo %>% 
+  mutate(Date=ifelse(Date>lubridate::ymd("2020-08-17"), 
+                                  Date-1, 
+                                  Date)) %>% 
+  mutate(Date=lubridate::as_date(Date))
+
+# Save the real file for later use
+saveRDS(foo,"/home/ajackson/Dropbox/Rprojects/Covid/HarrisZip.rds")
+# Also save to mirror site
+saveRDS(foo,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/HarrisZip.rds")
+
+```
+
+##  fix dates in prison file 
+
+```{r prison}
+
+foo <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/DailyBackups/2020-08-20_Prisons_2.rds")
+
+
+foo <- foo %>% 
+  mutate(Date=lubridate::ymd("2020-08-20")) 
+
+# Save the real file for later use
+saveRDS(foo, "/home/ajackson/Dropbox/Rprojects/Covid/DailyBackups/2020-08-20_Prisons_2.rds")
+
+```
+
+## add 1 to date on Tests
+
+```{r missing tests}
+#############   tests
+foo <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Today_Data/Today_County_Testing.rds")
+
+foo <- foo %>% 
+  mutate(Date=lubridate::ymd(Date)) %>% 
+  mutate(Date=Date+1)
+
+# Save the real file for later use
+saveRDS(foo,"/home/ajackson/Dropbox/Rprojects/Covid/Today_Data/Today_County_Testing.rds")
+
+```
 
 
 
