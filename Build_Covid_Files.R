@@ -613,12 +613,15 @@ print("-- test end --")
 #------------------- Mapping Data -------------------
 #---------------------------------------------------    
 
-#   Select off latest values from County_calc
+#   Select off latest values from County_calc except tests back up one day
 TodayData <- County_calc %>% 
   group_by(County) %>% 
-  mutate_at(vars(matches("avg_")), nth, -3) %>% 
-  filter(row_number()==n()) %>% 
-  mutate_if(is.numeric, signif, 3) %>% 
+    slice_tail(n=7) %>% # Grab last 7 observations in each county
+    mutate(Pct_pos = sum(new_cases, na.rm=TRUE)/
+                     sum(new_tests, na.rm=TRUE)*100) %>% # avg pct pos
+    mutate_at(vars(matches("avg_|[Tt]ests")), nth, -3) %>% 
+    filter(row_number()==n()) %>% 
+    mutate_if(is.numeric, signif, 3) %>% 
   ungroup()
 
 print("--5--")
