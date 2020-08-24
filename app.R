@@ -114,6 +114,7 @@ isnt_out_z <- function(x, thres = 8, na.rm = TRUE) {
     "doubling",   TRUE, FALSE, TRUE, TRUE,
     "active_cases", TRUE, TRUE,  FALSE, TRUE,
     "deaths_percase", FALSE, FALSE,  TRUE, TRUE,
+    "Pct_pos", FALSE, FALSE,  FALSE, TRUE,
     "new_cases",  TRUE, TRUE,  FALSE, TRUE,
     "new_deaths", TRUE, TRUE,  FALSE, TRUE
   )
@@ -588,17 +589,17 @@ ui <- basicPage(
                           "slopetype",
                           label = NULL,
                           choices = list(
-                            "New Cases" = "newcase",
-                            "Active Cases" = "active",
+                            "New Cases" = "new_cases",
+                            "Active Cases" = "active_cases",
                             #"Avg New Cases" = "avgnewcase",
                             #"New Cases per 100k" = "newcasepercap",
                             #"Avg New Cases per 100k" = "avgnewcasepercap",
-                            "Percent change" = "percent",
+                            "Percent change" = "pct_chg",
                             #"Avg Percent change" = "avgpercent",
                             #"Cum Cases" = "cases",
                             "Doubling Time" = "doubling"
                           ),
-                      selected = "newcase"
+                      selected = "new_cases"
                         ) 
                       )
                   )
@@ -874,7 +875,7 @@ ui <- basicPage(
                     ),
                     checkboxInput(
                       "map_top5",
-                      label = "Top 5 Counties",
+                      label = "Worst 5 Counties",
                       value = TRUE
                     ),
                    htmlOutput("map_details")
@@ -2098,56 +2099,82 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     
     # what is the Y axis
     
+    print(in_slopetype)
     my_indicator <- in_slopetype
-    if (in_ind_percap) {
-      my_indicator <- paste0(my_indicator, "percap")
+    if (in_ind_percap & 
+        calc_controls$percap[calc_controls$base==in_slopetype]) {
+      my_indicator <- paste0(my_indicator, "_percap")
     }
-    if (in_ind_avg) {
-      my_indicator <- paste0("avg", my_indicator)
+    if (in_ind_avg &
+        calc_controls$avg[calc_controls$base==in_slopetype]) {
+      my_indicator <- paste0("avg_", my_indicator)
     }
+    print(my_indicator)
     
     halfwidth <- as.integer(in_window/2)
     Population <- PopLabel$Population
     print("-------- slope  1 --------------")
     foo <- subdata %>% 
       arrange(Cases) %>% 
-      mutate(Pct_change=100*new_cases/lag(Cases, default=Cases[1])) %>% 
-      mutate(avg_pct_chg=zoo::rollmean(Pct_change, in_window, 
-                                  fill=c(0, NA, last(Pct_change)))) %>% 
-      mutate(avg_chg=zoo::rollmean(new_cases, in_window, 
+      mutate(pct_chg=100*new_cases/lag(Cases, default=Cases[1])) %>% 
+      mutate(avg_pct_chg=zoo::rollmean(pct_chg, in_window, 
+                                  fill=c(0, NA, last(pct_chg)))) %>% 
+      mutate(active_cases=Cases-lag(Cases, n=9, default=0)) %>%
+      mutate(avg_active_cases=zoo::rollmean(active_cases, in_window, 
+                              fill=c(0, NA, last(active_cases)))) %>% 
+      mutate(avg_new_cases=zoo::rollmean(new_cases, in_window, 
                               fill=c(0, NA, last(new_cases)))) %>% 
-      mutate(chgpercapita=1.e5*new_cases/Population) %>% 
-      mutate(avg_chgpercapita=1.e5*avg_chg/Population) #%>% 
+      mutate(avg_doubling=zoo::rollmean(doubling, in_window, 
+                              fill=c(0, NA, last(doubling)))) %>% 
+      mutate(new_cases_percap=1.e5*new_cases/Population) %>% 
+      mutate(avg_new_cases_percap=1.e5*avg_new_cases/Population) %>% 
+      mutate(active_cases_percap=1.e5*active_cases/Population) %>% 
+      mutate(avg_active_cases_percap=1.e5*avg_active_cases/Population) #%>% 
     print("-------- slope  2 --------------")
     
     foo <- foo %>% 
       mutate(m = case_when(
-        my_indicator=="percent" ~ Pct_change,
-        my_indicator=="avgpercent" ~ avg_pct_chg,
-        my_indicator=="newcase" ~ new_cases,
-        my_indicator=="avgnewcase" ~ avg_chg,
-        my_indicator=="newcasepercap" ~ chgpercapita,
-        my_indicator=="avgnewcasepercap" ~ avg_chgpercapita,
+        my_indicator=="pct_chg" ~ pct_chg,
+        my_indicator=="avg_pct_chg" ~ avg_pct_chg,
+        my_indicator=="avg_doubling" ~ avg_doubling,
+        my_indicator=="new_cases" ~ new_cases,
+        my_indicator=="avg_new_cases" ~ avg_new_cases,
+        my_indicator=="new_cases_percap" ~ new_cases_percap,
+        my_indicator=="avg_new_cases_percap" ~ avg_new_cases_percap,
+        my_indicator=="active_cases" ~ active_cases,
+        my_indicator=="avg_active_cases" ~ avg_active_cases,
+        my_indicator=="active_cases_percap" ~ active_cases_percap,
+        my_indicator=="avg_active_cases_percap" ~ avg_active_cases_percap,
         TRUE ~ 0
       ))
     print("-------- slope  3 --------------")
     
     my_title <- list("cases"="Slope of Cum Case Count in ",
-                  "percent"="Percent Change of Cases in ",
+                  "pct_chg"="Percent Change of Cases in ",
                   "doubling"="Doubling Time for ",
-                  "avgpercent"="Avg Pct Change in Cases in ",
-                  "newcase"="New Cases in ",
-                  "avgnewcase"="Avg New Cases in ",
-                  "newcasepercap"="New Cases per 100,000 in ",
-                  "avgnewcasepercap"="Avg New Cases per 100,000 in ")
+                  "avg_doubling"="Avg Doubling Time for ",
+                  "avg_pct_chg"="Avg Pct Change in Cases in ",
+                  "active_cases"="Active Cases in ",
+                  "avg_active_cases"="Avg Active Cases in ",
+                  "active_cases_percap"="Active Cases per 100,000 in ",
+                  "avg_active_cases_percap"="Avg Active Cases per 100,000 in ",
+                  "new_cases"="New Cases in ",
+                  "avg_new_cases"="Avg New Cases in ",
+                  "new_cases_percap"="New Cases per 100,000 in ",
+                  "avg_new_cases_percap"="Avg New Cases per 100,000 in ")
     my_ylab <- list("cases"="Slope: Change in cum num cases/ num days ",
-                "percent"="Daily percent change",
+                "pct_chg"="Daily percent change",
                 "doubling"="Doubling Time in Days",
-                "avgpercent"="Avg Pct Change in Cases",
-                "newcase"="New Cases",
-                "avgnewcase"="Avg New Cases",
-                "newcasepercap"="New Cases per 100,000",
-                "avgnewcasepercap"="Avg New Cases per 100,000")
+                "avg_doubling"="Doubling Time in Days",
+                "avg_pct_chg"="Avg Pct Change in Cases",
+                "active_cases"="Active Cases",
+                "avg_active_cases"="Avg Active Cases",
+                "active_cases_percap"="Active Cases per 100,000",
+                "avg_active_cases_percap"="Avg Active Cases per 100,000",
+                "new_cases"="New Cases",
+                "avg_new_cases"="Avg New Cases",
+                "new_cases_percap"="New Cases per 100,000",
+                "avg_new_cases_percap"="Avg New Cases per 100,000")
     
     print("-------- slope  4 --------------")
     if (my_indicator=="cases") {
@@ -2936,7 +2963,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                         in_map_top5) {
     
     print(":::::::  draw_map2")
-    in_map_highlight <- TRUE # stub to replace when control is added
+    ##in_map_highlight <- TRUE # stub to replace when control is added
     QuantScale <- TRUE
     # Create color scale
     Range <- range(MappingData[[in_county_color]], na.rm=TRUE)
@@ -3080,12 +3107,12 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
       
       details <- details %>% 
         as_tibble() %>% 
-        select(-SHAPE) %>% 
+        #select(-SHAPE) %>% 
         select(County, !!as.name(in_county_color))
       
     tab <-  details %>%
       gt::gt() %>%
-      gt::tab_header(title="Top Five") %>% 
+      gt::tab_header(title="Worst Five") %>% 
       gt::cols_label(County=gt::md("**County**"), 
                      !!sym(in_county_color):=gt::md(paste0("**", my_titles[[in_county_color]],"**"))) %>% 
       gt::tab_style(style=gt::cell_fill(color="lightcyan"),
