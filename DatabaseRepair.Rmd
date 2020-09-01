@@ -354,7 +354,7 @@ inpath <- "/home/ajackson/Dropbox/Rprojects/Covid/TexasDataXcel/"
 utpath <- "/home/ajackson/Dropbox/Rprojects/Covid/"
 
 #         get cases
-df <- readxl::read_excel(paste0(inpath,"County_Case_Data_2020-08-03.xlsx"))
+df <- readxl::read_excel(paste0(inpath,"County_Case_Data_2020-08-26.xlsx"))
 
 # No data for March 14
 
@@ -388,7 +388,7 @@ foo <- df %>% mutate(Cases=as.numeric(Cases))
 # get deaths
 ######################################
 
-df <- readxl::read_excel(paste0(inpath,"Deaths_by_County_2020-08-03.xlsx"))
+df <- readxl::read_excel(paste0(inpath,"Deaths_by_County_2020-08-26.xlsx"))
 
 my_columns <- c(1, 5:8, 10:ncol(df))
 
@@ -1026,6 +1026,25 @@ foo <- foo %>%
 # Save the real file for later use
 saveRDS(foo,"/home/ajackson/Dropbox/Rprojects/Covid/Today_Data/Today_County_Testing.rds")
 
+```
+
+
+##  get rid of Infinity and Nan in County Calc
+
+```{r}
+
+
+path <- "/home/ajackson/Dropbox/Rprojects/Covid/Today_Data/"
+
+foo <- readRDS(paste0(path,"Today_County_calc.rds"))
+
+foo$Pct_pos[is.nan(foo$Pct_pos)] <- NA
+foo$Pct_pos[is.infinite(foo$Pct_pos)] <- NA
+
+saveRDS(foo, paste0(path,"Today_County_calc.rds"))
+
+path <- "/home/ajackson/Dropbox/mirrors/ajackson/Covid/"
+saveRDS(foo, paste0(path,"Today_County_calc.rds"))
 ```
 
 
