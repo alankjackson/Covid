@@ -12,7 +12,6 @@ print(lubridate::now())
 cat("\n=============== Testing updates started =========\n\n")
 
 path <- "/home/ajackson/Dropbox/Rprojects/Covid/TexasDataXcel/"
-
 url <- "https://dshs.texas.gov/coronavirus/TexasCOVID-19CumulativeTestsOverTimebyCounty.xlsx"
 #  is file still there?
 
