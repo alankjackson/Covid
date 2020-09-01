@@ -572,8 +572,11 @@ County_calc <- left_join(County_calc,
                  Tests,
                  by=c("Date", "County")) %>% 
   mutate(Pct_pos=new_cases/new_tests*100) %>% 
-  mutate(New_tests_percap=1.e5*new_tests/Population) %>% 
+  mutate(new_tests_percap=1.e5*new_tests/Population) %>% 
   mutate(Tests_percap=1.e5*Tests/Population)
+
+County_calc$Pct_pos[is.nan(County_calc$Pct_pos)] <- NA
+County_calc$Pct_pos[is.infinite(County_calc$Pct_pos)] <- NA
 
 print("-- test 6 --")
 
@@ -586,14 +589,14 @@ MSAtests <- MSA_raw %>%
             new_tests=sum(new_tests, na.rm = TRUE),
             Population=unique(Population)) %>% 
   ungroup() %>%  
-  mutate(New_tests_percap=1.e5*new_tests/Population) %>% 
+  mutate(new_tests_percap=1.e5*new_tests/Population) %>% 
   mutate(Tests_percap=1.e5*Tests/Population) %>% 
   select(-Population)
 
 print("-- test 7 --")
 
 Texas_tests <- Texas_tests %>% 
-  mutate(New_tests_percap=1.e5*new_tests/27864555) %>% 
+  mutate(new_tests_percap=1.e5*new_tests/27864555) %>% 
   mutate(Tests_percap=1.e5*Tests/27864555)
 
 print("-- test 8 --")
@@ -616,13 +619,20 @@ print("-- test end --")
 #   Select off latest values from County_calc except tests back up one day
 TodayData <- County_calc %>% 
   group_by(County) %>% 
-    slice_tail(n=7) %>% # Grab last 7 observations in each county
-    mutate(Pct_pos = sum(new_cases, na.rm=TRUE)/
-                     sum(new_tests, na.rm=TRUE)*100) %>% # avg pct pos
+  #   use the following after update to tidyverse
+   # dplyr::slice_tail(n=7) %>% # Grab last 7 observations in each county
+   slice(tail(row_number(), 7)) %>% 
+   mutate(new_tests = mean(new_tests, na.rm=TRUE)) %>% 
+   mutate(Pct_pos = sum(new_cases, na.rm=TRUE)/
+                    sum(new_tests, na.rm=TRUE)*100) %>% # avg pct pos
     mutate_at(vars(matches("avg_|[Tt]ests")), nth, -3) %>% 
     filter(row_number()==n()) %>% 
     mutate_if(is.numeric, signif, 3) %>% 
   ungroup()
+
+TodayData$Pct_pos[is.nan(TodayData$Pct_pos)] <- NA
+TodayData$Pct_pos[is.infinite(TodayData$Pct_pos)] <- NA
+TodayData$Pct_pos[TodayData$new_tests<10] <- NA
 
 print("--5--")
 # Add current cases to county for labeling selector
