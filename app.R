@@ -844,25 +844,22 @@ ui <- basicPage(
                         "New Deaths" = "new_deaths",
                         "Deaths per Case" = "deaths_percase",
                         "Percent change" = "pct_chg",
+                        "New Tests" = "new_tests",
+                        "Test Pos Pct" = "Pct_pos",
                         "Doubling Time" = "doubling"
                       ),
                       selected = "Cases"
                     ), 
-               #radioButtons("county_color", 
-               #   label = strong("Display which variable?"),
-               #   choices = list( "Total Cases" = "Cases", 
-               #                  "Cases per 100,000 population" = "percapita",
-               #                  "Deaths" = "Deaths",
-               #                  "Deaths per 100,000" = "DPerCap",
-               #                  "Deaths/Cases" = "DPerC",
-               #                  "Doubling Time" = "double",
-               #                  "Avg Recent Pct Change" = "avgpct"
-               #                  ), 
-               #   selected = "Cases",
-               #   width='90%',
-               #   inline=FALSE),
                
                     HTML("<hr>"),
+                    tags$div(class = "inline", 
+                             numericInput(inputId = "min_case", 
+                                          step = 10,
+                                          value = 30,
+                                          min=0,
+                                          max=900,
+                                          label = "Min Cases:")
+                    ),
                     checkboxInput(
                       "map_prisons",
                       label = "Counties with >1% prison pop",
@@ -2289,12 +2286,12 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     if (in_tests_New) { # Daily number space
       if (in_tests_Percapita) { # perCapita scaling
         p <- data %>% 
-          ggplot(aes(x=Date, y=New_tests_percap, color="tests")) +
+          ggplot(aes(x=Date, y=new_tests_percap, color="tests")) +
           geom_point() +
           geom_smooth() 
         
-        ymin <- min(data$New_tests_percap, na.rm=TRUE)
-        ymax <- max(data$New_tests_percap, na.rm=TRUE)
+        ymin <- min(data$new_tests_percap, na.rm=TRUE)
+        ymax <- max(data$new_tests_percap, na.rm=TRUE)
         ylabs <- "Tests per Day per 100,000"
           
         if(grepl("Cases", test_display)) {
@@ -2958,11 +2955,15 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
   #------------------- Build Model -------------------
   #---------------------------------------------------    
   draw_map2 <- function(in_county_color,
+                        in_min_case,
                         in_map_prisons,
                         in_map_meat_packers,
                         in_map_top5) {
     
     print(":::::::  draw_map2")
+    
+    df <- MappingData %>% 
+      filter(Cases>=in_min_case)
     ##in_map_highlight <- TRUE # stub to replace when control is added
     QuantScale <- TRUE
     # Create color scale
@@ -2985,10 +2986,12 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     
     #   Top five counties for chosen measure
     
-    sorting <- grepl("doubling", in_county_color)
+    sorting <- grepl("doubling|new_tests", in_county_color)
     sort_direction <- 2*sorting-1
     
-    details <- MappingData %>% 
+    print(paste("Sorting:", sorting, in_county_color))
+    
+    details <- df %>% 
       arrange(sort_direction*(!!as.name(in_county_color))) %>%
       head(5)  
     
@@ -3030,7 +3033,8 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                      )
     # Usually reverse scale, but not always
     color_reverse <- TRUE
-    if (grepl("doubl", in_county_color)) {color_reverse <- FALSE}
+    #if (grepl("doubl", in_county_color)) {color_reverse <- FALSE}
+    if (sorting) {color_reverse <- FALSE}
     #browser()
     
     if (QuantScale) {
@@ -3733,6 +3737,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     input$map_prisons
     input$map_meat_packers
     input$map_top5
+    input$min_case
     1} , { #  draw map
       
     in_county_color <- input$map_color
@@ -3744,15 +3749,19 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     if (grepl("percap", in_county_color)&
         (grepl("pct_chg",in_county_color)
          || grepl("doubling",in_county_color)
+         || grepl("Pct_pos",in_county_color)
          || grepl("percase", in_county_color))) {
       in_county_color <- str_remove(in_county_color, "_percap")
     }
     if (grepl("avg_", in_county_color)&
-        grepl("percase",in_county_color)){
+        (grepl("percase",in_county_color)
+         || grepl("Pct_pos", in_county_color)
+         || grepl("new_tests", in_county_color))){
       in_county_color <- str_remove(in_county_color, "avg_")
     }
     
       draw_map2(in_county_color,
+                input$min_case,
                 input$map_prisons,
                 input$map_meat_packers,
                 input$map_top5)
