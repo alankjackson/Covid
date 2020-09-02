@@ -27,6 +27,12 @@ library(rsample) # for bootstrap
 DataLocation <- "https://www.ajackson.org/Covid/"
 DataArchive <- "https://www.ajackson.org/SharedData/"
 
+
+###%%%  Temporary for coding and debugging
+path <-  "/home/ajackson/Dropbox/Rprojects/Covid/"
+county_animate <- readRDS(paste0(path, "County_Animate.rds"))
+###%%%
+
 #   Tibble database
 
 #   Case data
@@ -118,6 +124,12 @@ isnt_out_z <- function(x, thres = 8, na.rm = TRUE) {
     "new_cases",  TRUE, TRUE,  FALSE, TRUE,
     "new_deaths", TRUE, TRUE,  FALSE, TRUE
   )
+
+#   Has animated basemap and legend been drawn?
+
+draw_anim_map <<- FALSE
+
+draw_anim_legend <<- "none"
 
 print("--------1----------")
 
@@ -852,6 +864,19 @@ ui <- basicPage(
                     ), 
                
                     HTML("<hr>"),
+                    checkboxInput(
+                      "map_animate",
+                      label = "Animate by week",
+                      value = FALSE
+                    ),
+                    sliderInput("map_anim_date",
+                                "Date",
+                                min=as.Date("2020-03-11"),
+                                max=today(),
+                                value=as.Date("2020-03-11"),
+                                step=7,
+                                animate=TRUE
+                                ),
                     tags$div(class = "inline", 
                              numericInput(inputId = "min_case", 
                                           step = 10,
@@ -2962,6 +2987,8 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     
     print(":::::::  draw_map2")
     
+    draw_anim_legend <<- "none" # reset animated map legend
+    
     df <- MappingData %>% 
       filter(Cases>=in_min_case)
     ##in_map_highlight <- TRUE # stub to replace when control is added
@@ -3064,7 +3091,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
         setView(lng = MapCenter[1] , lat = MapCenter[2], zoom = init_zoom ) %>%   
         addTiles() %>%
         addPolygons(data = MappingData, 
-                    group=in_county_color,
+                    group="polys",
                     stroke = TRUE,
                     weight = 1,
                     smoothFactor = 0.2, 
@@ -3091,7 +3118,9 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
       
       if (QuantScale) {
         my_map %>% 
-        addLegend("bottomleft", pal = pal, values = MappingData[[in_county_color]], 
+        addLegend("bottomleft", pal = pal, 
+                  group="map_legend",
+                  values = MappingData[[in_county_color]], 
                   title = my_titles[[in_county_color]],
                   labels= as.character(seq(Range[1], Range[2], length.out = 5)),
                   labFormat = function(type, cuts, p) {
@@ -3101,7 +3130,9 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                   opacity = 1)
       } else {
         my_map %>% 
-          addLegend("bottomleft", pal = pal, values = MappingData[[in_county_color]], 
+          addLegend("bottomleft", pal = pal, 
+                    group="map_legend",
+                    values = MappingData[[in_county_color]], 
                     title = my_titles[[in_county_color]],
                     opacity = 1)
       }
@@ -3124,6 +3155,148 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     
     tab
     } )
+  }
+  
+###################   end of map
+  
+  ######################  Animated Map ########################
+  #---------------------------------------------------    
+  #------------------- Build Model -------------------
+  #---------------------------------------------------    
+  draw_animap <- function(in_county_color,
+                          in_map_anim_date
+                        ) {
+    
+    print(":::::::  draw_animap")
+    
+    print(paste("Animap:", draw_anim_map, draw_anim_legend))
+    
+    #####    First generate a scale for the chosen variable
+    
+    Range <- range(county_animate[[in_county_color]], na.rm=TRUE)
+    Ncuts <- min(as.integer(sum(county_animate[[in_county_color]]>Range[1], na.rm=TRUE)/
+                            sum(county_animate[[in_county_color]]==Range[1], na.rm=TRUE)), 8)
+    Ncuts <- replace_na(Ncuts, 8)
+    QuantScale <- TRUE
+    if (Ncuts<=4) {QuantScale <- FALSE}
+    print(paste("Ncuts etc", Ncuts, in_county_color, QuantScale, Range))
+    
+    sorting <- grepl("doubling|new_tests", in_county_color)
+    sort_direction <- 2*sorting-1
+    
+    my_titles <- list(
+                     "Cases"="Number of Cases",
+                     "Cases_percap"="Cases pct Pop",
+                     "new_cases"="Number of New Cases",
+                     "new_cases_percap"="New Cases pct Pop",
+                     "active_cases"="Number of Active Cases",
+                     "active_cases_percap"="Active Cases per 100,000",
+                     "Deaths"="Number of Deaths",
+                     "Deaths_percap"="Deaths per 100,000",
+                     "new_deaths"="Number of New Deaths",
+                     "new_deaths_percap"="New Deaths per 100,000",
+                     "pct_chg"="Percent Change",
+                     "doubling"="Doubling Time in Days",
+                     "deaths_percase"="Deaths per Case"
+                     )
+    
+    # Usually reverse scale, but not always
+    color_reverse <- TRUE
+    if (sorting) {color_reverse <- FALSE}
+    
+    if (QuantScale) {
+      print("----- color Quantile")
+      pal <- colorQuantile(palette = heat.colors(Ncuts), 
+                           domain = county_animate[[in_county_color]], 
+                           n = Ncuts, 
+                           na.color = "transparent", 
+                           alpha = FALSE, 
+                           reverse = color_reverse,
+                           right = FALSE) 
+    } else {
+      print("----- color Numeric")
+      pal <- colorNumeric(palette = heat.colors(8),
+                          na.color = "transparent",
+                          reverse=color_reverse,
+                          domain = county_animate[[in_county_color]])
+    }
+    
+   # browser()
+    #####    Draw basemap and remember that it has been drawn
+   #if (!draw_anim_map) {
+       output$TexasMap <- renderLeaflet({
+        my_map <- leaflet(county_animate) %>%
+          addTiles() %>%
+          setView(lng = MapCenter[1] , lat = MapCenter[2], zoom = init_zoom )   
+     # })
+      draw_anim_map <<- TRUE
+   #}
+    
+    #####    Extract data for given date
+    
+    One_week <- county_animate %>% 
+      filter(Date==in_map_anim_date) %>% 
+      filter(!is.na((!!sym(in_county_color))))
+    
+    #####    Draw counties
+    
+    leafletProxy("TexasMap") %>% 
+        clearGroup(group="polys") %>% 
+        addPolygons(data = One_week, 
+                    group="polys",
+                    stroke = TRUE,
+                    weight = 1,
+                    smoothFactor = 0.2, 
+                    fillOpacity = 0.7,
+                    fillColor = ~pal(One_week[[in_county_color]]))  
+      
+    #####     Draw legend, if necessary
+    
+    #if (draw_anim_legend != in_county_color) {
+    
+      if (QuantScale) {
+        my_map <- my_map %>%
+        clearGroup(group="map_legend") %>% 
+        addLegend("bottomleft", pal = pal, 
+                  group="map_legend",
+                  values = county_animate[[in_county_color]],
+                  title = my_titles[[in_county_color]],
+                  labels= as.character(seq(Range[1], Range[2], length.out = 5)),
+                  labFormat = function(type, cuts, p) {
+                    n = length(cuts)
+                    paste0(signif(cuts[-n],2), " &ndash; ", signif(cuts[-1],2))
+                  },
+                  opacity = 1)
+      } else {
+        my_map <- my_map %>%
+        clearGroup(group="map_legend") %>% 
+        addLegend("bottomleft", pal = pal, 
+                  group="map_legend",
+                  values = county_animate[[in_county_color]],
+                  title = my_titles[[in_county_color]],
+                  opacity = 1)
+      }
+      draw_anim_legend <<- in_county_color
+   # }
+    my_map # draw the bugger
+    # 
+    # output$map_details <- gt::render_gt({ 
+    #   
+    #   details <- details %>% 
+    #     as_tibble() %>% 
+    #     #select(-SHAPE) %>% 
+    #     select(County, !!as.name(in_county_color))
+    #   
+    # tab <-  details %>%
+    #   gt::gt() %>%
+    #   gt::tab_header(title="Worst Five") %>% 
+    #   gt::cols_label(County=gt::md("**County**"), 
+    #                  !!sym(in_county_color):=gt::md(paste0("**", my_titles[[in_county_color]],"**"))) %>% 
+    #   gt::tab_style(style=gt::cell_fill(color="lightcyan"),
+    #                 locations=gt::cells_title()) 
+    # 
+    # tab
+     } )
   }
   
 ###################   end of map
@@ -3738,35 +3911,61 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     input$map_meat_packers
     input$map_top5
     input$min_case
+    input$map_animate
+    input$map_anim_date
     1} , { #  draw map
       
-    in_county_color <- input$map_color
-    if (input$map_avg) {in_county_color <- paste0("avg_", in_county_color)}
-    if (input$map_percap) {in_county_color <- paste0(in_county_color,"_percap")}
-    
-    #--------------- Clean up unuseable choices
-    
-    if (grepl("percap", in_county_color)&
-        (grepl("pct_chg",in_county_color)
-         || grepl("doubling",in_county_color)
-         || grepl("Pct_pos",in_county_color)
-         || grepl("percase", in_county_color))) {
-      in_county_color <- str_remove(in_county_color, "_percap")
-    }
-    if (grepl("avg_", in_county_color)&
-        (grepl("percase",in_county_color)
-         || grepl("Pct_pos", in_county_color)
-         || grepl("new_tests", in_county_color))){
-      in_county_color <- str_remove(in_county_color, "avg_")
-    }
-    
+    if (!input$map_animate) {
+      in_county_color <- input$map_color
+      if (input$map_avg) {in_county_color <- paste0("avg_", in_county_color)}
+      if (input$map_percap) {in_county_color <- paste0(in_county_color,"_percap")}
+      
+      #--------------- Clean up unuseable choices
+      
+      if (grepl("percap", in_county_color)&
+          (grepl("pct_chg",in_county_color)
+           || grepl("doubling",in_county_color)
+           || grepl("Pct_pos",in_county_color)
+           || grepl("percase", in_county_color))) {
+        in_county_color <- str_remove(in_county_color, "_percap")
+      }
+      if (grepl("avg_", in_county_color)&
+          (grepl("percase",in_county_color)
+           || grepl("Pct_pos", in_county_color)
+           || grepl("new_tests", in_county_color))){
+        in_county_color <- str_remove(in_county_color, "avg_")
+      }
+      
       draw_map2(in_county_color,
                 input$min_case,
                 input$map_prisons,
                 input$map_meat_packers,
                 input$map_top5)
-      })
-}
+      }
+    if (input$map_animate) {
+      print("----------   animap")
+      
+      in_county_color <- input$map_color
+      if (input$map_percap) {in_county_color <- paste0(in_county_color,"_percap")}
+      
+      #--------------- Clean up unuseable choices
+      
+      if (grepl("percap", in_county_color)&
+          (grepl("pct_chg",in_county_color)
+           || grepl("doubling",in_county_color)
+           || grepl("Pct_pos",in_county_color)
+           || grepl("percase", in_county_color))) {
+        in_county_color <- str_remove(in_county_color, "_percap")
+      }
+      
+      print(paste0("----- in_county_color", input$map_color, in_county_color))
+      
+      draw_animap(in_county_color,
+                  input$map_anim_date
+                )
+      }
+    })
+  }
 
 # Run the application 
 shinyApp(ui = ui, server = server)
