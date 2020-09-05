@@ -131,6 +131,8 @@ draw_anim_map <<- FALSE
 
 draw_anim_legend <<- "none"
 
+#   Labels for map animation
+
 print("--------1----------")
 
 span <- function(vector){ # range spanned by a vector
@@ -3164,7 +3166,10 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
   #------------------- Build Model -------------------
   #---------------------------------------------------    
   draw_animap <- function(in_county_color,
-                          in_map_anim_date
+                          in_map_anim_date,
+                          in_map_meat_packers,
+                          in_map_prisons,
+                          in_map_top5
                         ) {
     
     print(":::::::  draw_animap")
@@ -3200,6 +3205,16 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                      "deaths_percase"="Deaths per Case"
                      )
     
+    #   Subset of counties with >1% prison pop
+    
+    prisons <- MappingData %>% 
+      filter(prison_size=="Large Inmate Pop")
+    
+    #   Subset of counties with meat packing
+    
+    meat <- MappingData %>% 
+      filter(meat)
+    
     # Usually reverse scale, but not always
     color_reverse <- TRUE
     if (sorting) {color_reverse <- FALSE}
@@ -3220,24 +3235,41 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                           reverse=color_reverse,
                           domain = county_animate[[in_county_color]])
     }
-    
-   # browser()
-    #####    Draw basemap and remember that it has been drawn
-   #if (!draw_anim_map) {
-       output$TexasMap <- renderLeaflet({
-        my_map <- leaflet(county_animate) %>%
-          addTiles() %>%
-          setView(lng = MapCenter[1] , lat = MapCenter[2], zoom = init_zoom )   
-     # })
-      draw_anim_map <<- TRUE
-   #}
-    
-    #####    Extract data for given date
+        #####    Extract data for given date
     
     One_week <- county_animate %>% 
       filter(Date==in_map_anim_date) %>% 
       filter(!is.na((!!sym(in_county_color))))
     
+    #   Top five counties for chosen measure
+    
+    sorting <- grepl("doubling|new_tests", in_county_color)
+    sort_direction <- 2*sorting-1
+    
+    print(paste("Sorting:", sorting, in_county_color))
+    
+    details <- One_week %>% 
+      arrange(sort_direction*(!!as.name(in_county_color))) %>%
+      head(5)  %>% 
+      mutate(!!in_county_color:=signif(!!as.name(in_county_color), 3))
+    
+       output$TexasMap <- renderLeaflet({
+        my_map <- leaflet(county_animate) %>%
+          addTiles() %>%
+          setView(lng = MapCenter[1] , lat = MapCenter[2], zoom = init_zoom )   
+      draw_anim_map <<- TRUE
+    
+
+    # Build labels for map
+    
+    Map_anim_labels <- lapply(seq(nrow(One_week)), function(i) {
+      htmltools::HTML(
+        str_replace_all(
+          paste( One_week[i,]$County, 'County<br>' 
+          ),
+          "NA", "Zero"))
+    })
+
     #####    Draw counties
     
     leafletProxy("TexasMap") %>% 
@@ -3248,11 +3280,25 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                     weight = 1,
                     smoothFactor = 0.2, 
                     fillOpacity = 0.7,
+                    label=Map_anim_labels,
                     fillColor = ~pal(One_week[[in_county_color]]))  
-      
+    #     Highlight prisons
+    if (in_map_prisons) {
+      my_map <- my_map %>% 
+        addPolylines(data=prisons, color="black", weight=2, opacity=1)
+    }
+    print("---Map   3")
+    #      Highlight meat packers
+    if (in_map_meat_packers) {
+      my_map <- my_map %>% 
+        addPolylines(data=meat, color="blue", weight=2, opacity=1)
+    }
+    #      Highlight worst 5
+      if (in_map_top5) {
+        my_map <- my_map %>% 
+                  addPolylines(data=details, color="white", weight=2, opacity=1)
+      }
     #####     Draw legend, if necessary
-    
-    #if (draw_anim_legend != in_county_color) {
     
       if (QuantScale) {
         my_map <- my_map %>%
@@ -3277,26 +3323,26 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                   opacity = 1)
       }
       draw_anim_legend <<- in_county_color
-   # }
     my_map # draw the bugger
-    # 
-    # output$map_details <- gt::render_gt({ 
-    #   
-    #   details <- details %>% 
-    #     as_tibble() %>% 
-    #     #select(-SHAPE) %>% 
-    #     select(County, !!as.name(in_county_color))
-    #   
-    # tab <-  details %>%
-    #   gt::gt() %>%
-    #   gt::tab_header(title="Worst Five") %>% 
-    #   gt::cols_label(County=gt::md("**County**"), 
-    #                  !!sym(in_county_color):=gt::md(paste0("**", my_titles[[in_county_color]],"**"))) %>% 
-    #   gt::tab_style(style=gt::cell_fill(color="lightcyan"),
-    #                 locations=gt::cells_title()) 
-    # 
-    # tab
+
      } )
+       
+    output$map_details <- gt::render_gt({ 
+      
+      details <- details %>% 
+        as_tibble() %>% 
+        select(County, !!as.name(in_county_color))
+      
+    tab <-  details %>%
+      gt::gt() %>%
+      gt::tab_header(title="Worst Five") %>% 
+      gt::cols_label(County=gt::md("**County**"), 
+                     !!sym(in_county_color):=gt::md(paste0("**", my_titles[[in_county_color]],"**"))) %>% 
+      gt::tab_style(style=gt::cell_fill(color="lightcyan"),
+                    locations=gt::cells_title()) 
+    
+    tab
+    } )
   }
   
 ###################   end of map
@@ -3938,8 +3984,8 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
       
       draw_map2(in_county_color,
                 input$min_case,
-                input$map_prisons,
                 input$map_meat_packers,
+                input$map_prisons,
                 input$map_top5)
       }
     if (input$map_animate) {
@@ -3961,7 +4007,10 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
       print(paste0("----- in_county_color", input$map_color, in_county_color))
       
       draw_animap(in_county_color,
-                  input$map_anim_date
+                  input$map_anim_date,
+                  input$map_meat_packers,
+                  input$map_prisons,
+                  input$map_top5
                 )
       }
     })
