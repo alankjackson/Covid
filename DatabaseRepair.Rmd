@@ -354,7 +354,7 @@ inpath <- "/home/ajackson/Dropbox/Rprojects/Covid/TexasDataXcel/"
 utpath <- "/home/ajackson/Dropbox/Rprojects/Covid/"
 
 #         get cases
-df <- readxl::read_excel(paste0(inpath,"County_Case_Data_2020-08-26.xlsx"))
+df <- readxl::read_excel(paste0(inpath,"County_Case_Data_2020-09-04.xlsx"))
 
 # No data for March 14
 
@@ -380,7 +380,9 @@ df <- df %>%
 df <- df[3:256,]
 df <- df[-c(2:6)]
 
-df <- df %>% pivot_longer(-County, names_to="Date", values_to="Cases")
+df <- df %>%
+  mutate(Match=str_to_upper(County)) %>% 
+  pivot_longer(-c(County, Match), names_to="Date", values_to="Cases")
 
 foo <- df %>% mutate(Cases=as.numeric(Cases))
 
@@ -388,7 +390,7 @@ foo <- df %>% mutate(Cases=as.numeric(Cases))
 # get deaths
 ######################################
 
-df <- readxl::read_excel(paste0(inpath,"Deaths_by_County_2020-08-26.xlsx"))
+df <- readxl::read_excel(paste0(inpath,"Deaths_by_County_2020-09-04.xlsx"))
 
 my_columns <- c(1, 5:8, 10:ncol(df))
 
@@ -403,7 +405,7 @@ my_colnames <- c(
 
 my_colnames <- my_colnames %>% 
                  format('%Y-%m-%d')
-my_colnames <- c("County", my_colnames)
+my_colnames <- c("Match", my_colnames)
 
 
 df <- df %>% 
@@ -414,9 +416,12 @@ df <- df[-c(2:4, 9)]
 
 df <- df %>% mutate_at(vars(2:ncol(df)), as.numeric)
 
-df <- df %>% pivot_longer(-County, names_to="Date", values_to="Deaths")
+df <- df %>% pivot_longer(-Match, names_to="Date", values_to="Deaths")
 
-foo$Deaths <- df$Deaths
+#########################################
+
+foo <- left_join(foo, df, by=c("Match", "Date")) %>% 
+  select(-Match)
 
 foo$Cases <- as.numeric(foo$Cases)
 foo$Deaths <- as.numeric(foo$Deaths)
