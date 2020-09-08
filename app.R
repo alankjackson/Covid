@@ -29,8 +29,8 @@ DataArchive <- "https://www.ajackson.org/SharedData/"
 
 
 ###%%%  Temporary for coding and debugging
-path <-  "/home/ajackson/Dropbox/Rprojects/Covid/"
-county_animate <- readRDS(paste0(path, "County_Animate.rds"))
+path <-  "/home/ajackson/Dropbox/Rprojects/Covid/Today_Data/"
+county_animate <- readRDS(paste0(path, "Today_County_Animate.rds"))
 ###%%%
 
 #   Tibble database
@@ -3187,8 +3187,17 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                             sum(county_animate[[in_county_color]]==Range[1], na.rm=TRUE)), 8)
     Ncuts <- replace_na(Ncuts, 8)
     QuantScale <- TRUE
-    if (Ncuts<=4) {QuantScale <- FALSE}
+    if (Ncuts<=3) {QuantScale <- FALSE}
     print(paste("Ncuts etc", Ncuts, in_county_color, QuantScale, Range))
+    
+    ###########   test new binning
+    
+    kmeans_loc <- c(1+which(diff(kmeans(sort(county_animate[[in_county_color]]), 5)[["cluster"]])!=0))
+    kmeans_bins <- signif(c(0,
+                     sort(county_animate[[in_county_color]])[kmeans_loc],
+                     max(county_animate[[in_county_color]], na.rm=TRUE)),3)
+    
+    ###########   end test
     
     sorting <- grepl("doubling|new_tests", in_county_color)
     sort_direction <- 2*sorting-1
@@ -3239,6 +3248,17 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                           reverse=color_reverse,
                           domain = county_animate[[in_county_color]])
     }
+    
+    #######   kmeans
+    pal <- colorBin(palette = heat.colors(5), 
+                    bins = kmeans_bins, 
+                    pretty = TRUE,
+                    na.color = "transparent",
+                    reverse=color_reverse,
+                    domain = county_animate[[in_county_color]],
+                    alpha = FALSE, 
+                    right = FALSE)
+    #######   kmeans
         #####    Extract data for given date
     
     One_week <- county_animate %>% 
