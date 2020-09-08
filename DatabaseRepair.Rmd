@@ -418,7 +418,8 @@ df <- df %>% mutate_at(vars(2:ncol(df)), as.numeric)
 
 df <- df %>% pivot_longer(-Match, names_to="Date", values_to="Deaths")
 
-df$Match <- str_replace(df$Match, "DE WITT", "DEWITT")
+df <- df %>% 
+  mutate(Match=str_replace(Match, "DE WITT", "DEWITT"))
 
 #########################################
 
