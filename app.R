@@ -131,6 +131,10 @@ draw_anim_map <<- FALSE
 
 draw_anim_legend <<- "none"
 
+#   Last date in animate file
+
+Animate_last <- max(county_animate$Date)
+
 #   Labels for map animation
 
 print("--------1----------")
@@ -874,7 +878,7 @@ ui <- basicPage(
                     sliderInput("map_anim_date",
                                 "Date",
                                 min=as.Date("2020-03-11"),
-                                max=today(),
+                                max=Animate_last,
                                 value=as.Date("2020-03-11"),
                                 step=7,
                                 animate=TRUE
@@ -3253,7 +3257,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
       head(5)  %>% 
       mutate(!!in_county_color:=signif(!!as.name(in_county_color), 3))
     
-       output$TexasMap <- renderLeaflet({
+   output$TexasMap <- renderLeaflet({
         my_map <- leaflet(county_animate) %>%
           addTiles() %>%
           setView(lng = MapCenter[1] , lat = MapCenter[2], zoom = init_zoom )   
@@ -3272,7 +3276,8 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
 
     #####    Draw counties
     
-    leafletProxy("TexasMap") %>% 
+    #leafletProxy("TexasMap") %>% 
+    my_map <-  my_map %>% 
         clearGroup(group="polys") %>% 
         addPolygons(data = One_week, 
                     group="polys",
