@@ -90,7 +90,7 @@ DF <- DF %>% filter(Cases>0, !is.na(Cases))
 
 Prison_counties <- c("Jones", "Anderson", "Walker", "Medina", "Rusk",
                      "Grimes", "Coryell", "Houston", "Pecos", "Angelina",
-                     "Bowie", "Jefferson", "Brazoria")
+                     "Bowie", "Jefferson", "Brazoria", "Madison", "La Salle")
 
 #   De-step
 
@@ -287,22 +287,23 @@ isnt_out_z <- function(x, thres = 8, na.rm = TRUE) {
 
 #---------------  Control matrix, available everywhere
 
-calc_controls <<- tribble(
-  ~base,             ~avg, ~percap, ~trim, ~positive,
-  "Cases",           TRUE,  TRUE,  FALSE,  TRUE,
-  "Deaths",          TRUE,  TRUE,  FALSE,  TRUE,
-  "pct_chg",         TRUE, FALSE,  FALSE,  TRUE,
-  "doubling",        TRUE, FALSE,   TRUE,  TRUE,
-  "active_cases",    TRUE,  TRUE,  FALSE,  TRUE,
-  "deaths_percase", FALSE, FALSE,   TRUE,  TRUE,
-  "new_cases",       TRUE,  TRUE,  FALSE,  TRUE,
-  "new_deaths",      TRUE,  TRUE,  FALSE,  TRUE
+calc_controls <- tribble(
+  ~base,             ~avg, ~percap, ~trim, ~positive, ~anim_avg, ~anim_sum,
+  "Cases",           TRUE,  TRUE,  FALSE,  TRUE,       TRUE,     FALSE,
+  "Deaths",          TRUE,  TRUE,  FALSE,  TRUE,       TRUE,     FALSE,       
+  "pct_chg",         TRUE, FALSE,  FALSE,  TRUE,       TRUE,     FALSE,
+  "doubling",        TRUE, FALSE,   TRUE,  TRUE,       TRUE,     FALSE,
+  "active_cases",    TRUE,  TRUE,  FALSE,  TRUE,       TRUE,     FALSE,
+  "deaths_percase", FALSE, FALSE,   TRUE,  TRUE,       TRUE,     FALSE,
+  "new_cases",       TRUE,  TRUE,  FALSE,  TRUE,      FALSE,     TRUE,
+  "new_deaths",      TRUE,  TRUE,  FALSE,  TRUE,      FALSE,     TRUE
 )
 
 print("--4--")
 ######################################################################
 #       Calculate everything by grouping variable (County, MSA)
 ######################################################################
+
 prep_counties <- function(DF, Grouper) { 
   
   window <- 5
@@ -701,6 +702,155 @@ print("--6--")
 County_calc <<- County_calc %>% filter(n>5)
 
 
+##############################   animated map data
+print("-------------  animates map data ---------------")
+#   Generate averages by week
+
+calc_controls <- tribble(
+  ~base,             ~avg, ~percap, ~trim, ~positive, ~anim_avg, ~anim_sum,
+  "Cases",           TRUE,  TRUE,  FALSE,  TRUE,       TRUE,     FALSE,
+  "Deaths",          TRUE,  TRUE,  FALSE,  TRUE,       TRUE,     FALSE,       
+  "Tests",           TRUE,  TRUE,  FALSE,  TRUE,       TRUE,     FALSE,       
+  "pct_chg",         TRUE, FALSE,  FALSE,  TRUE,       TRUE,     FALSE,
+  "doubling",        TRUE, FALSE,   TRUE,  TRUE,       TRUE,     FALSE,
+  "active_cases",    TRUE,  TRUE,  FALSE,  TRUE,       TRUE,     FALSE,
+  "deaths_percase", FALSE, FALSE,   TRUE,  TRUE,       TRUE,     FALSE,
+  "new_cases",       TRUE,  TRUE,  FALSE,  TRUE,      FALSE,     TRUE,
+  "new_tests",       TRUE,  TRUE,  FALSE,  TRUE,      FALSE,     TRUE,
+  "new_deaths",      TRUE,  TRUE,  FALSE,  TRUE,      FALSE,     TRUE
+)
+
+print("-----8------")
+
+prep_animate <- function(df, Grouper) { 
+  
+  print("--- prep_animate 1 -----")
+  window <- 7
+  Grouper_str <- Grouper
+  Grouper <- rlang::sym(Grouper)
+  
+  #---------------  Clean up and calc base quantities
+  foo <- df %>%     
+    mutate(week=week(Date)) %>% 
+    select(-n) %>% 
+    group_by(!!Grouper) %>% 
+      arrange(Date) %>% 
+      mutate(day = row_number()) %>% 
+      add_tally() %>% 
+    ungroup() %>% 
+    select(!!Grouper, Cases, Deaths, Date, week,
+           new_cases, new_deaths, Tests, new_tests,
+           Population, n) %>% 
+    filter(!!Grouper!="Total") %>% 
+    filter(!!Grouper!="Pending County Assignment") %>% 
+    replace_na(list(Cases=0, Deaths=0, new_cases=0, new_deaths=0)) %>% 
+    group_by(!!Grouper) %>%
+      arrange(Date) %>% 
+      mutate(pct_chg=100*new_cases/lag(Cases, default=Cases[1])) %>%
+      mutate(active_cases=Cases-lag(Cases, n=9, default=0)) %>%
+      mutate(deaths_percase=Deaths/Cases) %>%
+      mutate(doubling=doubling(Cases, window, !!Grouper)) %>% 
+    ungroup() 
+  
+  print("--- prep_animate 2 -----")
+  #----------------- Trim outliers and force to be >=0
+  
+  for (base in calc_controls$base[calc_controls$trim]){
+    for (grp in unique(foo[[Grouper_str]])) {
+      foo[foo[[Grouper_str]]==grp,][base] <- isnt_out_z((foo[foo[[Grouper_str]]==grp,][[base]]))
+    }
+  }
+  print("--- prep_animate 3 -----")
+  for (base in calc_controls$base[calc_controls$positive]){
+    print(paste("----->>>>> base=", base))
+    foo[[base]] <- pmax(0, foo[[base]])
+  }
+  print("--- prep_animate 4 -----")
+  
+  #----------------- Calc weekly Average
+  
+  inputsum <- calc_controls$base[calc_controls$anim_sum==TRUE]
+  inputavg <- calc_controls$base[calc_controls$anim_avg==TRUE]
+  
+  foo2 <- foo %>% 
+    group_by(!!Grouper, week) %>% 
+      summarise_at(inputsum, sum, na.rm=TRUE) %>% 
+    ungroup()
+  
+  print("--- prep_animate 5 -----")
+  foo3 <- foo %>% 
+    group_by(!!Grouper, week) %>% 
+      summarise_at(inputavg, mean, na.rm=TRUE) %>% 
+    ungroup() %>% 
+    left_join(., foo2, by=c("County", "week"))
+    #bind_cols(foo2, .) %>% 
+    #select(-County...6, -week...7) %>% 
+    #rename(County=County...1, week=week...2)
+  
+  print("--- prep_animate 6 -----")
+  
+  foo2 <- foo3 %>% 
+    mutate(pct_chg=na_if(pct_chg, 0)) %>% 
+    mutate(pct_chg=replace(pct_chg, pct_chg>30, NA)) %>% 
+    mutate(pct_chg=replace(pct_chg, pct_chg<0.1, NA))
+  
+  keepfoo2 <<- foo2
+  #   get rid of NaN's
+  
+  foo2$doubling[is.nan(foo2$doubling)] <- NA
+  foo2$deaths_percase[is.nan(foo2$deaths_percase)] <- NA
+  
+  #----------------- Calc per capitas
+  
+  inputs <- calc_controls$base[calc_controls$percap==TRUE]
+  
+  print("--- prep_animate 7 -----")
+  foo2 <- County_pop %>%
+    select(-Cases) %>% 
+    left_join(., foo2, by="County") %>% 
+    mutate_at(inputs, list(percap = ~ . / Population * 1.e5)) 
+  
+  print("--- prep_animate 8 -----")
+  foo2$Date <- ymd("2020-01-01") + (foo2$week-1)*7
+  
+  return(foo2)
+  
+} ###############  end of prep_animate
+
+
+#DF$Pct_pos[is.nan(DF$Pct_pos)] <- NA
+#DF$Pct_pos[is.infinite(DF$Pct_pos)] <- NA
+
+county_animate <- prep_animate(County_calc, "County")
+
+print("-----9------")
+county_animate <- county_animate %>% 
+  mutate(Pct_pos=new_cases/new_tests*100) %>% 
+  filter(!is.na(Date))
+
+print("-----10------")
+county_animate$Tests[is.nan(county_animate$Tests)] <- NA
+county_animate$Tests_percap[is.nan(county_animate$Tests_percap)] <- NA
+county_animate$Pct_pos[is.nan(county_animate$Pct_pos)] <- NA
+county_animate$Pct_pos[is.infinite(county_animate$Pct_pos)] <- NA
+county_animate$Pct_pos <- signif(pmin(county_animate$Pct_pos, 100),3)
+
+#   Delete counties with zero cases
+
+county_animate <- county_animate %>% 
+  filter(!is.na(Date))
+
+#  add county polygons
+county_animate <-  merge(Texas, county_animate,
+                      by.x = c("County"), by.y = c("County"),
+                      all.x = TRUE) 
+
+#   Delete counties with zero cases
+
+county_animate <- county_animate %>% 
+  filter(!is.na(Date))
+
+
 ######################################################################
 #                               save files
 ######################################################################
@@ -726,6 +876,7 @@ saveRDS(Prison_data, paste0(path,"Today_Prison_data.rds"))
 saveRDS(Prison_county, paste0(path,"Today_Prison_county.rds"))
 saveRDS(MappingData, paste0(path,"Today_MappingData.rds"))
 saveRDS(MapLabels, paste0(path,"Today_MapLabels.rds"))
+saveRDS(county_animate, paste0(path, "Today_County_Animate.rds"))
 #
 path <- "/home/ajackson/Dropbox/mirrors/ajackson/Covid/"
 #
@@ -738,6 +889,7 @@ saveRDS(Prison_data, paste0(path,"Today_Prison_data.rds"))
 saveRDS(Prison_county, paste0(path,"Today_Prison_county.rds"))
 saveRDS(MappingData, paste0(path,"Today_MappingData.rds"))
 saveRDS(MapLabels, paste0(path,"Today_MapLabels.rds"))
+saveRDS(county_animate, paste0(path, "Today_County_Animate.rds"))
 
 cat("\n\n=============== Build Covid Files ended =========\n\n")
 print(lubridate::now())
