@@ -29,11 +29,17 @@ DataArchive <- "https://www.ajackson.org/SharedData/"
 
 
 ###%%%  Temporary for coding and debugging
-path <-  "/home/ajackson/Dropbox/Rprojects/Covid/Today_Data/"
-county_animate <- readRDS(paste0(path, "Today_County_Animate.rds"))
+##path <-  "/home/ajackson/Dropbox/Rprojects/Covid/Today_Data/"
+##county_animate <- readRDS(paste0(path, "Today_County_Animate.rds"))
 ###%%%
 
 #   Tibble database
+
+#   County Map Animation data
+
+z <- gzcon(url(paste0(DataLocation, "Today_County_Animate.rds")))
+county_animate <- readRDS(z)
+close(z)
 
 #   Case data
 z <- gzcon(url(paste0(DataLocation, "Today_County_calc.rds")))
