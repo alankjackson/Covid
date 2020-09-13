@@ -77,6 +77,12 @@ MapLabels <- readRDS(z)
 close(z)
 MappingData <- sf::st_as_sf(MappingData)
 
+#   Harris County Data
+
+##############   temporary stub here
+Harris_last <- today()
+##############   end temporary stub here
+
 init_zoom <- 6
 MapCenter <- c(-99.9018, 31.9686) # center of state
 
@@ -332,16 +338,14 @@ ui <- basicPage(
                    value = "Tests",
                    HTML("<hr>"),
                    plotOutput("plot_tests",
-                              height = "700px"),
-                   #h4("Details on displayed data"),
-                   #htmlOutput("death_details")
-         ), # end tab panel Tests
-         tabPanel(
-                   "Something",
-                   fluid = TRUE,
-                   value = "Something",
-                   HTML("<hr>")
-          ) # end tab panel Something
+                              height = "700px")
+         ) # end tab panel Tests
+         #tabPanel(
+         #          "Something",
+         #          fluid = TRUE,
+         #          value = "Something",
+         #          HTML("<hr>")
+         # ) # end tab panel Something
         ) # end TabSet panel An_tabs
       ), # end column 
             #-------------------- Data Selection
@@ -350,7 +354,6 @@ ui <- basicPage(
                  h4("Choose the data"),
                  radioButtons(
                    "dataset",
-                   #label = strong("Which Data?"),
                    label = NULL,
                    choices = list("Region" = "Region",
                                   "County" = "County"),
@@ -361,7 +364,6 @@ ui <- basicPage(
                    #    Select Region
                    condition = "input.dataset == 'Region'",
                    selectInput("region", "Choose a Region:",
-                               #Regions$Region,
                                MSA_raw$MSA[1:(nrow(MSA_raw)-3)],
                                selected = "Texas")
                  ), # end conditional panel
@@ -401,11 +403,6 @@ ui <- basicPage(
                   label = strong("Expand scale"),
                   value = FALSE
                 ),
-                #checkboxInput(
-                #    inputId = "recovery",
-                #    label = strong("Est missed cases"),
-                #    value = FALSE
-                #),
                 checkboxInput(
                   inputId = "logscale",
                   label = strong("Log Scaling"),
@@ -421,7 +418,6 @@ ui <- basicPage(
               # end wellPanel Control plot options
                   wellPanel(
                     # Modeling parameters
-                    #h4("Data Fits"),
                     radioButtons(
                       "modeling",
                       label = h4("Fitting"),
@@ -602,7 +598,6 @@ ui <- basicPage(
                       label = "Running Average",
                       value = TRUE
                     ),
-                    #HTML("<hr>"),
                     checkboxInput(
                       inputId = "ind_percap",
                       label = "per 100,000",
@@ -615,12 +610,7 @@ ui <- basicPage(
                           choices = list(
                             "New Cases" = "new_cases",
                             "Active Cases" = "active_cases",
-                            #"Avg New Cases" = "avgnewcase",
-                            #"New Cases per 100k" = "newcasepercap",
-                            #"Avg New Cases per 100k" = "avgnewcasepercap",
                             "Percent change" = "pct_chg",
-                            #"Avg Percent change" = "avgpercent",
-                            #"Cum Cases" = "cases",
                             "Doubling Time" = "doubling"
                           ),
                       selected = "new_cases"
@@ -917,6 +907,123 @@ ui <- basicPage(
          ) # end fluid page
                    
      ), # end tabPanel Map
+    ##########   Harris County Tab
+     tabPanel( "Harris Cty", fluid = TRUE, value = "Harris",
+         HTML("<hr>"),
+          fluidPage(
+            sidebarLayout(
+              sidebarPanel(
+                width=3,            
+                  h4("Domain"),
+                  radioButtons(
+                    inputId = "har_school",
+                    label = NULL,
+                    inline=TRUE,
+                    choices = list(
+                      "Zip"= "Zip",
+                      "School"="School"
+                    ),
+                    selected = "Zip"
+                  ),
+                  h4("Map Variable"),
+                  checkboxInput(
+                    inputId = "har_percap",
+                    label = "per 1,000",
+                    value = TRUE
+                  ),
+                  HTML("<hr>"),
+                  radioButtons(
+                    "har_color",
+                    label = NULL,
+                    choices = list(
+                      "Cases" = "Cases",
+                      "New Cases" = "new_cases",
+                      "Active Cases" = "active_cases",
+                      "Percent change" = "pct_chg",
+                      "Doubling Time" = "doubling"
+                    ),
+                    selected = "Cases"
+                  ) ,
+                   tags$div(class = "inline",
+                            numericInput(inputId = "har_extreme_value",
+                                         step = 1,
+                                         value = 20,
+                                         min=1,
+                                         max=154,
+                                         label = "Extremes:")
+                   ),
+                  radioButtons(
+                    inputId = "har_extremes",
+                    label = NULL,
+                    inline=TRUE,
+                    choices = list(
+                      "Extremes"= "Extremes",
+                      "All"="All"
+                    ),
+                    selected = "All"
+                  ),
+                   HTML("<hr>"),
+                   sliderInput("har_anim_date",
+                               "Date",
+                               min=as.Date("2020-03-11"),
+                               max=Harris_last,
+                               value=Harris_last,
+                               step=7,
+                               animate=TRUE
+                               ),
+                   tags$div(class = "inline",
+                            numericInput(inputId = "min_har_case",
+                                         step = 10,
+                                         value = 30,
+                                         min=0,
+                                         max=900,
+                                         label = "Min Cases:")
+                   ),
+                   checkboxInput(
+                     "har_top5",
+                     label = "Worst 5",
+                     value = TRUE
+                   ),
+                   HTML("<hr>"),
+              selectInput("har_cross", label = h4("Crossplot"),
+                          choices = list("Med Income" = 1,
+                                         "Median Age" = 2,
+                                         "Blueness" = 3),
+                          selected = 1),
+                  htmlOutput("har_details")
+              ), # end sidebarPanel
+              mainPanel(width=9, 
+                        fluidRow( # Row 1
+                          column( # top left
+                            5,
+                            "Map",
+                            #leafletOutput("HarrisMap",
+                            #              height = "400px")
+                            
+                          ), # end left column, top row
+                          column( # top right
+                            4,
+                            "History",
+                            
+                          ) # end right column, top row
+                        ), # end Row 1
+                        fluidRow( # Row 2
+                          column( # bottom left
+                            5,
+                            "X-plot"
+                            ), # end bottom left column
+                          column( # bottom right
+                            4,
+                            "Histogram"
+                            ) # end bottom right
+                        ) # end Row 2
+                        ), # end mainPanel
+              position="right",
+              fluid=TRUE
+            ) # end sidebarLayout
+          ) # end fluid page
+                    
+      ), # end tabPanel Harris
     ##########   Documentation Tab
          tabPanel("Documentation", fluid=TRUE, value="DocumentationTab",
                   withMathJax(includeMarkdown("Documentation.Rmd")),
@@ -930,7 +1037,8 @@ ui <- basicPage(
 server <- function(input, output, session) {
   #hideTab(inputId = "An_tabs", target="Indicators")   
   #hideTab(inputId = "An_tabs", target="Tests")   
-  hideTab(inputId = "An_tabs", target="Something")   
+  #hideTab(inputId = "An_tabs", target="Something")   
+  print("---- start server")
 #   Global variables are
 #   DF = original data
 #   PopLabel = list(Region, Population, Label)
@@ -3547,9 +3655,9 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
           showNotification("Too little test data")
         }
       } 
-      if (input$An_tabs == "Something") {
+      #if (input$An_tabs == "Something") {
          # p <- build_something()
-      }
+      #}
       
       print("============== end select An data ==================")
   }) #   end of respond to data change
@@ -3707,9 +3815,9 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
       if (input$An_tabs == "Tests") {
          # p <- build_tests_plot()
       } 
-      if (input$An_tabs == "Something") {
+      #if (input$An_tabs == "Something") {
          # p <- build_something()
-      }
+      #}
   })
 
   #---------------------------------------------------    
