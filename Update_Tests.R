@@ -83,6 +83,10 @@ if(last(TestingData$Total)==testing_status$Total) { # no change. Abort
   stop(">>>>>>>>>>>>>>>>>>> No change seen in file")
 }
 
+Legacy_data <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/DailyBackups/2020-09-13_County_Testing.rds")
+Legacy_data <- Legacy_data %>% mutate(Date=as_date(Date))
+
+foo <- rbind(Legacy_data, foo)
 
 
 ################   Testing data
