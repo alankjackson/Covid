@@ -29,7 +29,8 @@ DataArchive <- "/home/ajackson/Dropbox/mirrors/ajackson/SharedData/"
 DataStatic <- "/home/ajackson/Dropbox/Rprojects/Datasets/"
 
 #   Case data
-DF <- readRDS(paste0(DataLocation, "HarrisZip.rds"))
+DF <- readRDS(paste0(DataLocation, "HarrisZip.rds")) %>% 
+  mutate(week=week(Date))
 
 #   Static Data
 
@@ -52,43 +53,57 @@ DF_school <- foo %>%
   mutate(Cases=Cases*fraction_of_zip) %>% 
   group_by(District, Date) %>% 
     summarize(Cases=sum(Cases, na.rm=TRUE)) %>% 
+  ungroup() %>% 
   mutate(Cases=round(Cases, 0)) %>% 
-  drop_na() # drop zipcodes not in Harris County
+  drop_na() %>% # drop zipcodes not in Harris County
+  mutate(week=week(Date))
 
 
 ######################################################
 #         Functions
 ######################################################
+
 ######################################################################
 #          Calculate doubling time for a vector
 ######################################################################
-doubling <- function(cases, window=7, grouper) {
-  if (length(cases)<7){ # must have >= 7 points
-    return(rep(NA,length(cases)))
-  }
- # halfwidth <- as.integer(window/2)
- # rolling_lm <- tibbletime::rollify(.f = function(logcases, Days) {
- #   lm(logcases ~ Days)
- # }, 
- # window = window, 
- # unlist = FALSE) 
+doubling <- function(df, Grouper) {
+  Grouper_str <- Grouper
+  Grouper <- rlang::sym(Grouper)
   
-  foo <- 
-    tibble(Days = 1:length(cases), logcases = log10(cases)) %>%
-    mutate(roll_lm = rolling_lm(logcases, Days)) %>% 
-    filter(!is.na(roll_lm)) %>%
-    mutate(tidied = purrr::map(roll_lm, broom::tidy)) %>%
+  foo <- df %>% 
+    group_by(!!Grouper, week) %>%
+      mutate(logcases=log10(Cases)) %>%
+      mutate(Days=1:n()) %>% 
+      do(model = lm(logcases ~ Days, data = .)) %>% 
+    ungroup() %>% 
+    mutate(tidied = purrr::map(model, broom::tidy)) %>%
     unnest(tidied) %>%
     filter(term=="Days") %>% 
+    drop_na() %>% 
     mutate(m=estimate) %>% 
     #   calculate doubling time
     mutate(m=signif(log10(2)/m,3)) %>% 
-    mutate(m=replace(m, m>200, NA)) %>%  
-    mutate(m=replace(m, m<=0, NA)) %>% 
-    select(m)
-  return(matlab::padarray(foo[[1]], c(0,halfwidth), "replicate"))
+    mutate(m=replace(m, m>200, NA)) %>%  # Doubling too large
+    mutate(m=replace(m, m<=0, NA)) %>% # doubling negative
+    select(!!grouper, week, m)
+  
+  #---------------  Clean up and calc base quantities
+  foo2 <- df %>%     
+    replace_na(list(Cases=0)) %>% 
+    group_by(!!Grouper, week) %>%
+      arrange(Date) %>% 
+      mutate(new_cases=(Cases-lag(Cases, default=first(Cases)))) %>%
+      mutate(new_cases=pmax(new_cases, 0)) %>% # truncate negative numbers
+      mutate(pct_chg=100*new_cases/lag(Cases, default=first(Cases))) %>%
+      mutate(active_cases=Cases-lag(Cases, n=9, default=0)) %>%
+    ungroup()   
+  
+  
+  
+  return(foo2)
 }  ######################  end doubling
 
+double <- doubling(DF_school, "District")
 
 
 
