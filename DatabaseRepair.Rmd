@@ -1055,7 +1055,34 @@ path <- "/home/ajackson/Dropbox/mirrors/ajackson/Covid/"
 saveRDS(foo, paste0(path,"Today_County_calc.rds"))
 ```
 
+## Repair Harris Zip file - duplicated date and missing dates
 
+```{r harris date repair}
+
+DataLocation <- "/home/ajackson/Dropbox/Rprojects/Covid/"
+
+df_harr <- readRDS(paste0(DataLocation, "HarrisZip.rds"))
+
+# first move 8/15 back to 8/14
+
+fooey <- df_harr %>% 
+  mutate(Date=if_else(Date=="2020-08-15", ymd("2020-08-14"), Date))
+
+# now pluck first half of 8/16's and move to 8/15
+
+
+fooey2 <- fooey %>% 
+  group_by(Zip, Date) %>% 
+    mutate(num=row_number()) %>% 
+  ungroup() %>% 
+  mutate(Date=if_else((Date=="2020-08-16")&(num==1),
+                      ymd("2020-08-15"), Date)) %>% 
+  select(-num)
+
+
+saveRDS(fooey2, paste0(DataLocation, "HarrisZip.rds"))
+
+```
 
 
 
