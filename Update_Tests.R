@@ -12,7 +12,9 @@ print(lubridate::now())
 cat("\n=============== Testing updates started =========\n\n")
 
 path <- "/home/ajackson/Dropbox/Rprojects/Covid/TexasDataXcel/"
-url <- "https://dshs.texas.gov/coronavirus/TexasCOVID-19CumulativeTestsOverTimebyCounty.xlsx"
+#               legacy file pre 9/13
+#url <- "https://dshs.texas.gov/coronavirus/TexasCOVID-19CumulativeTestsOverTimebyCounty.xlsx"
+url <- "https://dshs.texas.gov/coronavirus/TexasCOVID-19CumulativeTestsbyCounty.xlsx"
 #  is file still there?
 
 if(!RCurl::url.exists(url, ssl.verifyhost=FALSE, ssl.verifypeer=FALSE)) {
@@ -31,27 +33,34 @@ foo <- readxl::read_excel(Tests_path)
 
 # No data for May 5
 
-my_colnames <- c(
-  lubridate::ymd("2020-04-21")+0:13,  
-  lubridate::ymd("2020-05-06")+0:(ncol(foo)-17))
+#my_colnames <- c(
+#  lubridate::ymd("2020-04-21")+0:13,  
+#  lubridate::ymd("2020-05-06")+0:(ncol(foo)-17))
+#
+#my_colnames <- my_colnames %>% 
+#  format('%Y-%m-%d')
+#my_colnames <- c("County", my_colnames)
+#
+#my_columns <- c(1:15, 17:ncol(foo))
 
+my_colnames <- lubridate::ymd("2020-09-13")+0:(ncol(foo)-2)
 my_colnames <- my_colnames %>% 
   format('%Y-%m-%d')
 my_colnames <- c("County", my_colnames)
-
-my_columns <- c(1:15, 17:ncol(foo))
+my_columns <- c(1:ncol(foo))
 
 foo <- foo %>% 
   rename_at(my_columns,~ my_colnames)
 
-foo <- foo[2:258,] # delete bad rows
-foo <- foo[-16] # delete bad column
+foo <- foo[2:257,] # delete bad rows
+#foo <- foo[-16] # delete bad column
 
 foo <- foo %>% pivot_longer(-County, names_to="Date", values_to="Tests")
 
 foo <- foo %>% mutate(Tests=as.numeric(Tests))
+foo <- foo %>% mutate(Date=as_date(Date))
 
-total_tests <- last(foo$Tests[foo$County=="TOTAL"])
+total_tests <- last(foo$Tests[foo$County=="Total"])
 
 testing_status <- tribble(
   ~Total, ~Public, ~Private,
