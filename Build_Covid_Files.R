@@ -850,6 +850,9 @@ county_animate <-  merge(Texas, county_animate,
 county_animate <- county_animate %>% 
   filter(!is.na(Date))
 
+#  Make sure it is an sf file
+
+county_animate <- sf::st_as_sf(county_animate)
 
 ######################################################################
 #                               save files
