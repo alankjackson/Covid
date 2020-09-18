@@ -58,7 +58,7 @@ foo <- foo[2:257,] # delete bad rows
 foo <- foo %>% pivot_longer(-County, names_to="Date", values_to="Tests")
 
 foo <- foo %>% mutate(Tests=as.numeric(Tests))
-foo <- foo %>% mutate(Date=as_date(Date))
+foo <- foo %>% mutate(Date=lubridate::as_date(Date))
 
 total_tests <- last(foo$Tests[foo$County=="Total"])
 
@@ -84,7 +84,7 @@ if(last(TestingData$Total)==testing_status$Total) { # no change. Abort
 }
 
 Legacy_data <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/DailyBackups/2020-09-13_County_Testing.rds")
-Legacy_data <- Legacy_data %>% mutate(Date=as_date(Date))
+Legacy_data <- Legacy_data %>% mutate(Date=lubridate::as_date(Date))
 
 foo <- rbind(Legacy_data, foo)
 
