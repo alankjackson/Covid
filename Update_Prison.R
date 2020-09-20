@@ -139,7 +139,9 @@ saveRDS(parsed_pagesource,paste0("/home/ajackson/Dropbox/Rprojects/Covid/DailyBa
 
 result <- xml2::read_html(parsed_pagesource) %>%
   # select out the part of the page you want to capture
-  rvest::html_nodes(xpath='//*[@id="ember199"]') %>%
+  #rvest::html_nodes(xpath='//*[@id="ember199"]') %>%
+  rvest::html_nodes(xpath=
+  '/html/body/div/div/div/div/div/div/margin-container/full-container/div[30]/margin-container/full-container/div/div[2]/nav') %>% 
   # convert it to a really long string, getting rid of html
   rvest::html_text() %>% 
   # there are a lot of carriage returns in there, let's clean them out
@@ -149,7 +151,8 @@ result <- xml2::read_html(parsed_pagesource) %>%
 
  
 # get rid of title and extra line at end
-result <- result[[1]][3:(length(result[[1]])-1)]
+#result <- result[[1]][3:(length(result[[1]])-1)]
+result <- result[[1]][2:(length(result[[1]])-1)]
 
 # every other element of list is a Unit, so let's combine the Unit name
 # with the table it used to head, to get the first iteration of a data frame
