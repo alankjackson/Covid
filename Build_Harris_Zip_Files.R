@@ -14,9 +14,9 @@ library(lubridate)
 #library(purrr)
 
 
-cat("\n\n=============== Build Covid Files started =========\n\n")
+cat("\n\n=============== Build Harris Files started =========\n\n")
 print(lubridate::now())
-cat("\n=============== Build Covid Files started =========\n\n")
+cat("\n=============== Build Harris Files started =========\n\n")
 
 
 ###################################
@@ -30,7 +30,8 @@ DataStatic <- "/home/ajackson/Dropbox/Rprojects/Datasets/"
 
 #   Case data
 DF <- readRDS(paste0(DataLocation, "HarrisZip.rds")) %>% 
-  mutate(week=week(Date))
+  mutate(week=week(Date)) %>% 
+  filter(!Zip=="77002") # drop downtown because of jail
 
 #   Static Data
 
@@ -64,9 +65,10 @@ DF_school <- foo %>%
 ######################################################
 
 ######################################################################
-#          Calculate doubling time for a vector
+#          Calculate stuff for a vector
 ######################################################################
-doubling <- function(df, Grouper) {
+
+Calculate <- function(df, Grouper) {
   Grouper_str <- Grouper
   Grouper <- rlang::sym(Grouper)
   
@@ -74,9 +76,14 @@ doubling <- function(df, Grouper) {
     group_by(!!Grouper, week) %>%
       mutate(logcases=log10(Cases)) %>%
       mutate(Days=1:n()) %>% 
-      do(model = lm(logcases ~ Days, data = .)) %>% 
+      do(model = try(lm(logcases ~ Days, data = .),
+                     silent=TRUE)
+         ) %>% 
     ungroup() %>% 
-    mutate(tidied = purrr::map(model, broom::tidy)) %>%
+    gather(model, lm, starts_with("model")) %>%
+    mutate(error=purrr::map_lgl(lm, ~inherits(., "try-error"))) %>% 
+    filter(error == FALSE) %>%
+    mutate(tidied = purrr::map(lm, broom::tidy)) %>%
     unnest(tidied) %>%
     filter(term=="Days") %>% 
     drop_na() %>% 
@@ -85,28 +92,113 @@ doubling <- function(df, Grouper) {
     mutate(m=signif(log10(2)/m,3)) %>% 
     mutate(m=replace(m, m>200, NA)) %>%  # Doubling too large
     mutate(m=replace(m, m<=0, NA)) %>% # doubling negative
-    select(!!grouper, week, m)
+    select(!!Grouper, week, m) %>% 
+    rename(Doubling=m) %>% 
+    group_by(!!Grouper, week) %>% 
+       summarize(Doubling=mean(Doubling, na.rm=TRUE)) %>% 
+    ungroup()
+  
+  foo$Doubling[is.nan(foo$Doubling)]<-NA
   
   #---------------  Clean up and calc base quantities
   foo2 <- df %>%     
     replace_na(list(Cases=0)) %>% 
-    group_by(!!Grouper, week) %>%
-      arrange(Date) %>% 
+    group_by(!!Grouper, week) %>% 
+      summarize(Cases=max(Cases)) %>% 
+    ungroup() %>% 
+    group_by(!!Grouper) %>%
       mutate(new_cases=(Cases-lag(Cases, default=first(Cases)))) %>%
       mutate(new_cases=pmax(new_cases, 0)) %>% # truncate negative numbers
       mutate(pct_chg=100*new_cases/lag(Cases, default=first(Cases))) %>%
-      mutate(active_cases=Cases-lag(Cases, n=9, default=0)) %>%
+      mutate(active_cases=Cases-lag(Cases, n=2, default=0)) %>%
     ungroup()   
   
+  foo2 <- left_join(foo, foo2, by=c(Grouper_str, "week"))
   
+  foo2 <- foo2 %>% 
+    mutate(Date=ymd("2020-05-24")+(week-21)*7)
   
   return(foo2)
-}  ######################  end doubling
+}  ######################  end Calculate
 
-double <- doubling(DF_school, "District")
+#################################################################
+######################   Calculations for School Districts
+#################################################################
+
+District_Calc <- Calculate(DF_school, "District")
+
+  # Calculate per 1,000 numbers
+
+District_Calc <- School_Values %>% 
+  select(District, Pop) %>% 
+  left_join(District_Calc, ., by="District") %>% 
+  mutate(Cases_percap=1000*Cases/Pop, 
+         new_cases_percap=1000*new_cases/Pop, 
+         active_cases_percap=1000*active_cases/Pop)
+
+#   Add date in-person classes began
+
+start_dates <- tribble(
+  ~ District, ~ Start_Date,
+  "Aldine", "2020-09-21", 
+  "Alief", "2020-09-29", 
+  "Channelview", "2020-10-05", 
+  "Crosby", "2020-09-08", 
+  "Cypress-Fairbanks", "2020-09-08", 
+  "Deer Park", "2020-09-16", 
+  "Galena Park", "2020-10-05", 
+  "Goose Creek", "2020-09-21", 
+  "Houston", "2020-10-19", 
+  "Humble", "2020-08-24", 
+  "Klein", "2020-09-08", 
+  "La Porte", "2020-09-08",
+  "Pasadena", "2020-09-08", 
+  "Sheldon", "2020-10-05", 
+  "Spring", "2020-09-14",
+  "Spring Branch", "2020-09-08", 
+  "Clear Creek", "2020-08-31",
+  "Katy", "2020-09-08" 
+)
+
+start_dates$Start_Date <- lubridate::ymd(start_dates$Start_Date)
+
+District_Calc <- left_join(District_Calc, start_dates, by="District")
+
+tail(District_Calc)
+#################################################################
+######################   Calculations for Zip Codes
+#################################################################
+
+Zip_Calc <- Calculate(DF, "Zip")
+
+  # Calculate per 1,000 numbers
+
+Zip_Calc <- Harris_Census %>% 
+  select(ZCTA, Pop) %>% 
+  rename(Zip=ZCTA) %>% 
+  left_join(Zip_Calc, ., by="Zip") %>% 
+  mutate(Cases_percap=1000*Cases/Pop, 
+         new_cases_percap=1000*new_cases/Pop, 
+         active_cases_percap=1000*active_cases/Pop)
+            
+tail(Zip_Calc)
+#################################################################
+#                     Save files
+#################################################################
+
+path <- "/home/ajackson/Dropbox/Rprojects/Covid/Today_Data/"
+
+saveRDS(District_Calc, paste0(path,"Today_Harris_schools.rds"))
+saveRDS(Zip_Calc, paste0(path,"Today_Harris_zip.rds"))
 
 
+path <- "/home/ajackson/Dropbox/mirrors/ajackson/Covid/"
 
+saveRDS(District_Calc, paste0(path,"Today_Harris_schools.rds"))
+saveRDS(Zip_Calc, paste0(path,"Today_Harris_zip.rds"))
 
+cat("\n\n=============== Build Harris Files finished =========\n\n")
+print(lubridate::now())
+cat("\n=============== Build Harris Files finished =========\n\n")
 
 
