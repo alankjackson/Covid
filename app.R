@@ -78,10 +78,48 @@ close(z)
 MappingData <- sf::st_as_sf(MappingData)
 
 #   Harris County Data
+z <- gzcon(url(paste0(DataLocation, "Today_Harris_zip.rds")))
+Harris_zip <- readRDS(z)
+close(z)
+z <- gzcon(url(paste0(DataLocation, "Today_Harris_schools.rds")))
+Harris_schools <- readRDS(z)
+close(z)
+z <- gzcon(url(paste0(DataLocation, "Harris_School_Polys.rds")))
+Harris_school_polys <- readRDS(z)
+close(z)
+z <- gzcon(url(paste0(DataLocation, "HarrisCounty_CensusByZip_polys.rds")))
+Harris_zip_polys <- readRDS(z)
+close(z)
 
-##############   temporary stub here
-Harris_last <- today()
-##############   end temporary stub here
+f <- function(a,b){100*a/b}
+Harris_zip_polys <- Harris_zip_polys %>% 
+  mutate_at(vars(matches("Age")), funs(f(.,Pop)))
+
+har_choices <- list(
+  "Med Income"="Med_Income",
+  "Median Age"="MedianAge",
+  "White Pct"="WhitePct",
+  "Black Pct"="BlackPct",
+  "Hispanic Pct"="HispanicPct",
+  "Multigen Pct"="MultigenPct",
+  "Density"="Density",
+  "blueness"="blueness",
+  "Age 0to4"="Age0to4",
+  "Age 5to9"="Age5to9",
+  "Age 10to14"="Age10to14",
+  "Age 15to19"="Age15to19",
+  "Age 20to24"="Age20to24",
+  "Age 25to34"="Age25to34",
+  "Age 35to44"="Age35to44",
+  "Age 45to54"="Age45to54",
+  "Age 55to59"="Age55to59",
+  "Age 60to64"="Age60to64",
+  "Age 65to74"="Age65to74",
+  "Age 75to84"="Age75to84",
+  "Age 85andup"="Age85andup"
+)
+
+Harris_last <- last(Harris_schools$Date) # last date for schools
 
 init_zoom <- 6
 MapCenter <- c(-99.9018, 31.9686) # center of state
@@ -155,11 +193,6 @@ span <- function(vector){ # range spanned by a vector
   foo <- range(vector, na.rm=TRUE)
   return(max(foo) - min(foo))
 }
-
-    #choices <- MSAs[2:nrow(MSAs),] %>% 
-    #  arrange(desc(in_selector)) %>% 
-    #  select(MSA)
-    #print(head(choices))
 
 ###############     modules
 
@@ -940,17 +973,17 @@ ui <- basicPage(
                       "New Cases" = "new_cases",
                       "Active Cases" = "active_cases",
                       "Percent change" = "pct_chg",
-                      "Doubling Time" = "doubling"
+                      "Doubling Time" = "Doubling"
                     ),
                     selected = "Cases"
                   ) ,
                    tags$div(class = "inline",
                             numericInput(inputId = "har_extreme_value",
                                          step = 1,
-                                         value = 20,
+                                         value = 10,
                                          min=1,
-                                         max=154,
-                                         label = "Extremes:")
+                                         max=100,
+                                         label = "Extremes (%):")
                    ),
                   radioButtons(
                     inputId = "har_extremes",
@@ -965,7 +998,7 @@ ui <- basicPage(
                    HTML("<hr>"),
                    sliderInput("har_anim_date",
                                "Date",
-                               min=as.Date("2020-03-11"),
+                               min=as.Date("2020-05-24"),
                                max=Harris_last,
                                value=Harris_last,
                                step=7,
@@ -986,40 +1019,41 @@ ui <- basicPage(
                    ),
                    HTML("<hr>"),
               selectInput("har_cross", label = h4("Crossplot"),
-                          choices = list("Med Income" = 1,
-                                         "Median Age" = 2,
-                                         "Blueness" = 3),
-                          selected = 1),
+                          # choices = list("Med Income" = 1,
+                          #                "Median Age" = 2,
+                          #                "Blueness" = 3),
+                          choices = har_choices,
+                          selected = "Med_Income"),
                   htmlOutput("har_details")
               ), # end sidebarPanel
               mainPanel(width=9, 
                         fluidRow( # Row 1
                           column( # top left
-                            5,
-                            "Map",
-                            #leafletOutput("HarrisMap",
-                            #              height = "400px")
+                            6,
+                            leafletOutput("HarrisMap",
+                                          height = "400px")
                             
                           ), # end left column, top row
                           column( # top right
-                            4,
-                            "History",
+                            6,
+                            plotOutput("har_history", 
+                                       click = "history_click"),
                             
                           ) # end right column, top row
                         ), # end Row 1
                         fluidRow( # Row 2
                           column( # bottom left
-                            5,
-                            "X-plot"
+                            6,
+                            plotOutput("har_xplot") 
                             ), # end bottom left column
                           column( # bottom right
-                            4,
-                            "Histogram"
+                            6,
+                            plotOutput("har_histogram") 
                             ) # end bottom right
                         ) # end Row 2
                         ), # end mainPanel
               position="right",
-              fluid=TRUE
+              fluid=FALSE
             ) # end sidebarLayout
           ) # end fluid page
                     
@@ -3377,7 +3411,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     
     One_week <- county_animate %>% 
       filter(Date==in_map_anim_date) %>% 
-      filter(!is.na((!!sym(in_county_color))))
+      filter(!is.na((!!sym(in_county_color)))) # select rows with data
     
     #   Top five counties for chosen measure
     
@@ -3484,8 +3518,207 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     } )
   }
   
-###################   end of map
+###################   end of map  
   
+  ######################  Harris ########################
+  #---------------------------------------------------    
+  #------------------- Build Model -------------------
+  #---------------------------------------------------    
+   draw_harris <- function(in_color,
+                          in_har_school,
+                          in_har_extreme_value,
+                          in_har_extremes,
+                          in_har_anim_date,
+                          in_min_har_case,
+                          in_har_cross,
+                          in_map_top5) {
+     
+    print(":::::::  draw_harris")
+    
+    print(paste("Harris:", in_har_school, in_color))
+    
+    my_titles <- list(
+      "Cases"="Number of Cases",
+      "Cases_percap"="Cases pct Pop",
+      "new_cases"="Number of New Cases",
+      "new_cases_percap"="New Cases pct Pop",
+      "active_cases"="Number of Active Cases",
+      "active_cases_percap"="Active Cases per 100,000",
+      "pct_chg"="Percent Change",
+      "Doubling"="Doubling Time in Days"
+    )
+    
+    #   Throw out zipcodes with less than the minimum number of cases
+    
+    Grouper <- rlang::sym(in_har_school)
+    
+    History <- Harris_zip %>% 
+      group_by(!!Grouper) %>% 
+        mutate(maxcase=max(Cases, na.rm=TRUE)) %>% 
+      ungroup() %>% 
+      filter(maxcase >= in_min_har_case) %>% 
+      select(-maxcase)
+    
+    #   Sort direction for ranking
+    sorting <- grepl("Doubling", in_color)
+    if (is.null(in_color)){ # first time through
+      sorting <- FALSE
+    }
+    sort_direction <- 2*sorting-1
+    
+    #   Pick dataset and week to display
+    
+    if (in_har_school == "Zip") { # Set up for Harris county zipcodes
+      
+      #     Map Data
+      map_data <- History %>% 
+        filter(week==lubridate::week(in_har_anim_date)) %>% 
+        filter(!is.na((!!sym(in_color)))) %>%  # select rows with data
+        arrange(sort_direction*(!!sym(in_color))) %>% 
+        mutate(rank=1:n()) %>% 
+        left_join(., Harris_zip_polys, by=c("Zip"="ZCTA"))
+      
+      #     Top and Bottom subsets
+      cutoff <- round(in_har_extreme_value*1.54)
+      top_zips <- map_data %>% 
+        filter(rank<=cutoff) %>% 
+        select(Zip)
+      print(top_zips)
+      bot_zips <- map_data %>% 
+        filter((153-rank)<=cutoff) %>% 
+        select(Zip)
+      print(bot_zips)
+      
+      #map_data <- sf::st_as_sf(map_data)
+      
+      #     Color scales for map
+      
+      kmeans_loc <- c(1+which(diff(kmeans(sort(History[[in_color]]), 5)[["cluster"]])!=0))
+      kmeans_bins <- signif(c(0,
+                              sort(Harris_zip[[in_color]])[kmeans_loc],
+                              max(Harris_zip[[in_color]], na.rm=TRUE)),3)
+      
+      # Usually reverse scale, but not always
+      color_reverse <- TRUE
+      if (sorting) {color_reverse <- FALSE}
+      pal <- colorBin(palette = heat.colors(5), 
+                      bins = kmeans_bins, 
+                      pretty = TRUE,
+                      na.color = "transparent",
+                      reverse=color_reverse,
+                      domain = Harris_zip[[in_color]],
+                      alpha = FALSE, 
+                      right = FALSE)
+      
+      
+      #     History Data
+      top_filt <<- History %>% 
+        filter(Zip %in% top_zips$Zip)
+      
+      #     Crossplot data
+      
+      
+      
+    } else { # Set up for Harris county school districts
+        
+      } # end pick dataset and week
+    
+    #########    Draw map
+    
+   output$HarrisMap <- renderLeaflet({
+        # Build labels for map
+        
+      map_data <- sf::st_as_sf(map_data)
+      
+        Map_labels <- lapply(seq(nrow(map_data)), function(i) {
+          htmltools::HTML(
+            str_replace_all(
+              paste( map_data[i,][[in_har_school]], 
+                     '<br>' ),
+              "NA", "Zero"))
+        })
+        
+        my_map <- leaflet(map_data) %>%
+          addTiles() %>%
+          setView(lng = -95.3103, 
+                  lat = 29.7752, 
+                  zoom = 9 )   
+        my_map <-  my_map %>% 
+          clearGroup(group="polys") %>% 
+          addPolygons(data = map_data, 
+                      group="polys",
+                      stroke = TRUE,
+                      weight = 1,
+                      smoothFactor = 0.2, 
+                      fillOpacity = 0.7,
+                      label=Map_labels,
+                      fillColor = ~pal(map_data[[in_color]]))  
+        my_map <- my_map %>%
+          clearGroup(group="map_legend") %>% 
+          addLegend("bottomleft", pal = pal, 
+                    group="map_legend",
+                    values = map_data[[in_color]],
+                    title = my_titles[[in_color]],
+                    opacity = 1)
+        
+        
+        my_map
+   })
+   
+   ##########    Draw History plot
+   
+   output$har_history <- renderPlot({
+     
+     my_history <- ggplot(History, 
+                          aes(x=Date, 
+                              y=Cases)) +
+       theme(legend.position = "none") +
+       geom_line(aes(group=!!as.name(in_har_school)),
+                 colour = alpha("grey", 0.7)) +
+       geom_vline(xintercept=in_har_anim_date) +
+       #geom_point(aes(group=!!as.name(in_har_school))) +
+       geom_line(data=top_filt,
+                 aes(color=!!as.name(in_har_school)))  
+
+       # labs(title=paste("Counties With",title_label,y_labels[[in_counties_selector]]),
+       #      x=paste0("Days after reaching ",in_case_start," Cases"),
+       #      y=paste(y_labels[[in_counties_y_axis]])) 
+     
+     my_history
+   #print(paste("nearby curve =", nearPoints(Harris_zip,input$history_click)))
+   }) # end Draw History Plot
+     
+   
+   ##########    Draw Cross plot
+   
+   output$har_xplot <- renderPlot({
+     
+     my_xplot <- ggplot(data=map_data, 
+                        aes(x=!!as.name(in_har_cross), 
+                            y=!!as.name(in_color))) +
+       geom_point() +
+       labs(title=paste0("Week of ", sf(in_har_anim_date)))
+     
+     my_xplot
+       
+   })  #  end Draw Cross Plot
+   
+   ##########    Draw Histogram
+   
+   output$har_histogram <- renderPlot({
+     
+     my_histogram <- ggplot(data=map_data, 
+                        aes(x=!!as.name(in_color))) +
+       geom_histogram() +
+       labs(title=paste0("Week of ", sf(in_har_anim_date)))
+     
+     my_histogram
+       
+   })  #  end Draw Histogram
+   
+   } 
+###################   end of Draw Harris  
+     
   #-------------------------------------------------------    
   #------------------- Reactive bits ---------------------
   #-------------------------------------------------------    
@@ -4152,6 +4385,52 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                   input$map_top5
                 )
       }
+    })
+  
+  #---------------------------------------------------    
+  #------------- Harris County Controls --------------
+  #---------------------------------------------------    
+  observeEvent({
+    input$history_click
+  1} , ignoreInit = TRUE, {
+    Pt <- nearPoints(Harris_zip, input$history_click, addDist = TRUE)
+    print(Pt)
+    showNotification(Pt$Zip[1])
+  })
+  observeEvent({
+    input$har_school
+    input$har_percap
+    input$har_color
+    input$har_extreme_value
+    input$har_extremes
+    input$har_anim_date
+    input$min_har_case
+    input$har_top5
+    input$har_cross
+    #input$history_click
+    1} , { 
+      
+    in_color <- input$har_color
+    if (input$har_percap) {in_color <- paste0(in_color,"_percap")}
+    
+    #--------------- Clean up unusable choices
+    
+    if (grepl("percap", in_color)&
+        (grepl("pct_chg",in_color)
+         || grepl("Doubling",in_color)
+         )) {
+      in_color <- str_remove(in_color, "_percap")
+    }
+    
+    draw_harris(in_color,
+                input$har_school,
+                input$har_extreme_value,
+                input$har_extremes,
+                input$har_anim_date,
+                input$min_har_case,
+                input$har_cross,
+                input$map_top5)
+    
     })
   }
 
