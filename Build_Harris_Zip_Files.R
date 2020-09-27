@@ -132,9 +132,9 @@ District_Calc <- Calculate(DF_school, "District")
 District_Calc <- School_Values %>% 
   select(District, Pop) %>% 
   left_join(District_Calc, ., by="District") %>% 
-  mutate(Cases_percap=1000*Cases/Pop, 
-         new_cases_percap=1000*new_cases/Pop, 
-         active_cases_percap=1000*active_cases/Pop)
+  mutate(Cases_percap=signif(1000*Cases/Pop,3), 
+         new_cases_percap=signif(1000*new_cases/Pop,3), 
+         active_cases_percap=signif(1000*active_cases/Pop,3))
 
 #   Add date in-person classes began
 
@@ -177,9 +177,9 @@ Zip_Calc <- Harris_Census %>%
   select(ZCTA, Pop) %>% 
   rename(Zip=ZCTA) %>% 
   left_join(Zip_Calc, ., by="Zip") %>% 
-  mutate(Cases_percap=1000*Cases/Pop, 
-         new_cases_percap=1000*new_cases/Pop, 
-         active_cases_percap=1000*active_cases/Pop)
+  mutate(Cases_percap=signif(1000*Cases/Pop,3), 
+         new_cases_percap=signif(1000*new_cases/Pop,3), 
+         active_cases_percap=signif(1000*active_cases/Pop,3))
             
 tail(Zip_Calc)
 #################################################################
