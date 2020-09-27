@@ -15,6 +15,7 @@ library(lubridate)
 library(broom)
 library(purrr)
 library(rsample) # for bootstrap
+library(plotly)
 #library(slider)
 
 
@@ -93,7 +94,7 @@ close(z)
 
 f <- function(a,b){100*a/b}
 Harris_zip_polys <- Harris_zip_polys %>% 
-  mutate_at(vars(matches("Age")), funs(f(.,Pop)))
+  mutate_at(vars(matches("^Age")), funs(f(.,Pop)))
 
 har_choices <- list(
   "Med Income"="Med_Income",
@@ -1027,6 +1028,12 @@ ui <- basicPage(
                   htmlOutput("har_details")
               ), # end sidebarPanel
               mainPanel(width=9, 
+                        fluidRow(
+                          column(12,
+                            #HTML("<center><h4>HarrisTitle</h4></center>"),
+                            htmlOutput("HarrisTitle")
+                        )),
+                        #fluidRow("har_title"),
                         fluidRow( # Row 1
                           column( # top left
                             6,
@@ -1044,7 +1051,7 @@ ui <- basicPage(
                         fluidRow( # Row 2
                           column( # bottom left
                             6,
-                            plotOutput("har_xplot") 
+                            plotlyOutput("har_xplot") 
                             ), # end bottom left column
                           column( # bottom right
                             6,
@@ -3547,6 +3554,29 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
       "pct_chg"="Percent Change",
       "Doubling"="Doubling Time in Days"
     )
+  my_x_label <- list(
+    "Med_Income"="Median Income",
+    "MedianAge"="Median Age",
+    "WhitePct"="Pct White",
+    "BlackPct"="Pct Black",
+    "HispanicPct"="Pct Hispanic",
+    "MultigenPct"="Pct Multigenerational",
+    "Density"="People per sq mi",
+    "blueness"="Percent vote for Clinton",
+    "Age0to4"="Ages 0-4",
+    "Age5to9"="Ages 5-9",
+    "Age10to14"="Ages 10-14",
+    "Age15to19"="Ages 15-19",
+    "Age20to24"="Ages 20-24",
+    "Age25to34"="Ages 25-34",
+    "Age35to44"="Ages 35-44",
+    "Age45to54"="Ages 45-54",
+    "Age55to59"="Ages 55-54",
+    "Age60to64"="Ages 60-64",
+    "Age65to74"="Ages 65-74",
+    "Age75to84"="Ages 75-85",
+    "Age85andup"="Over Age 85"
+  )
     
     #   Throw out zipcodes with less than the minimum number of cases
     
@@ -3596,7 +3626,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
       kmeans_loc <- c(1+which(diff(kmeans(sort(History[[in_color]]), 5)[["cluster"]])!=0))
       kmeans_bins <- signif(c(0,
                               sort(Harris_zip[[in_color]])[kmeans_loc],
-                              max(Harris_zip[[in_color]], na.rm=TRUE)),3)
+                              max(Harris_zip[[in_color]], na.rm=TRUE)*1.05),3)
       
       # Usually reverse scale, but not always
       color_reverse <- TRUE
@@ -3691,15 +3721,20 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
    
    ##########    Draw Cross plot
    
-   output$har_xplot <- renderPlot({
+   #output$har_xplot <- renderPlot({
+   output$har_xplot <- renderPlotly({
      
-     my_xplot <- ggplot(data=map_data, 
+     
+     my_xplot <-
+         ggplot(data=map_data, 
                         aes(x=!!as.name(in_har_cross), 
-                            y=!!as.name(in_color))) +
-       geom_point() +
-       labs(title=paste0("Week of ", sf(in_har_anim_date)))
-     
-     my_xplot
+                            y=!!as.name(in_color),
+                            name=Zip)) +
+         geom_point() +
+         labs(x=my_x_label[[in_har_cross]])
+     ggplotly(my_xplot) %>% 
+                config(modeBarButtonsToRemove = c(
+                  "toImage", "hoverCompareCartesian", "toggleSpikelines"))
        
    })  #  end Draw Cross Plot
    
@@ -3716,6 +3751,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
        
    })  #  end Draw Histogram
    
+    output$HarrisTitle <- renderUI(HTML(paste0("<center><h4>Week of ", sf(in_har_anim_date),"</h4></center>")))
    } 
 ###################   end of Draw Harris  
      
@@ -4395,7 +4431,14 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
   1} , ignoreInit = TRUE, {
     Pt <- nearPoints(Harris_zip, input$history_click, addDist = TRUE)
     print(Pt)
-    showNotification(Pt$Zip[1])
+    #showNotification(Pt$Zip[1])
+  })
+  observeEvent({
+    input$xplot_click
+  1} , ignoreInit = TRUE, {
+    Pt <- nearPoints(Harris_zip, input$xplot_click, addDist = TRUE)
+    print(Pt)
+    #showNotification(Pt$Zip[1])
   })
   observeEvent({
     input$har_school
