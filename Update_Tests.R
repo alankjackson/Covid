@@ -27,6 +27,8 @@ Tests <- RCurl::getBinaryURL(url, ssl.verifyhost=FALSE, ssl.verifypeer=FALSE)
 Tests_path <- paste0(path, "Tests_by_County_", lubridate::today(),".xlsx")
 writeBin(Tests, Tests_path)
 
+this_day = lubridate::today()
+
 #  Read file into tibble
 
 foo <- readxl::read_excel(Tests_path)
@@ -93,14 +95,14 @@ foo <- rbind(Legacy_data, foo)
 # append the new data
 TestingData <- bind_rows(TestingData, testing_status)
 # Save an accumulated file in case of a failure
-saveRDS(TestingData,paste0("/home/ajackson/Dropbox/Rprojects/Covid/DailyBackups/",lubridate::today(),"_Testing.rds"))
+saveRDS(TestingData,paste0("/home/ajackson/Dropbox/Rprojects/Covid/DailyBackups/",this_day,"_Testing.rds"))
 # Save the real file for later use
 saveRDS(TestingData,"/home/ajackson/Dropbox/Rprojects/Covid/Testing.rds")
 # Also save to mirror site
 saveRDS(TestingData,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Testing.rds")
 
 # Save county level file as well
-saveRDS(foo,paste0("/home/ajackson/Dropbox/Rprojects/Covid/DailyBackups/",lubridate::today(),"_County_Testing.rds"))
+saveRDS(foo,paste0("/home/ajackson/Dropbox/Rprojects/Covid/DailyBackups/",this_day,"_County_Testing.rds"))
 saveRDS(foo,paste0("/home/ajackson/Dropbox/Rprojects/Covid/Today_Data/Today_County_Testing.rds"))
 saveRDS(foo,paste0("/home/ajackson/Dropbox/mirrors/ajackson/Covid/Today_County_Testing.rds"))
 # Save the real file for later use
