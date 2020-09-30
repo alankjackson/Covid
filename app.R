@@ -624,7 +624,7 @@ ui <- basicPage(
                                            label = "Median:")),
                         checkboxInput(
                           inputId = "smooth",
-                          label = strong("Smooth?"),
+                          label = strong("De-Spike?"),
                           value = FALSE
                         ),
                       ),
@@ -2298,10 +2298,22 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     }
     print(my_indicator)
     
+    foo <- subdata
+    
+    print("-------- slope  5.75 --------------")
+    #---------------   smoothing (de-spiking)
+    if (in_smooth) {
+      foo$med <- zoo::rollmedian(foo$new_cases, in_smthlength, 
+                    fill=c(0, NA, last(foo$new_cases)))  
+      
+      foo <- foo %>% 
+        mutate(new_cases=if_else(((new_cases-med)>(2*med)),med,new_cases)) #%>% 
+        #select(-med)
+    }
     halfwidth <- as.integer(in_window/2)
     Population <- PopLabel$Population
     print("-------- slope  1 --------------")
-    foo <- subdata %>% 
+    foo <- foo %>% 
       arrange(Cases) %>% 
       mutate(pct_chg=100*new_cases/lag(Cases, default=Cases[1])) %>% 
       mutate(avg_pct_chg=zoo::rollmean(pct_chg, in_window, 
@@ -2405,13 +2417,6 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
         mutate(m=replace(m, m>200, NA)) %>%  
         mutate(m=replace(m, m< -200, NA)) 
        # filter(m<200)
-    }
-    print("-------- slope  5.75 --------------")
-    #---------------   smoothing
-    if (in_smooth) {
-      #foo$m <- fractal::medianFilter(foo$m,in_smthlength)
-      foo$m <- zoo::rollmedian(foo$m, in_smthlength, 
-                    fill=c(0, NA, last(foo$m)))
     }
     
     print("-------- slope  6 --------------")
