@@ -94,7 +94,10 @@ close(z)
 
 f <- function(a,b){100*a/b}
 Harris_zip_polys <- Harris_zip_polys %>% 
-  mutate_at(vars(matches("^Age")), funs(f(.,Pop)))
+  mutate_at(vars(matches("^Age")), funs(f(.,Pop))) %>% 
+  rename(Zip=ZCTA)
+Harris_school_polys <- Harris_school_polys %>% 
+  mutate_at(vars(matches("^Age")), funs(f(.,Pop)))  
 
 har_choices <- list(
   "Med Income"="Med_Income",
@@ -955,7 +958,7 @@ ui <- basicPage(
                     inline=TRUE,
                     choices = list(
                       "Zip"= "Zip",
-                      "School"="School"
+                      "School"="District"
                     ),
                     selected = "Zip"
                   ),
@@ -981,7 +984,7 @@ ui <- basicPage(
                    tags$div(class = "inline",
                             numericInput(inputId = "har_extreme_value",
                                          step = 1,
-                                         value = 10,
+                                         value = 5,
                                          min=1,
                                          max=100,
                                          label = "Extremes (%):")
@@ -1003,7 +1006,8 @@ ui <- basicPage(
                                max=Harris_last,
                                value=Harris_last,
                                step=7,
-                               animate=TRUE
+                               animate=
+                                 animationOptions(interval=3000)
                                ),
                    tags$div(class = "inline",
                             numericInput(inputId = "min_har_case",
@@ -1043,8 +1047,8 @@ ui <- basicPage(
                           ), # end left column, top row
                           column( # top right
                             6,
-                            plotOutput("har_history", 
-                                       click = "history_click"),
+                            plotlyOutput("har_history") 
+                                     ###  click = "history_click"),
                             
                           ) # end right column, top row
                         ), # end Row 1
@@ -1055,7 +1059,7 @@ ui <- basicPage(
                             ), # end bottom left column
                           column( # bottom right
                             6,
-                            plotOutput("har_histogram") 
+                            plotlyOutput("har_histogram") 
                             ) # end bottom right
                         ) # end Row 2
                         ), # end mainPanel
@@ -3550,7 +3554,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
       "new_cases"="Number of New Cases",
       "new_cases_percap"="New Cases pct Pop",
       "active_cases"="Number of Active Cases",
-      "active_cases_percap"="Active Cases per 100,000",
+      "active_cases_percap"="Active Cases per 1,000",
       "pct_chg"="Percent Change",
       "Doubling"="Doubling Time in Days"
     )
@@ -3563,26 +3567,45 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     "MultigenPct"="Pct Multigenerational",
     "Density"="People per sq mi",
     "blueness"="Percent vote for Clinton",
-    "Age0to4"="Ages 0-4",
-    "Age5to9"="Ages 5-9",
-    "Age10to14"="Ages 10-14",
-    "Age15to19"="Ages 15-19",
-    "Age20to24"="Ages 20-24",
-    "Age25to34"="Ages 25-34",
-    "Age35to44"="Ages 35-44",
-    "Age45to54"="Ages 45-54",
-    "Age55to59"="Ages 55-54",
-    "Age60to64"="Ages 60-64",
-    "Age65to74"="Ages 65-74",
-    "Age75to84"="Ages 75-85",
-    "Age85andup"="Over Age 85"
+    "Age0to4"="Ages 0-4 %",
+    "Age5to9"="Ages 5-9 %",
+    "Age10to14"="Ages 10-14 %",
+    "Age15to19"="Ages 15-19 %",
+    "Age20to24"="Ages 20-24 %",
+    "Age25to34"="Ages 25-34 %",
+    "Age35to44"="Ages 35-44 %",
+    "Age45to54"="Ages 45-54 %",
+    "Age55to59"="Ages 55-54 %",
+    "Age60to64"="Ages 60-64 %",
+    "Age65to74"="Ages 65-74 %",
+    "Age75to84"="Ages 75-85 %",
+    "Age85andup"="Over Age 85 %"
+  )
+  my_y_label <- list(
+    "Cases"="Cases",
+    "new_cases"="New Cases",
+    "pct_chg"="Week-on-Week Percent Change",
+    "active_cases"="Active Cases (est)",
+    "Doubling"="Doubling Time in Days",
+    "Cases_percap"="Cases per 1,000 Pop",
+    "new_cases_percap"="New Cases per 1,000 Pop",
+    "active_cases_percap"="Active Cases per 1,000 Pop (est)"
   )
     
     #   Throw out zipcodes with less than the minimum number of cases
     
     Grouper <- rlang::sym(in_har_school)
     
-    History <- Harris_zip %>% 
+    if (in_har_school=="Zip") {
+      input_data <- Harris_zip
+      input_data_polys <- Harris_zip_polys
+    }
+    if (in_har_school=="District") {
+      input_data <- Harris_schools
+      input_data_polys <- Harris_school_polys
+    }
+    
+    History <- input_data %>% 
       group_by(!!Grouper) %>% 
         mutate(maxcase=max(Cases, na.rm=TRUE)) %>% 
       ungroup() %>% 
@@ -3598,7 +3621,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     
     #   Pick dataset and week to display
     
-    if (in_har_school == "Zip") { # Set up for Harris county zipcodes
+   ## if (in_har_school == "Zip") { # Set up for Harris county zipcodes
       
       #     Map Data
       map_data <- History %>% 
@@ -3606,17 +3629,17 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
         filter(!is.na((!!sym(in_color)))) %>%  # select rows with data
         arrange(sort_direction*(!!sym(in_color))) %>% 
         mutate(rank=1:n()) %>% 
-        left_join(., Harris_zip_polys, by=c("Zip"="ZCTA"))
+        left_join(., input_data_polys, by=in_har_school)
       
       #     Top and Bottom subsets
       cutoff <- round(in_har_extreme_value*1.54)
       top_zips <- map_data %>% 
         filter(rank<=cutoff) %>% 
-        select(Zip)
+        select(Grouper)
       print(top_zips)
       bot_zips <- map_data %>% 
         filter((153-rank)<=cutoff) %>% 
-        select(Zip)
+        select(Grouper)
       print(bot_zips)
       
       #map_data <- sf::st_as_sf(map_data)
@@ -3625,8 +3648,8 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
       
       kmeans_loc <- c(1+which(diff(kmeans(sort(History[[in_color]]), 5)[["cluster"]])!=0))
       kmeans_bins <- signif(c(0,
-                              sort(Harris_zip[[in_color]])[kmeans_loc],
-                              max(Harris_zip[[in_color]], na.rm=TRUE)*1.05),3)
+                              sort(input_data[[in_color]])[kmeans_loc],
+                              max(input_data[[in_color]], na.rm=TRUE)*1.05),3)
       
       # Usually reverse scale, but not always
       color_reverse <- TRUE
@@ -3636,22 +3659,22 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                       pretty = TRUE,
                       na.color = "transparent",
                       reverse=color_reverse,
-                      domain = Harris_zip[[in_color]],
+                      domain = input_data[[in_color]],
                       alpha = FALSE, 
                       right = FALSE)
       
-      
+      #browser()
       #     History Data
       top_filt <<- History %>% 
-        filter(Zip %in% top_zips$Zip)
+        filter(!!Grouper %in% top_zips[[1]])
       
       #     Crossplot data
       
       
       
-    } else { # Set up for Harris county school districts
+    #} else { # Set up for Harris county school districts
         
-      } # end pick dataset and week
+    #  } # end pick dataset and week
     
     #########    Draw map
     
@@ -3664,7 +3687,8 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
           htmltools::HTML(
             str_replace_all(
               paste( map_data[i,][[in_har_school]], 
-                     '<br>' ),
+                     '<br>',
+                     map_data[i,][[in_color]]),
               "NA", "Zero"))
         })
         
@@ -3697,7 +3721,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
    
    ##########    Draw History plot
    
-   output$har_history <- renderPlot({
+   output$har_history <- renderPlotly({
      
      my_history <- ggplot(History, 
                           aes(x=Date, 
@@ -3708,13 +3732,15 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
        geom_vline(xintercept=in_har_anim_date) +
        #geom_point(aes(group=!!as.name(in_har_school))) +
        geom_line(data=top_filt,
-                 aes(color=!!as.name(in_har_school)))  
-
-       # labs(title=paste("Counties With",title_label,y_labels[[in_counties_selector]]),
+                 aes(color=!!as.name(in_har_school)))# +  
+       #labs(title=paste("Highlighted by",my_y_label[[in_color]])) +
+       #theme(plot.title = element_text(margin = margin(t = -10, b = -60)))
        #      x=paste0("Days after reaching ",in_case_start," Cases"),
-       #      y=paste(y_labels[[in_counties_y_axis]])) 
+     ggplotly(my_history) %>% 
+                config(modeBarButtonsToRemove = c(
+                  "toImage", "hoverCompareCartesian", "toggleSpikelines"))
      
-     my_history
+     #my_history
    #print(paste("nearby curve =", nearPoints(Harris_zip,input$history_click)))
    }) # end Draw History Plot
      
@@ -3729,9 +3755,10 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
          ggplot(data=map_data, 
                         aes(x=!!as.name(in_har_cross), 
                             y=!!as.name(in_color),
-                            name=Zip)) +
+                            name=!!as.name(in_har_school))) +
          geom_point() +
-         labs(x=my_x_label[[in_har_cross]])
+         labs(x=my_x_label[[in_har_cross]],
+              y=my_y_label[[in_color]])
      ggplotly(my_xplot) %>% 
                 config(modeBarButtonsToRemove = c(
                   "toImage", "hoverCompareCartesian", "toggleSpikelines"))
@@ -3740,18 +3767,25 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
    
    ##########    Draw Histogram
    
-   output$har_histogram <- renderPlot({
+   output$har_histogram <- renderPlotly({
      
      my_histogram <- ggplot(data=map_data, 
                         aes(x=!!as.name(in_color))) +
        geom_histogram() +
-       labs(title=paste0("Week of ", sf(in_har_anim_date)))
+       labs(x=my_y_label[[in_color]])
      
-     my_histogram
+     ggplotly(my_histogram) %>% 
+                config(modeBarButtonsToRemove = c(
+                  "toImage", "hoverCompareCartesian", "toggleSpikelines"))
+     #my_histogram
        
    })  #  end Draw Histogram
    
-    output$HarrisTitle <- renderUI(HTML(paste0("<center><h4>Week of ", sf(in_har_anim_date),"</h4></center>")))
+    output$HarrisTitle <- renderUI(HTML(paste0("<center><h4>Week of ", 
+                                               sf(in_har_anim_date),
+                                               ", Analysis By ",
+                                               in_har_school,
+                                               "</h4></center>")))
    } 
 ###################   end of Draw Harris  
      
@@ -4426,20 +4460,20 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
   #---------------------------------------------------    
   #------------- Harris County Controls --------------
   #---------------------------------------------------    
-  observeEvent({
-    input$history_click
-  1} , ignoreInit = TRUE, {
-    Pt <- nearPoints(Harris_zip, input$history_click, addDist = TRUE)
-    print(Pt)
-    #showNotification(Pt$Zip[1])
-  })
-  observeEvent({
-    input$xplot_click
-  1} , ignoreInit = TRUE, {
-    Pt <- nearPoints(Harris_zip, input$xplot_click, addDist = TRUE)
-    print(Pt)
-    #showNotification(Pt$Zip[1])
-  })
+  # observeEvent({
+  #   input$history_click
+  # 1} , ignoreInit = TRUE, {
+  #   Pt <- nearPoints(Harris_zip, input$history_click, addDist = TRUE)
+  #   print(Pt)
+  #   #showNotification(Pt$Zip[1])
+  # })
+  # observeEvent({
+  #   input$xplot_click
+  # 1} , ignoreInit = TRUE, {
+  #   Pt <- nearPoints(Harris_zip, input$xplot_click, addDist = TRUE)
+  #   print(Pt)
+  #   #showNotification(Pt$Zip[1])
+  # })
   observeEvent({
     input$har_school
     input$har_percap
