@@ -124,6 +124,10 @@ har_choices <- list(
 )
 
 Harris_last <- last(Harris_schools$Date) # last date for schools
+map_data <- tribble(
+  ~Zip, ~week,
+  "77000", 1
+) # fake initialization
 
 init_zoom <- 6
 MapCenter <- c(-99.9018, 31.9686) # center of state
@@ -1056,6 +1060,7 @@ ui <- basicPage(
                           column( # bottom left
                             6,
                             plotlyOutput("har_xplot") 
+                            #plotOutput("har_xplot") 
                             ), # end bottom left column
                           column( # bottom right
                             6,
@@ -3615,8 +3620,11 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
         mutate(maxcase=max(Cases, na.rm=TRUE)) %>% 
       ungroup() %>% 
       filter(maxcase >= in_min_har_case) %>% 
-      select(-maxcase)
+      select(-maxcase) %>% 
+      arrange(!!Grouper) %>% 
+      mutate(id=row_number()-1)  
     
+    aa<<-History
     #   Sort direction for ranking
     sorting <- grepl("Doubling", in_color)
     if (is.null(in_color)){ # first time through
@@ -3626,16 +3634,17 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     
     #   Pick dataset and week to display
     
-   ## if (in_har_school == "Zip") { # Set up for Harris county zipcodes
-      
       #     Map Data
       map_data <- History %>% 
+        select(-id) %>% 
         filter(week==lubridate::week(in_har_anim_date)) %>% 
         filter(!is.na((!!sym(in_color)))) %>%  # select rows with data
         arrange(sort_direction*(!!sym(in_color))) %>% 
         mutate(rank=1:n()) %>% 
+        mutate(id=row_number()-1) %>% 
         left_join(., input_data_polys, by=in_har_school)
       
+      #aa<<-map_data
       #     Top and Bottom subsets
       cutoff <- round(in_har_extreme_value*1.54)
       top_zips <- map_data %>% 
@@ -3646,8 +3655,6 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
         filter((153-rank)<=cutoff) %>% 
         select(Grouper)
       print(bot_zips)
-      
-      #map_data <- sf::st_as_sf(map_data)
       
       #     Color scales for map
       
@@ -3668,19 +3675,10 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                       alpha = FALSE, 
                       right = FALSE)
       
-      #browser()
       #     History Data
       top_filt <<- History %>% 
         filter(!!Grouper %in% top_zips[[1]])
       
-      #     Crossplot data
-      
-      
-      
-    #} else { # Set up for Harris county school districts
-        
-    #  } # end pick dataset and week
-    
     #########    Draw map
     
    output$HarrisMap <- renderLeaflet({
@@ -3720,7 +3718,27 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                     title = my_titles[[in_color]],
                     opacity = 1)
         
-        
+        isLayer <- FALSE
+        id <- NULL
+        id <- selected_polys()
+        if (!is.null(id)){
+          print(paste("====id====", id))
+          isLayer <- TRUE
+           #my_map <- my_map %>% 
+           #  addPolylines(data=map_data[map_data$id==id,], color="white", weight=2, opacity=1)
+          leafletProxy("HarrisMap", data=map_data[map_data$id==id,]) %>% 
+             addPolylines(color="white", weight=2, opacity=1, layerId="xplot")
+        } else {
+          if (isLayer) {removeShape("HarrisMap", "xplot")}
+        }
+        #    can't link id back to zip
+        # id <- selected_hpolys()
+        # if (!is.null(id)){
+        #   zip <- History[History$id==id,][[Grouper]]
+        #   print(paste("zip", zip))
+        #   leafletProxy("HarrisMap", data=map_data[map_data[[Grouper]]==zip,]) %>% 
+        #      addPolylines(color="white", weight=2, opacity=1)
+        # }
         my_map
    })
    
@@ -3734,25 +3752,22 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
        theme(legend.position = "none") +
        geom_line(aes(group=!!as.name(in_har_school)),
                  colour = alpha("grey", 0.7)) +
-       geom_vline(xintercept=in_har_anim_date) +
-       #geom_point(aes(group=!!as.name(in_har_school))) +
+       geom_vline(xintercept=as.numeric(in_har_anim_date)) +
+       ###geom_point(aes(group=!!as.name(in_har_school))) +
        geom_line(data=top_filt,
                  aes(color=!!as.name(in_har_school)))# +  
-       #labs(title=paste("Highlighted by",my_y_label[[in_color]])) +
-       #theme(plot.title = element_text(margin = margin(t = -10, b = -60)))
-       #      x=paste0("Days after reaching ",in_case_start," Cases"),
-     ggplotly(my_history) %>% 
+       ###labs(title=paste("Highlighted by",my_y_label[[in_color]])) +
+       ###theme(plot.title = element_text(margin = margin(t = -10, b = -60)))
+       ###      x=paste0("Days after reaching ",in_case_start," Cases"),
+     ggplotly(my_history, source='history') %>% 
                 config(modeBarButtonsToRemove = c(
                   "toImage", "hoverCompareCartesian", "toggleSpikelines"))
      
-     #my_history
-   #print(paste("nearby curve =", nearPoints(Harris_zip,input$history_click)))
    }) # end Draw History Plot
      
    
    ##########    Draw Cross plot
-   
-   #output$har_xplot <- renderPlot({
+             
    output$har_xplot <- renderPlotly({
      
      
@@ -3760,11 +3775,13 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
          ggplot(data=map_data, 
                         aes(x=!!as.name(in_har_cross), 
                             y=!!as.name(in_color),
-                            name=!!as.name(in_har_school))) +
+                            label=!!as.name(in_har_school))) +
          geom_point() +
+         geom_smooth(method='lm') +
          labs(x=my_x_label[[in_har_cross]],
-              y=my_y_label[[in_color]])
-     ggplotly(my_xplot) %>% 
+              y=my_y_label[[in_color]]) 
+     
+     ggplotly(my_xplot, source='xplot') %>% 
                 config(modeBarButtonsToRemove = c(
                   "toImage", "hoverCompareCartesian", "toggleSpikelines"))
        
@@ -3782,7 +3799,6 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
      ggplotly(my_histogram) %>% 
                 config(modeBarButtonsToRemove = c(
                   "toImage", "hoverCompareCartesian", "toggleSpikelines"))
-     #my_histogram
        
    })  #  end Draw Histogram
    
@@ -3808,7 +3824,30 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
       #             input$An_area)
     }
   })
-    
+   
+  selected_polys <- reactive({
+    print("========= selected_polys")
+        eventdata <- event_data('plotly_click', source = 'xplot')
+        print(eventdata)
+        id <- as.numeric(eventdata[['pointNumber']])
+        sub <- eventdata
+        if (!is.null(eventdata)) {
+          sub <- id
+        }
+        return(sub)
+  })    
+  #     Can't figure out how to link id back to zip code
+  # selected_hpolys <- reactive({
+  #   print("========= selected_hpolys")
+  #       eventdata <- event_data('plotly_click', source = 'history')
+  #       print(eventdata)
+  #       id <- as.numeric(eventdata[['pointNumber']])
+  #       sub <- eventdata
+  #       if (!is.null(eventdata)) {
+  #         sub <- id
+  #       }
+  #       return(sub)
+  # })    
    
   #---------------------------------------------------    
   #------------------- Select Data -------------------
