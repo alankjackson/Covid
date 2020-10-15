@@ -447,7 +447,7 @@ ui <- basicPage(
                 checkboxInput(
                   inputId = "logscale",
                   label = strong("Log Scaling"),
-                  value = TRUE
+                  value = FALSE
                 ),
                 numericInput(
                   "recover_days",
@@ -469,7 +469,7 @@ ui <- basicPage(
                         #"Worldwide (0.13)" = "standard",
                         "User entry" = "user"
                       ),
-                      selected = "do fit"
+                      selected = "piecewise"
                     ),
       tabsetPanel(id = "Params_tabs",  type="pills",        
          tabPanel( ##########   Piecewise Tab
@@ -536,7 +536,7 @@ ui <- basicPage(
                         checkboxInput(
                           inputId = "Deaths_logscale",
                           label = strong("Log Scaling"),
-                          value = TRUE
+                          value = FALSE
                         ),
                         checkboxInput(
                           inputId = "Deaths_zoom",
@@ -551,7 +551,7 @@ ui <- basicPage(
                         "Logistic" = "death_logistic",
                         "Piecewise" = "piecewise"
                       ),
-                      selected = "death_exp"
+                      selected = "piecewise"
                     ),
                         HTML("<hr>"),
                         checkboxInput(
@@ -2732,7 +2732,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
         dplyr::filter(df, Mselect<=(unique(Mselect)[min(length(unique(Mselect))-2,5)]))
       } else { # for all but doubling
         print("d")
-        dplyr::filter(df, Mselect>=(unique(Mselect)[min(length(unique(Mselect))-2,5)]))
+        dplyr::filter(df, Mselect>=(unique(Mselect)[max(min(length(unique(Mselect))-2,5),1)]))
         }
     }
     #browser()
@@ -3624,7 +3624,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
       arrange(!!Grouper) %>% 
       mutate(id=row_number()-1)  
     
-    aa<<-History
+    #aa<<-History
     #   Sort direction for ranking
     sorting <- grepl("Doubling", in_color)
     if (is.null(in_color)){ # first time through
@@ -3719,7 +3719,6 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
                     opacity = 1)
         
         isLayer <- FALSE
-        id <- NULL
         id <- selected_polys()
         if (!is.null(id)){
           print(paste("====id====", id))
