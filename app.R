@@ -1021,11 +1021,11 @@ ui <- basicPage(
                                          max=900,
                                          label = "Min Cases:")
                    ),
-                   checkboxInput(
-                     "har_top5",
-                     label = "Worst 5",
-                     value = TRUE
-                   ),
+                  # checkboxInput(
+                  #   "har_top5",
+                  #   label = "Worst 5",
+                  #   value = TRUE
+                  # ),
                    HTML("<hr>"),
               selectInput("har_cross", label = h4("Crossplot"),
                           # choices = list("Med Income" = 1,
@@ -1371,7 +1371,7 @@ server <- function(input, output, session) {
     ########################################
     
     while ((start >=min_length) && 
-           (nrow(unique(data[(start-min_length+1):start,indep]))>=2)) {
+           (nrow(unique(data[(start-min_length+1):start,indep]))>=3)) {
       
      #if ((sum(!is.na(my_data[,indep][[1]]))<min_length) ||
      #    (nrow(unique(my_data[,indep]))<min_length)) { # not enough data in segment
