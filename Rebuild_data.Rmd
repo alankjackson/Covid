@@ -1,0 +1,108 @@
+---
+title: "Rebuild_data"
+author: "Alan Jackson"
+date: "1/17/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+library(tidyverse)
+library(lubridate)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Replace Covid file from beginning with spreadsheet
+
+```{r new file}
+
+inpath <- "/home/ajackson/Dropbox/Rprojects/Covid/TexasDataXcel/"
+utpath <- "/home/ajackson/Dropbox/Rprojects/Covid/"
+
+yesterday <- "2021-01-20"
+
+#         get cases
+df <- readxl::read_excel(paste0(inpath,"County_Case_Data_",yesterday,".xlsx"))
+
+# No data for March 14
+
+lastdate <- ncol(df)-11
+
+my_colnames <- c(
+                 ymd("2020-03-10"),  
+                 ymd("2020-03-11"),  
+                 ymd("2020-03-12"),  
+                 ymd("2020-03-13"),  
+                 ymd("2020-03-15")+0:lastdate)
+
+my_colnames <- my_colnames %>% 
+                 format('%Y-%m-%d')
+my_colnames <- c("County", my_colnames)
+
+
+my_columns <- c(1, 7:ncol(df))
+
+df <- df %>% 
+  rename_at(my_columns,~ my_colnames)
+  
+df <- df[3:256,]
+df <- df[-c(2:6)]
+
+df <- df %>%
+  mutate(Match=str_to_upper(County)) %>% 
+  pivot_longer(-c(County, Match), names_to="Date", values_to="Cases")
+
+foo <- df %>% mutate(Cases=as.numeric(Cases))
+
+######################################
+# get deaths
+######################################
+
+df <- readxl::read_excel(paste0(inpath,"Deaths_by_County_",yesterday,".xlsx"))
+
+my_columns <- c(1, 5:8, 10:ncol(df))
+
+lastdate <- ncol(df)-10
+
+my_colnames <- c(
+                 ymd("2020-03-10"),  
+                 ymd("2020-03-11"),  
+                 ymd("2020-03-12"),  
+                 ymd("2020-03-13"),  
+                 ymd("2020-03-15")+0:lastdate)
+
+my_colnames <- my_colnames %>% 
+                 format('%Y-%m-%d')
+my_colnames <- c("Match", my_colnames)
+
+
+df <- df %>% 
+  rename_at(my_columns,~ my_colnames)
+
+df <- df[3:256,]
+df <- df[-c(2:4, 9)]
+
+df <- df %>% mutate_at(vars(2:ncol(df)), as.numeric)
+
+df <- df %>% pivot_longer(-Match, names_to="Date", values_to="Deaths")
+
+df <- df %>% 
+  mutate(Match=str_replace(Match, "DE WITT", "DEWITT"))
+
+#########################################
+
+foo <- left_join(foo, df, by=c("Match", "Date")) %>% 
+  select(-Match)
+
+foo$Cases <- as.numeric(foo$Cases)
+foo$Deaths <- as.numeric(foo$Deaths)
+foo$Date <- ymd(foo$Date)
+
+# Save the real file for later use
+saveRDS(foo,"/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
+# Also save to mirror site
+saveRDS(foo,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Covid.rds")
+
+```
