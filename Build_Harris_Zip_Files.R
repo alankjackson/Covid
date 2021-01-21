@@ -29,8 +29,13 @@ DataArchive <- "/home/ajackson/Dropbox/mirrors/ajackson/SharedData/"
 DataStatic <- "/home/ajackson/Dropbox/Rprojects/Datasets/"
 
 #   Case data
+
+start_date <- ymd("2020-01-01")
+##weeknos <- (interval(start_date, tda) %/% weeks(1)) + 1
+
 DF <- readRDS(paste0(DataLocation, "HarrisZip.rds")) %>% 
-  mutate(week=week(Date)) %>% 
+#  mutate(week=week(Date)) %>% 
+  mutate(week=(interval(start_date, Date) %/% weeks(1)) + 1) %>% 
   filter(!Zip=="77002") # drop downtown because of jail
 
 #   Static Data
