@@ -1084,6 +1084,51 @@ saveRDS(fooey2, paste0(DataLocation, "HarrisZip.rds"))
 
 ```
 
+##  Replace data for October 14
+
+```{r replace Oct 14}
+
+inpath <- "/home/ajackson/Dropbox/Rprojects/Covid/TexasDataXcel/"
+utpath <- "/home/ajackson/Dropbox/Rprojects/Covid/"
+path <- "/home/ajackson/Dropbox/Rprojects/Covid/"
+
+foo <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
+
+#         fix cases
+df <- readxl::read_excel(paste0(inpath,"County_Case_Data_2020-10-14.xlsx"))
+
+df <- df %>% 
+  rename(County=1, Cases=65) %>% 
+  select(County, Cases)
+  
+df <- df[3:256,]
+
+foo[foo$Date==ymd("2020-05-08"),]$Cases <- as.numeric(df$Cases)
+
+# Fix deaths
+
+df <- readxl::read_excel(paste0(inpath,"Deaths_by_County_2020-05-10.xlsx"))
+
+df <- df %>% 
+  rename(County=1, Deaths=68) %>% 
+  select(County, Deaths)
+  
+df <- df[3:256,]
+
+foo[foo$Date==ymd("2020-05-08"),]$Deaths <- as.numeric(df$Deaths)
+
+#############   doesn't really match up. Let's just do a fuill replacement
+#############   with the spreadsheet data
+
+
+
+
+# Save the real file for later use
+saveRDS(foo,"/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
+# Also save to mirror site
+saveRDS(foo,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Covid.rds")
+```
+
 
 
 
