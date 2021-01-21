@@ -16,6 +16,7 @@ print(lubridate::now())
 cat("\n=============== Harris Zipcode updates started =========\n\n")
 
 url <- "https://harriscounty.maps.arcgis.com/apps/opsdashboard/index.html#/31370c72d3844e6b962fcf8490718821"
+#url <- "https://harriscounty.maps.arcgis.com/apps/opsdashboard/index.html#/c0de71f8ea484b85bb5efcb7c07c6914"
 #---------------------------------------------------------------------
 #   retrieve the webpage with a headless browser
 #---------------------------------------------------------------------
@@ -48,12 +49,13 @@ saveRDS(parsed_pagesource,paste0("/home/ajackson/Dropbox/Rprojects/Covid/DailyBa
 #---------------------------------------------------------------------
 
 result <- read_html(parsed_pagesource) %>%
-  html_nodes(xpath='//*[@id="ember56"]') %>%
+  html_nodes(xpath='//*[@id="ember63"]') %>%
+  #html_nodes(xpath='//*[@id="ember61"]') %>%
   html_text() %>% 
   str_replace_all("\n"," ") %>% 
   str_split("  +")
 
-result <- result[[1]][3:(length(result[[1]])-1)]
+result <- result[[1]][4:(length(result[[1]])-1)]
 
 res <- cbind.data.frame(split(result, 
                               rep(1:2, times=length(result)/2)), 
