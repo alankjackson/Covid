@@ -83,7 +83,8 @@ writeBin(DailyCounts, paste0(path, "County_Case_Data_", lubridate::today(),".xls
 #   Cases and Deaths
 
 foo <- read_excel(casecounts_path) %>% 
-  rename(County=1, Cases=2, Deaths=3) %>% 
+  #rename(County=1, Cases=2, Deaths=3) %>% 
+  rename(County=1, Cases=2, Deaths=4) %>% 
   filter(County!="County", County!="Total") %>% 
   filter(!str_detect(County, "DSHS")) %>% 
   mutate(Date=lubridate::today()) %>% 
