@@ -3634,15 +3634,19 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     
     #   Pick dataset and week to display
     
+    start_date <- lubridate::ymd("2020-01-01")
+    anim_week <- ((interval(start_date, in_har_anim_date) %/% lubridate::weeks(1)) + 1)
       #     Map Data
       map_data <- History %>% 
         select(-id) %>% 
-        filter(week==lubridate::week(in_har_anim_date)) %>% 
+        ####filter(week==lubridate::week(in_har_anim_date)) %>% 
+        filter(week==anim_week) %>% 
         filter(!is.na((!!sym(in_color)))) %>%  # select rows with data
         arrange(sort_direction*(!!sym(in_color))) %>% 
         mutate(rank=1:n()) %>% 
         mutate(id=row_number()-1) %>% 
         left_join(., input_data_polys, by=in_har_school)
+    ##  mutate(week=(interval(start_date, Date) %/% weeks(1)) + 1)  
       
       #aa<<-map_data
       #     Top and Bottom subsets
