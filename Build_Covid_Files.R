@@ -731,7 +731,8 @@ prep_animate <- function(df, Grouper) {
   
   #---------------  Clean up and calc base quantities
   foo <- df %>%     
-    mutate(week=week(Date)) %>% 
+    ##mutate(week=week(Date)) %>% 
+    mutate(week=(interval(start_date, Date) %/% weeks(1)) + 1) %>% 
     select(-n) %>% 
     group_by(!!Grouper) %>% 
       arrange(Date) %>% 
