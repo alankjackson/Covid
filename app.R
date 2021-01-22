@@ -3602,6 +3602,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     "active_cases_percap"="Active Cases per 1,000 Pop (est)"
   )
     
+  
     #   Throw out zipcodes with less than the minimum number of cases
     
     Grouper <- rlang::sym(in_har_school)
@@ -3637,6 +3638,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     start_date <- lubridate::ymd("2020-01-01")
     anim_week <- ((interval(start_date, in_har_anim_date) %/% lubridate::weeks(1)) + 1)
       #     Map Data
+    print(paste("------ 3641", start_date, anim_week))
       map_data <- History %>% 
         select(-id) %>% 
         ####filter(week==lubridate::week(in_har_anim_date)) %>% 
