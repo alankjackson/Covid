@@ -62,7 +62,7 @@ DF_school <- foo %>%
   ungroup() %>% 
   mutate(Cases=round(Cases, 0)) %>% 
   drop_na() %>% # drop zipcodes not in Harris County
-  mutate(week=week(Date))
+  mutate(week=(interval(start_date, Date) %/% weeks(1)) + 1)  
 
 
 ######################################################
