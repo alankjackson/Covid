@@ -2432,7 +2432,7 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
       ggplot(aes(x=Date, y=m)) +
       geom_point() +
       theme(text = element_text(size=20)) +
-      geom_smooth() +
+      geom_smooth(span=0.2) +
       labs(title=paste0(my_title[[my_indicator]]
                         ,PopLabel$Label),
            y=my_ylab[[my_indicator]])
