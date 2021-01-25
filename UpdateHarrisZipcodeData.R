@@ -43,7 +43,7 @@ driver$close()
 rD$server$stop()
 
 #   Save in case the rest of the code crashes, like when they update the page on you
-saveRDS(parsed_pagesource,paste0("/home/ajackson/Dropbox/Rprojects/Covid/DailyBackups/",lubridate::today(),"_ParsedPagesource.rds"))
+saveRDS(parsed_pagesource,paste0("/home/ajackson/Dropbox/Rprojects/CovidTempData/DailyBackups/",lubridate::today(),"_ParsedPagesource.rds"))
 #---------------------------------------------------------------------
 #   Extract cases per zipcode
 #---------------------------------------------------------------------
@@ -82,7 +82,7 @@ HarrisZip <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/HarrisZip.rds")
 # append the new data
 HarrisZip <- bind_rows(HarrisZip, res)
 # Save an accumulated file in case of a failure
-saveRDS(HarrisZip,paste0("/home/ajackson/Dropbox/Rprojects/Covid/DailyBackups/",lubridate::today(),"_HarrisZip.rds"))
+saveRDS(HarrisZip,paste0("/home/ajackson/Dropbox/Rprojects/CovidTempData/DailyBackups/",lubridate::today(),"_HarrisZip.rds"))
 # Save the real file for later use
 saveRDS(HarrisZip,"/home/ajackson/Dropbox/Rprojects/Covid/HarrisZip.rds")
 # Also save to mirror site

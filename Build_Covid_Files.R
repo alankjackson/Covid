@@ -730,6 +730,7 @@ prep_animate <- function(df, Grouper) {
   Grouper <- rlang::sym(Grouper)
   
   #---------------  Clean up and calc base quantities
+  start_date <- ymd("2020-01-01")
   foo <- df %>%     
     ##mutate(week=week(Date)) %>% 
     mutate(week=(interval(start_date, Date) %/% weeks(1)) + 1) %>% 

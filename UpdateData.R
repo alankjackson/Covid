@@ -53,32 +53,37 @@ cat("\n=============== UpdateData updates started =========\n\n")
 #   Read in excel files from state and save
 #---------------------------------------------------------------------
 
+
+this_day <- lubridate::today()
+
+#this_day <- lubridate::ymd("2021-01-21")
+
 url <- "https://dshs.texas.gov/coronavirus/TexasCOVID19CaseCountData.xlsx"
 casecounts <- getBinaryURL(url, ssl.verifyhost=FALSE, ssl.verifypeer=FALSE)
 
-path <- "/home/ajackson/Dropbox/Rprojects/Covid/TexasDataXcel/"
-writeBin(casecounts, paste0(path, "Cases_by_County_", lubridate::today(),".xlsx"))
-casecounts_path <- paste0(path, "Cases_by_County_", lubridate::today(),".xlsx")
+path <- "/home/ajackson/Dropbox/Rprojects/CovidTempData/TexasDataXcel/"
+writeBin(casecounts, paste0(path, "Cases_by_County_", this_day,".xlsx"))
+casecounts_path <- paste0(path, "Cases_by_County_", this_day,".xlsx")
 
 url <- "https://dshs.texas.gov/coronavirus/TexasCOVID-19CumulativeTestsOverTimebyCounty.xlsx"
 #url <- "https://www.dshs.texas.gov/chs/data/COVID-19CumulativeTestTotalsbyCounty.xlsx"
 Tests <- getBinaryURL(url, ssl.verifyhost=FALSE, ssl.verifypeer=FALSE)
 
-path <- "/home/ajackson/Dropbox/Rprojects/Covid/TexasDataXcel/"
-writeBin(Tests, paste0(path, "Tests_by_County_", lubridate::today(),".xlsx"))
-Tests_path <- paste0(path, "Tests_by_County_", lubridate::today(),".xlsx")
+path <- "/home/ajackson/Dropbox/Rprojects/CovidTempData/TexasDataXcel/"
+writeBin(Tests, paste0(path, "Tests_by_County_", this_day,".xlsx"))
+Tests_path <- paste0(path, "Tests_by_County_", this_day,".xlsx")
 
 url <- "https://dshs.texas.gov/coronavirus/TexasCOVID19DailyCountyFatalityCountData.xlsx"
 Deaths <- getBinaryURL(url, ssl.verifyhost=FALSE, ssl.verifypeer=FALSE)
 
-path <- "/home/ajackson/Dropbox/Rprojects/Covid/TexasDataXcel/"
-writeBin(Deaths, paste0(path, "Deaths_by_County_", lubridate::today(),".xlsx"))
+path <- "/home/ajackson/Dropbox/Rprojects/CovidTempData/TexasDataXcel/"
+writeBin(Deaths, paste0(path, "Deaths_by_County_", this_day,".xlsx"))
 
 url <- "https://dshs.texas.gov/coronavirus/TexasCOVID19DailyCountyCaseCountData.xlsx"
 DailyCounts <- getBinaryURL(url, ssl.verifyhost=FALSE, ssl.verifypeer=FALSE)
 
-path <- "/home/ajackson/Dropbox/Rprojects/Covid/TexasDataXcel/"
-writeBin(DailyCounts, paste0(path, "County_Case_Data_", lubridate::today(),".xlsx"))
+path <- "/home/ajackson/Dropbox/Rprojects/CovidTempData/TexasDataXcel/"
+writeBin(DailyCounts, paste0(path, "County_Case_Data_", this_day,".xlsx"))
 
 #   Cases and Deaths
 
@@ -100,13 +105,13 @@ head(foo)
 tail(foo)
 
 #  emergency backup file
-saveRDS(foo,paste0("/home/ajackson/Dropbox/Rprojects/Covid/DailyBackups/",lubridate::today(),"_mytable.rds"))
+saveRDS(foo,paste0("/home/ajackson/Dropbox/Rprojects/CovidTempData/DailyBackups/",this_day,"_mytable.rds"))
 # Read in the old data
 CovidData <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
 # append the new data
 CovidData <- bind_rows(CovidData, foo)
 # Save an accumulated file in case of a failure
-saveRDS(CovidData,paste0("/home/ajackson/Dropbox/Rprojects/Covid/DailyBackups/",lubridate::today(),"_Covid.rds"))
+saveRDS(CovidData,paste0("/home/ajackson/Dropbox/Rprojects/CovidTempData/DailyBackups/",this_day,"_Covid.rds"))
 # Save the real file for later use
 saveRDS(CovidData,"/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
 # Also save to mirror site

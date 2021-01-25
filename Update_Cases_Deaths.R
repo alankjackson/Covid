@@ -46,7 +46,7 @@ url <- "https://dshs.texas.gov/coronavirus/TexasCOVID19CaseCountData.xlsx"
 fail_check <- check_url(url, "URL failure for Case Data", "stop")
 casecounts <- RCurl::getBinaryURL(url, ssl.verifyhost=FALSE, ssl.verifypeer=FALSE)
 
-path <- "/home/ajackson/Dropbox/Rprojects/Covid/TexasDataXcel/"
+path <- "/home/ajackson/Dropbox/Rprojects/CovidTempData/TexasDataXcel/"
 casecounts_path <- paste0(path, "Cases_by_County_", lubridate::today(),".xlsx")
 writeBin(casecounts, casecounts_path)
 
@@ -56,7 +56,7 @@ fail_check <- check_url(url, "URL failure for Death Data", "warn")
 
 if (fail_check) {
   Deaths <- RCurl::getBinaryURL(url, ssl.verifyhost=FALSE, ssl.verifypeer=FALSE)
-  path <- "/home/ajackson/Dropbox/Rprojects/Covid/TexasDataXcel/"
+  path <- "/home/ajackson/Dropbox/Rprojects/CovidTempData/TexasDataXcel/"
   writeBin(Deaths, paste0(path, "Deaths_by_County_", lubridate::today(),".xlsx"))
 }
 
@@ -65,7 +65,7 @@ url <- "https://dshs.texas.gov/coronavirus/TexasCOVID19DailyCountyCaseCountData.
 fail_check <- check_url(url, "URL failure for Cumulative County Data", "warn")
 if (fail_check) {
   DailyCounts <- RCurl::getBinaryURL(url, ssl.verifyhost=FALSE, ssl.verifypeer=FALSE)
-  path <- "/home/ajackson/Dropbox/Rprojects/Covid/TexasDataXcel/"
+  path <- "/home/ajackson/Dropbox/Rprojects/CovidTempData/TexasDataXcel/"
   writeBin(DailyCounts, paste0(path, "County_Case_Data_", lubridate::today(),".xlsx"))
 }
 
@@ -112,7 +112,7 @@ CovidData <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
 CovidData <- bind_rows(CovidData, foo)
 
 # Save an accumulated file in case of a failure
-saveRDS(CovidData,paste0("/home/ajackson/Dropbox/Rprojects/Covid/DailyBackups/",lubridate::today(),"_Covid.rds"))
+saveRDS(CovidData,paste0("/home/ajackson/Dropbox/Rprojects/CovidTempData/DailyBackups/",lubridate::today(),"_Covid.rds"))
 # Save the real file for later use
 saveRDS(CovidData,"/home/ajackson/Dropbox/Rprojects/Covid/Covid.rds")
 # Also save to mirror site

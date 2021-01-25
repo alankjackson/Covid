@@ -11,7 +11,11 @@ cat("\n\n=============== Testing updates started =========\n\n")
 print(lubridate::now())
 cat("\n=============== Testing updates started =========\n\n")
 
-path <- "/home/ajackson/Dropbox/Rprojects/Covid/TexasDataXcel/"
+this_day <- lubridate::today()
+
+#this_day <- lubridate::ymd("2021-01-21")
+
+path <- "/home/ajackson/Dropbox/Rprojects/CovidTempData/TexasDataXcel/"
 #               legacy file pre 9/13
 #url <- "https://dshs.texas.gov/coronavirus/TexasCOVID-19CumulativeTestsOverTimebyCounty.xlsx"
 url <- "https://dshs.texas.gov/coronavirus/TexasCOVID-19CumulativeTestsbyCounty.xlsx"
@@ -24,10 +28,8 @@ if(!RCurl::url.exists(url, ssl.verifyhost=FALSE, ssl.verifypeer=FALSE)) {
 
 # Read in excel file and write back out again
 Tests <- RCurl::getBinaryURL(url, ssl.verifyhost=FALSE, ssl.verifypeer=FALSE)
-Tests_path <- paste0(path, "Tests_by_County_", lubridate::today(),".xlsx")
+Tests_path <- paste0(path, "Tests_by_County_", this_day,".xlsx")
 writeBin(Tests, Tests_path)
-
-this_day = lubridate::today()
 
 #  Read file into tibble
 
@@ -85,7 +87,7 @@ if(last(TestingData$Total)==testing_status$Total) { # no change. Abort
   stop(">>>>>>>>>>>>>>>>>>> No change seen in file")
 }
 
-Legacy_data <- readRDS("/home/ajackson/Dropbox/Rprojects/Covid/DailyBackups/2020-09-13_County_Testing.rds")
+Legacy_data <- readRDS("/home/ajackson/Dropbox/Rprojects/CovidTempData/DailyBackups/2020-09-13_County_Testing.rds")
 Legacy_data <- Legacy_data %>% mutate(Date=lubridate::as_date(Date))
 
 foo <- rbind(Legacy_data, foo)
@@ -95,14 +97,14 @@ foo <- rbind(Legacy_data, foo)
 # append the new data
 TestingData <- bind_rows(TestingData, testing_status)
 # Save an accumulated file in case of a failure
-saveRDS(TestingData,paste0("/home/ajackson/Dropbox/Rprojects/Covid/DailyBackups/",this_day,"_Testing.rds"))
+saveRDS(TestingData,paste0("/home/ajackson/Dropbox/Rprojects/CovidTempData/DailyBackups/",this_day,"_Testing.rds"))
 # Save the real file for later use
 saveRDS(TestingData,"/home/ajackson/Dropbox/Rprojects/Covid/Testing.rds")
 # Also save to mirror site
 saveRDS(TestingData,"/home/ajackson/Dropbox/mirrors/ajackson/Covid/Testing.rds")
 
 # Save county level file as well
-saveRDS(foo,paste0("/home/ajackson/Dropbox/Rprojects/Covid/DailyBackups/",this_day,"_County_Testing.rds"))
+saveRDS(foo,paste0("/home/ajackson/Dropbox/Rprojects/CovidTempData/DailyBackups/",this_day,"_County_Testing.rds"))
 saveRDS(foo,paste0("/home/ajackson/Dropbox/Rprojects/Covid/Today_Data/Today_County_Testing.rds"))
 saveRDS(foo,paste0("/home/ajackson/Dropbox/mirrors/ajackson/Covid/Today_County_Testing.rds"))
 # Save the real file for later use

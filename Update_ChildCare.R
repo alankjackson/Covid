@@ -11,7 +11,7 @@ cat("\n\n=============== Childcare Home updates started =========\n\n")
 print(lubridate::now())
 cat("\n=============== Childcare Home updates started =========\n\n")
 
-path <- "/home/ajackson/Dropbox/Rprojects/Covid/TexasDataXcel/"
+path <- "/home/ajackson/Dropbox/Rprojects/CovidTempData/TexasDataXcel/"
 
 #############################    Childcare centers
 url <- "https://apps.hhs.texas.gov/documents/CCR/texas-child-care-facility-based-covid-status.xls"
@@ -22,9 +22,13 @@ if(!RCurl::url.exists(url, ssl.verifyhost=FALSE, ssl.verifypeer=FALSE)) {
   stop(">>>>>>>>>>>>>>>>>>>> url no longer works")
 }
 
+this_day <- lubridate::today()
+
+##this_day <- lubridate::ymd("2021-01-21")
+
 # Read in excel file and write back out again
 Childcare <- RCurl::getBinaryURL(url, ssl.verifyhost=FALSE, ssl.verifypeer=FALSE)
-Childcare_path <- paste0(path, "ChildCareCenters", lubridate::today(),".xlsx")
+Childcare_path <- paste0(path, "ChildCareCenters", this_day,".xlsx")
 writeBin(Childcare, Childcare_path)
 
 #############################    Childcare homes
@@ -40,7 +44,7 @@ if(!RCurl::url.exists(url, ssl.verifyhost=FALSE, ssl.verifypeer=FALSE)) {
 
 # Read in excel file and write back out again
 Childcare_home <- RCurl::getBinaryURL(url, ssl.verifyhost=FALSE, ssl.verifypeer=FALSE)
-Childcare_path_home <- paste0(path, "ChildCareHomes", lubridate::today(),".xlsx")
+Childcare_path_home <- paste0(path, "ChildCareHomes", this_day,".xlsx")
 writeBin(Childcare_home, Childcare_path_home)
 
 

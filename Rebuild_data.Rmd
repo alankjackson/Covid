@@ -18,10 +18,10 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r new file}
 
-inpath <- "/home/ajackson/Dropbox/Rprojects/Covid/TexasDataXcel/"
+inpath <- "/home/ajackson/Dropbox/Rprojects/CovidTempData/TexasDataXcel/"
 utpath <- "/home/ajackson/Dropbox/Rprojects/Covid/"
 
-yesterday <- "2021-01-20"
+yesterday <- "2021-01-21"
 
 #         get cases
 df <- readxl::read_excel(paste0(inpath,"County_Case_Data_",yesterday,".xlsx"))

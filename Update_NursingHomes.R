@@ -11,7 +11,11 @@ cat("\n\n=============== Nursing Home updates started =========\n\n")
 print(lubridate::now())
 cat("\n=============== Nursing Home updates started =========\n\n")
 
-path <- "/home/ajackson/Dropbox/Rprojects/Covid/TexasDataXcel/"
+this_day <- lubridate::today()
+
+##this_day <- lubridate::ymd("2021-01-21")
+
+path <- "/home/ajackson/Dropbox/Rprojects/CovidTempData/TexasDataXcel/"
 
 #url <- "https://dshs.texas.gov/coronavirus/COVID-19OutbreaksinLong-termCareFacilities.xlsx"
 
@@ -30,7 +34,7 @@ if(!RCurl::url.exists(url, ssl.verifyhost=FALSE, ssl.verifypeer=FALSE)) {
 
 # Read in excel file and write back out again
 NursingHome <- RCurl::getBinaryURL(url, ssl.verifyhost=FALSE, ssl.verifypeer=FALSE)
-NursingHome_path <- paste0(path, "NursingHome", lubridate::today(),".xlsx")
+NursingHome_path <- paste0(path, "NursingHome", this_day,".xlsx")
 writeBin(NursingHome, NursingHome_path)
 
 url <- "https://apps.hhs.texas.gov/providers/directories/Texas_Assisted_Living_Facilities_COVID_Status.xls"
@@ -42,7 +46,7 @@ if(!RCurl::url.exists(url, ssl.verifyhost=FALSE, ssl.verifypeer=FALSE)) {
 
 # Read in excel file and write back out again
 Assisted <- RCurl::getBinaryURL(url, ssl.verifyhost=FALSE, ssl.verifypeer=FALSE)
-Assisted_path <- paste0(path, "Assisted", lubridate::today(),".xlsx")
+Assisted_path <- paste0(path, "Assisted", this_day,".xlsx")
 writeBin(Assisted, Assisted_path)
 
 
