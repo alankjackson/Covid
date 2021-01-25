@@ -13,9 +13,9 @@ cat("\n=============== Vaccine updates started =========\n\n")
 
 this_day <- lubridate::today()
 
-this_day <- lubridate::ymd("2021-01-06")
+this_day <- lubridate::ymd("2021-01-21")
 
-path <- "/home/ajackson/Dropbox/Rprojects/Covid/TexasDataXcel/"
+path <- "/home/ajackson/Dropbox/Rprojects/CovidTempData/TexasDataXcel/"
 
 Vaccine_path <- paste0(path, "Vaccine", this_day,".xlsx")
 
@@ -44,9 +44,23 @@ namekey <- c(County="County Name",
              Pop_LongTerm="Population, Phase 1A Long-term Care Residents",
              Pop_1B_Medical="Population, Phase 1B Any Medical Condition")
 
+namekey <- c("County Name"="County", 
+             "Public Health Region (PHR)"="Region", 
+             "Total Doses Allocated"="Doses_alloc", 
+             "Vaccine Doses Administered"="Doses_admin", 
+             "People Vaccinated with at least One Dose"="People_one_dose", 
+             "People Fully Vaccinated"="People_fully", 
+             "Population, 16+"="Pop_adult",
+             "Population, 65+"="Pop_old", 
+             "Population, Phase 1A Healthcare Workers"="Pop_healthcare",
+             "Population, Phase 1A Long-term Care Residents"="Pop_longterm",
+             "Population, Phase 1B Any Medical Condition"="Pop_1B_medical")
+
 foo <- readxl::read_excel(Vaccine_path, sheet=2)  
 
 names(foo) <- namekey[names(foo)]
+
+# Fix Federal Long-Term Care Vaccination Program
 
 #  rename(County="County Name", 
 #         Region="Public Health Region (PHR)", 
@@ -61,8 +75,8 @@ names(foo) <- namekey[names(foo)]
   #rename(County=1, Region=2, Doses_Distrib=3, Doses_Admin=4, People_one_dose=5, People_fully=6, Pop_Adult=7,
   #          Pop_old=8, Pop_Healthcare=9) %>% 
 #   filter(County!="County", County!="Total") %>% 
-  mutate(Date=this_day) %>% 
-  mutate(County=str_replace_all(County, "[\r\n]" , "")) #%>% 
+#  mutate(Date=this_day) %>% 
+#  mutate(County=str_replace_all(County, "[\r\n]" , "")) #%>% 
 #   mutate(County=str_replace(County, "SanAugustine", "San Augustine"))
 # foo$Cases <- as.numeric(foo$Cases)
 # foo$Deaths <- as.numeric(foo$Deaths)
@@ -71,7 +85,7 @@ head(foo)
 tail(foo)
 
 # Save the tibble file
-saveRDS(foo,paste0("/home/ajackson/Dropbox/Rprojects/Covid/DailyBackups/",this_day,"_Vaccinate.rds"))
+saveRDS(foo,paste0("/home/ajackson/Dropbox/Rprojects/CovidTempData/DailyBackups/",this_day,"_Vaccinate.rds"))
 
 cat("\n\n=============== Vaccine updates finished =========\n\n")
 print(lubridate::now())
