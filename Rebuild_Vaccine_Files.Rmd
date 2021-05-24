@@ -1,0 +1,61 @@
+---
+title: "Vaccine_rebuild"
+author: "Alan Jackson"
+date: "1/2/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+
+in_path <- "/home/ajackson/Dropbox/Rprojects/CovidTempData/TexasDataXcel/"
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##  Do the work
+
+Read in each excel file and reformat to a tibble
+
+```{r}
+
+filenames <- list.files(path = in_path, pattern = "*Vaccine*", full.names = T)
+
+namekey <- c("County Name"="County", 
+             "Public Health Region (PHR)"="Region", 
+             "Total Doses Allocated"="Doses_alloc", 
+             "Vaccine Doses Distributed"="Doses_alloc", 
+             "Vaccine Doses Administered"="Doses_admin", 
+             "People Vaccinated with at least One Dose"="People_one_dose", 
+             "People Fully Vaccinated"="People_fully", 
+             "Population, 16+"="Pop_adult",
+             "Population, 65+"="Pop_old", 
+             "Population, Phase 1A Healthcare Workers"="Pop_healthcare",
+             "Population, Phase 1A Long-term Care Residents"="Pop_longterm",
+             "Population, 16-64 Any Medical Condition"="Pop_to_64",
+             "Population, 16-64\r\n Any Medical Condition"="Pop_to_64",
+             "Population, Phase 1B Any Medical Condition"="Pop_1B_medical",
+             "Population, 16-64"="Pop_16_64",
+             "Any Medical Condition"="Any_Med_Cond",
+             "Population, Education and Child Care Personnel"="Pop_Ed_ChildCare")
+
+for (filename in filenames){
+  
+  print(filename)
+  
+  foo <- readxl::read_excel(filename, sheet=2, na=c("", "--", "N/A"))  
+  
+  names(foo) <- namekey[names(foo)]
+  
+  print(head(foo))
+  
+  this_day <- str_extract(filename, "202[0-9-]+")
+  print(this_day)
+  
+  # Save the tibble file
+  
+  saveRDS(foo,paste0("/home/ajackson/Dropbox/Rprojects/CovidTempData/DailyBackups/",this_day,"_Vaccinate.rds"))
+}
+
+```
+
