@@ -14,7 +14,7 @@ cat("\n=============== Vaccine updates started =========\n\n")
 this_day <- lubridate::today()
 
 #############
-# this_day <- lubridate::ymd("2020-12-28")
+# this_day <- lubridate::ymd("2021-05-15")
 #############
 
 path <- "/home/ajackson/Dropbox/Rprojects/CovidTempData/TexasDataXcel/"
@@ -37,6 +37,7 @@ writeBin(Vaccine, Vaccine_path)
 namekey <- c("County Name"="County", 
              "Public Health Region (PHR)"="Region", 
              "Total Doses Allocated"="Doses_alloc", 
+             "Vaccine Doses Distributed"="Doses_alloc", 
              "Vaccine Doses Administered"="Doses_admin", 
              "People Vaccinated with at least One Dose"="People_one_dose", 
              "People Fully Vaccinated"="People_fully", 
@@ -44,9 +45,15 @@ namekey <- c("County Name"="County",
              "Population, 65+"="Pop_old", 
              "Population, Phase 1A Healthcare Workers"="Pop_healthcare",
              "Population, Phase 1A Long-term Care Residents"="Pop_longterm",
-             "Population, Phase 1B Any Medical Condition"="Pop_1B_medical")
+             "Population, 16-64 Any Medical Condition"="Pop_to_64",
+             "Population, 16-64\r\n Any Medical Condition"="Pop_to_64",
+             "Population, Phase 1B Any Medical Condition"="Pop_1B_medical",
+             "Population, 16-64"="Pop_16_64",
+             "Any Medical Condition"="Any_Med_Cond",
+             "Population, Education and Child Care Personnel"="Pop_Ed_ChildCare")
 
 foo <- readxl::read_excel(Vaccine_path, sheet=2, na=c("", "--"))  
+head(foo)
 
 names(foo) <- namekey[names(foo)]
 
