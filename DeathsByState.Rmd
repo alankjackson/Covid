@@ -1,0 +1,108 @@
+---
+title: "Deaths By State"
+author: "Alan Jackson"
+date: "5/17/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+
+path <-  "/home/ajackson/Dropbox/Rprojects/Covid/"
+
+df <- read_csv(paste0(path, "MiscData/DeathsByState.csv"))
+
+votes <- read_csv(paste0(path, "MiscData/Popular_vote.csv")) %>% 
+  rename(State=state)
+
+df <- left_join(df, votes, by="State")
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##  Deaths by State as of May 17, 2021
+
+Large variation by state. Part of that is that states that got hit early
+tended to have very large death numbers, before various treatments and 
+mitigation methods were discovered. Washington being an exception - even
+though the first state to get the virus, the governor took strong, immediate
+action and scrupulously followed the advice of health professionals.
+
+
+```{r plot}
+
+df %>% 
+  ggplot(aes(y=DeathsPer100k, 
+             x=reorder(State, DeathsPer100k), 
+             label=State,
+             fill=dem_percent)) + 
+  geom_col() + 
+  scale_fill_gradient2(low = "red", 
+                       high = "blue", 
+                       mid = "white", 
+                       #limits=c(90,10),
+                       midpoint = 50) + 
+  coord_flip() + 
+  labs(x="Deaths per 100,000",
+       y="State",
+       title="Total COVID Deaths per 100,000 by State")
+
+df %>% 
+  mutate(size=(dem_votes+rep_votes)/18000000) %>% 
+  ggplot(aes(y=DeathsPer100k, 
+             x=reorder(State, DeathsPer100k), 
+             label=State,
+             fill=size)) + 
+  geom_col() + 
+  scale_fill_gradient2(low = "red", 
+                       high = "blue", 
+                       mid = "white", 
+                       limits=c(0,1),
+                       midpoint = .20
+                       ) + 
+  coord_flip() + 
+  labs(x="Deaths per 100,000",
+       y="State",
+       title="Total COVID Deaths per 100,000 by State")
+
+df %>% 
+  ggplot(aes(y=DeathsPer100k, 
+             x=reorder(State, DeathsPer100k), 
+             label=State)) + 
+  geom_col() + 
+  scale_fill_gradient2(low = "red", 
+                       high = "blue", 
+                       mid = "white", 
+                       #limits=c(90,10),
+                       midpoint = 50) + 
+  coord_flip() + 
+  labs(x="Deaths per 100,000",
+       y="State",
+       title="Total COVID Deaths per 100,000 by State")
+
+
+```
+
+Let's try a scatterplot instead
+
+```{r scatter}
+
+df %>% 
+  ggplot(aes(y=DeathsPer100k, 
+             x=dem_percent, 
+             label=State,
+             fill=dem_percent)) + 
+  geom_point() + 
+  scale_fill_gradient2(low = "red", 
+                       high = "blue", 
+                       mid = "white", 
+                       #limits=c(90,10),
+                       midpoint = 50) + 
+  coord_flip() + 
+  labs(y="Deaths per 100,000",
+       x="Percent Democratic Vote",
+       title="Total COVID Deaths per 100,000 by State")
+
+```
+
+What about deaths colored by ruralness?
