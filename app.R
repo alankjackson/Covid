@@ -2478,11 +2478,10 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     print(test_display)
     
     data <- subdata %>% 
-      filter(Tests>0) %>% 
+      filter(Tests>=0) %>% 
       mutate(ifelse(Pct_pos>50, NA, Pct_pos)) %>% 
       mutate(ifelse(Pct_pos<0, NA, Pct_pos)) %>% 
       filter(!is.na(Tests)) 
-    
     if (in_tests_New) { # Daily number space
       if (in_tests_Percapita) { # perCapita scaling
         p <- data %>% 
