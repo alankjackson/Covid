@@ -520,7 +520,8 @@ Tests <- County_Testing %>%
   filter(!grepl("Probable.*", County)) %>% 
   filter(!grepl("Pending.*", County)) %>% 
  # filter(!County=="TOTAL") %>% 
-  filter(!County=="Unknown") %>% 
+  filter(!County=="Unknown") %>%
+  mutate(County=str_replace(County, "Total", "TOTAL")) %>% 
   mutate(Date=ymd(Date))
 
 print("-- test 1 --")
@@ -554,7 +555,7 @@ Tests <- Tests %>%
     mutate(new_tests=Tests-dplyr::lag(Tests, default=0)) %>% 
   ungroup() %>% 
   filter(!is.na(Tests)) %>% 
-  mutate(new_tests=ifelse(new_tests<0, NA, new_tests)) %>% 
+  mutate(new_tests=ifelse(new_tests<=0, NA, new_tests)) %>% 
   filter(Date>as.Date("2020-06-03")) %>% # end numbers are pretty bogus
   select(-Days)
 
