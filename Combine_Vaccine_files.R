@@ -41,7 +41,9 @@ df$Date <- lubridate::as_date(df$Date)
 # Create some new quantities and clean up data
 
 df <- df %>% 
-  select(County, Date, Doses_alloc, Doses_admin, People_one_dose, People_fully, Pop_adult) %>% 
+  select(County, Date, Doses_alloc, 
+         Doses_admin, People_one_dose, 
+         People_fully, contains("Pop")) %>% 
   # Calculate daily numbers
   group_by(County) %>% 
     arrange(Date) %>% 
