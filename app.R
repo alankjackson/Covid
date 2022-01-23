@@ -38,16 +38,19 @@ DataArchive <- "https://www.ajackson.org/SharedData/"
 
 #   County Map Animation data
 
-z <- gzcon(url(paste0(DataLocation, "Today_County_Animate.rds")))
+print("--1--")
+z <- gzcon(url(paste0(DataLocation, "Today_County_Animate.rds"), method="libcurl"))
+print("--2--")
 county_animate <- readRDS(z)
+print("--3--")
 close(z)
 
 #   Case data
-z <- gzcon(url(paste0(DataLocation, "Today_County_calc.rds")))
+z <- gzcon(url(paste0(DataLocation, "Today_County_calc.rds"), method="libcurl"))
 County_calc <- readRDS(z)
 close(z)
 #   Testing data
-z <- gzcon(url(paste0(DataLocation, "Today_TestingData.rds")))
+z <- gzcon(url(paste0(DataLocation, "Today_TestingData.rds"), method="libcurl"))
 TestingData <- readRDS(z)
 close(z)
 #    County Testing Data
@@ -55,40 +58,40 @@ close(z)
 #CountyTestingData <- readRDS(z)
 #close(z)
 #   County Population data
-z <- gzcon(url(paste0(DataLocation, "Today_County_pop.rds")))
+z <- gzcon(url(paste0(DataLocation, "Today_County_pop.rds"), method="libcurl"))
 County_pop <- readRDS(z)
 close(z)
 #   Current Prison epidemic data
-z <- gzcon(url(paste0(DataLocation, "Today_Prison_data.rds")))
+z <- gzcon(url(paste0(DataLocation, "Today_Prison_data.rds"), method="libcurl"))
 Prison_data <- readRDS(z)
 close(z)
 #   MSA data
-z <- gzcon(url(paste0(DataLocation, "Today_MSA_raw.rds")))
+z <- gzcon(url(paste0(DataLocation, "Today_MSA_raw.rds"), method="libcurl"))
 MSA_raw <- readRDS(z)
 close(z)
-z <- gzcon(url(paste0(DataLocation, "Today_MSAs.rds")))
+z <- gzcon(url(paste0(DataLocation, "Today_MSAs.rds"), method="libcurl"))
 MSAs <- readRDS(z)
 close(z)
 #   Mapping data
-z <- gzcon(url(paste0(DataLocation, "Today_MappingData.rds")))
+z <- gzcon(url(paste0(DataLocation, "Today_MappingData.rds"), method="libcurl"))
 MappingData <- readRDS(z)
 close(z)
-z <- gzcon(url(paste0(DataLocation, "Today_MapLabels.rds")))
+z <- gzcon(url(paste0(DataLocation, "Today_MapLabels.rds"), method="libcurl"))
 MapLabels <- readRDS(z)
 close(z)
 MappingData <- sf::st_as_sf(MappingData)
 
 #   Harris County Data
-z <- gzcon(url(paste0(DataLocation, "Today_Harris_zip.rds")))
+z <- gzcon(url(paste0(DataLocation, "Today_Harris_zip.rds"), method="libcurl"))
 Harris_zip <- readRDS(z)
 close(z)
-z <- gzcon(url(paste0(DataLocation, "Today_Harris_schools.rds")))
+z <- gzcon(url(paste0(DataLocation, "Today_Harris_schools.rds"), method="libcurl"))
 Harris_schools <- readRDS(z)
 close(z)
-z <- gzcon(url(paste0(DataLocation, "Harris_School_Polys.rds")))
+z <- gzcon(url(paste0(DataLocation, "Harris_School_Polys.rds"), method="libcurl"))
 Harris_school_polys <- readRDS(z)
 close(z)
-z <- gzcon(url(paste0(DataLocation, "HarrisCounty_CensusByZip_polys.rds")))
+z <- gzcon(url(paste0(DataLocation, "HarrisCounty_CensusByZip_polys.rds"), method="libcurl"))
 Harris_zip_polys <- readRDS(z)
 close(z)
 
@@ -201,6 +204,8 @@ span <- function(vector){ # range spanned by a vector
   foo <- range(vector, na.rm=TRUE)
   return(max(foo) - min(foo))
 }
+
+print("--end--")
 
 ###############     modules
 
@@ -2477,11 +2482,16 @@ backest_cases <- function(in_An_DeathLag, in_An_CFR, projection) {
     test_display <- str_c(in_test_display, collapse=",")
     print(test_display)
     
+    ###foo <- subdata
     data <- subdata %>% 
       filter(Tests>=0) %>% 
       mutate(ifelse(Pct_pos>50, NA, Pct_pos)) %>% 
       mutate(ifelse(Pct_pos<0, NA, Pct_pos)) %>% 
       filter(!is.na(Tests)) 
+    ################
+    #browser()
+    ################
+    
     if (in_tests_New) { # Daily number space
       if (in_tests_Percapita) { # perCapita scaling
         p <- data %>% 
