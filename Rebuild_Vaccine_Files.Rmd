@@ -19,7 +19,7 @@ Read in each excel file and reformat to a tibble
 
 ```{r}
 
-filenames <- list.files(path = in_path, pattern = "*Vaccine*", full.names = T)
+filenames <- list.files(path = in_path, pattern = "*Vaccine20*", full.names = T)
 
 namekey <- c("County Name"="County", 
              "Public Health Region (PHR)"="Region", 
@@ -28,6 +28,9 @@ namekey <- c("County Name"="County",
              "Vaccine Doses Administered"="Doses_admin", 
              "People Vaccinated with at least One Dose"="People_one_dose", 
              "People Fully Vaccinated"="People_fully", 
+             "People Vaccinated with an Additional Dose"="People_boosted", 
+             "People Vaccinated with Booster Dose"="People_boosted", 
+             "Population\r\n5+"="Pop_child",
              'Population\r\n12+'="Pop_teen",
              "Population, 16+"="Pop_adult",
              "Population, 65+"="Pop_old", 

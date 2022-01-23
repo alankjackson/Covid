@@ -21,20 +21,23 @@ knitr::opts_chunk$set(echo = TRUE)
 inpath <- "/home/ajackson/Dropbox/Rprojects/CovidTempData/TexasDataXcel/"
 utpath <- "/home/ajackson/Dropbox/Rprojects/Covid/"
 
-yesterday <- "2021-01-21"
+yesterday <- "2022-01-22"
 
 #         get cases
-df <- readxl::read_excel(paste0(inpath,"County_Case_Data_",yesterday,".xlsx"))
+df <- readxl::read_excel(paste0(inpath,"County_Case_Data_",yesterday,".xlsx"),
+                         sheet="Cases by County 2020")
 
-# No data for March 14
+# No data for March 14 ---- no longer true
 
-lastdate <- ncol(df)-11
+#lastdate <- ncol(df)-11
+lastdate <- ncol(df)-13
 
 my_colnames <- c(
                  ymd("2020-03-10"),  
                  ymd("2020-03-11"),  
                  ymd("2020-03-12"),  
                  ymd("2020-03-13"),  
+                 ymd("2020-03-14"),  
                  ymd("2020-03-15")+0:lastdate)
 
 my_colnames <- my_colnames %>% 
@@ -42,13 +45,15 @@ my_colnames <- my_colnames %>%
 my_colnames <- c("County", my_colnames)
 
 
-my_columns <- c(1, 7:ncol(df))
+#my_columns <- c(1, 7:ncol(df))
+my_columns <- c(1, 6:(ncol(df)-2))
 
 df <- df %>% 
   rename_at(my_columns,~ my_colnames)
   
 df <- df[3:256,]
-df <- df[-c(2:6)]
+df <- df[-c(2:5)]
+df <- df[1:(length(df)-2)]
 
 df <- df %>%
   mutate(Match=str_to_upper(County)) %>% 
@@ -56,44 +61,149 @@ df <- df %>%
 
 foo <- df %>% mutate(Cases=as.numeric(Cases))
 
+####   now do 2021
+
+#         get cases
+df <- readxl::read_excel(paste0(inpath,"County_Case_Data_",yesterday,".xlsx"),
+                         sheet="Cases by County 2021",
+                         range=cell_rows(4:257),
+                         col_names=FALSE)
+
+lastdate <- ncol(df)-2
+
+my_colnames <- c(ymd("2021-01-01")+0:lastdate)
+
+my_colnames <- my_colnames %>% 
+                 format('%Y-%m-%d')
+my_colnames <- c("County", my_colnames)
+
+df <- df %>% 
+  rename_at(1:366,~ my_colnames)
+  
+df <- df %>%
+  mutate(Match=str_to_upper(County)) %>% 
+  pivot_longer(-c(County, Match), names_to="Date", values_to="Cases")
+
+foo <- rbind(foo, df)
+
+# now do 2022
+
+#         get cases
+df <- readxl::read_excel(paste0(inpath,"County_Case_Data_",yesterday,".xlsx"),
+                         sheet="Cases by County 2022",
+                         range=cell_rows(4:257),
+                         col_names=FALSE)
+
+lastdate <- ncol(df)-3
+
+my_colnames <- c(ymd("2022-01-01")+0:lastdate)
+
+my_colnames <- my_colnames %>% 
+                 format('%Y-%m-%d')
+my_colnames <- c("County", my_colnames)
+
+#   Because deaths lag cases by 1 day, truncate cases so they will match up.
+# The update step will fill in the missing column.
+
+df <- df %>% 
+  rename_at(1:(length(df)-1),~ my_colnames) %>% 
+  select(1:(length(df)-1))
+  
+df <- df %>%
+  mutate(Match=str_to_upper(County)) %>% 
+  pivot_longer(-c(County, Match), names_to="Date", values_to="Cases")
+
+foo <- rbind(foo, df)
+
 ######################################
 # get deaths
 ######################################
 
-df <- readxl::read_excel(paste0(inpath,"Deaths_by_County_",yesterday,".xlsx"))
+#  2020
 
-my_columns <- c(1, 5:8, 10:ncol(df))
+df <- readxl::read_excel(paste0(inpath,"Deaths_by_County_",yesterday,".xlsx"),
+                         sheet="Fatalities by County 2020",
+                         range=cell_rows(4:257),
+                         col_names=FALSE)
+lastdate <- ncol(df)-5
 
-lastdate <- ncol(df)-10
-
-my_colnames <- c(
-                 ymd("2020-03-10"),  
-                 ymd("2020-03-11"),  
-                 ymd("2020-03-12"),  
-                 ymd("2020-03-13"),  
-                 ymd("2020-03-15")+0:lastdate)
+my_colnames <- c(ymd("2020-03-10")+0:lastdate)
 
 my_colnames <- my_colnames %>% 
                  format('%Y-%m-%d')
+
+my_columns <- c(1, 5:(ncol(df)))
+
 my_colnames <- c("Match", my_colnames)
 
 
 df <- df %>% 
   rename_at(my_columns,~ my_colnames)
 
-df <- df[3:256,]
-df <- df[-c(2:4, 9)]
-
-df <- df %>% mutate_at(vars(2:ncol(df)), as.numeric)
+df <- df %>% mutate_at(vars(2:ncol(df)), as.numeric) %>% 
+  mutate(Match=str_to_upper(Match)) %>% 
+  select(-c(2:4))
 
 df <- df %>% pivot_longer(-Match, names_to="Date", values_to="Deaths")
 
 df <- df %>% 
   mutate(Match=str_replace(Match, "DE WITT", "DEWITT"))
 
+foobar <- df
+
+#   Now 2021 ------------------
+
+df <- readxl::read_excel(paste0(inpath,"Deaths_by_County_",yesterday,".xlsx"),
+                         sheet="Fatalities by County 2021",
+                         range=cell_rows(4:257),
+                         col_names=FALSE)
+lastdate <- ncol(df)-2
+
+my_colnames <- c(ymd("2021-01-01")+0:lastdate)
+
+my_colnames <- my_colnames %>% 
+                 format('%Y-%m-%d')
+
+my_colnames <- c("Match", my_colnames)
+
+df <- df %>% 
+  rename_at(1:366,~ my_colnames)
+
+df <- df %>%
+  mutate(Match=str_to_upper(Match)) %>% 
+  pivot_longer(-c(Match), names_to="Date", values_to="Deaths")
+
+df <- df %>% 
+  mutate(Match=str_replace(Match, "DE WITT", "DEWITT"))
+
+foobar <- rbind(foobar, df)
+
+#   Now do 2022
+
+df <- readxl::read_excel(paste0(inpath,"Deaths_by_County_",yesterday,".xlsx"),
+                         sheet="Fatalities by County 2022",
+                         range=cell_rows(4:257),
+                         col_names=FALSE)
+lastdate <- ncol(df)-2
+
+my_colnames <- c(ymd("2022-01-01")+0:lastdate)
+
+my_colnames <- my_colnames %>% 
+                 format('%Y-%m-%d')
+my_colnames <- c("Match", my_colnames)
+
+df <- df %>% 
+  rename_at(1:length(df),~ my_colnames)
+  
+df <- df %>%
+  mutate(Match=str_to_upper(Match)) %>% 
+  pivot_longer(-c(Match), names_to="Date", values_to="Deaths")
+
+foobar <- rbind(foobar, df)
+
 #########################################
 
-foo <- left_join(foo, df, by=c("Match", "Date")) %>% 
+foo2 <- left_join(foo, foobar, by=c("Match", "Date")) %>% 
   select(-Match)
 
 foo$Cases <- as.numeric(foo$Cases)

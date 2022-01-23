@@ -56,7 +56,7 @@ cat("\n=============== UpdateData updates started =========\n\n")
 
 this_day <- lubridate::today()
 
-#this_day <- lubridate::ymd("2021-01-21")
+#this_day <- lubridate::ymd("2022-01-22")
 
 url <- "https://dshs.texas.gov/coronavirus/TexasCOVID19CaseCountData.xlsx"
 casecounts <- getBinaryURL(url, ssl.verifyhost=FALSE, ssl.verifypeer=FALSE)
@@ -87,12 +87,14 @@ writeBin(DailyCounts, paste0(path, "County_Case_Data_", this_day,".xlsx"))
 
 #   Cases and Deaths
 
-foo <- read_excel(casecounts_path) %>% 
-  #rename(County=1, Cases=2, Deaths=3) %>% 
-  rename(County=1, Cases=2, Deaths=4) %>% 
+foo <- read_excel(casecounts_path,
+                  sheet="Case and Fatalities_ALL",
+                  range=cell_rows(2:256)) %>% 
+  rename(County=1, Cases=2, Probable_Cases=3, Deaths=4) %>% 
+  select(County, Cases, Deaths) %>% 
   filter(County!="County", County!="Total") %>% 
   filter(!str_detect(County, "DSHS")) %>% 
-  mutate(Date=lubridate::today()) %>% 
+  mutate(Date=this_day) %>% 
   mutate(County=str_replace_all(County, "[\r\n]" , "")) %>% 
   mutate(County=str_replace(County, "SanAugustine", "San Augustine")) %>% 
   filter(County != "Probable cases are not included in the total case numbers") %>% 
