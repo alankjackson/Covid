@@ -203,7 +203,7 @@ foobar <- rbind(foobar, df)
 
 #########################################
 
-foo2 <- left_join(foo, foobar, by=c("Match", "Date")) %>% 
+foo <- left_join(foo, foobar, by=c("Match", "Date")) %>% 
   select(-Match)
 
 foo$Cases <- as.numeric(foo$Cases)
