@@ -524,6 +524,14 @@ Tests <- County_Testing %>%
   mutate(County=str_replace(County, "Total", "TOTAL")) %>% 
   mutate(Date=ymd(Date))
 
+#   Fill out test file with constants since they are no longer being posted
+Last_tests <- Tests %>% filter(Date==ymd("2022-04-05"))
+New_dates <- as_date(ymd("2022-04-06"):today())
+for (i in 1:length(New_dates)){
+  Last_tests$Date <- New_dates[i]
+  Tests <- rbind(Tests, Last_tests)
+} 
+
 print("-- test 1 --")
 #   De-step
 
